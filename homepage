@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dorrance.me</title>
+    <style>
+        /* Center the table on the page */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        
+        table {
+            border-collapse: collapse;
+            width: 60%;
+            text-align: center;
+        }
+        
+        td {
+            padding: 20px;
+            border: 1px solid #333;
+        }
+        
+        /* Style for the images */
+        img {
+            width: 50px;
+            height: 50px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>dorrance.me</h1>
+    <table>
+        <tr>
+            <td><a href="https://www.youtube.com" target="_blank"><img src="youtube-icon.png" alt="YouTube"></a></td>
+            <td><a href="https://www.twitter.com" target="_blank"><img src="twitter-icon.png" alt="Twitter"></a></td>
+            <td><a href="https://www.instagram.com" target="_blank"><img src="instagram-icon.png" alt="Instagram"></a></td>
+        </tr>
+        <tr>
+            <td><a href="https://www.reddit.com" target="_blank"><img src="reddit-icon.png" alt="Reddit"></a></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </table>
+
+</body>
+</html>
