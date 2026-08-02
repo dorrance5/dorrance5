@@ -1,7 +1,7 @@
 /* Calculator — offline cache.
    Bump CACHE below whenever you upload a changed index.html,
    otherwise phones may keep serving the old copy. */
-const CACHE = "calculator-v1";
+const CACHE = "calculator-v2";
 const FILES = ["./", "./index.html", "./icon.png"];
 
 self.addEventListener("install", e => {

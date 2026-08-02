@@ -1,498 +1,74 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
 <head>
-<meta charset="utf-8">
-<title>Calculator</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Calculator">
-<meta name="theme-color" content="#0E0A1E">
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="icon" href="icon.png">
-<style>
-  :root{
-    --ui:system-ui,-apple-system,"SF Pro Display","Segoe UI",Roboto,sans-serif;
-    --ink:#FFFFFF;
-    --dim:rgba(255,255,255,.58);
-    --faint:rgba(255,255,255,.34);
-    --gap:7px;
-  }
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%;overflow:hidden}
-  body{font-family:var(--ui);color:var(--ink);background:#0E0A1E;-webkit-font-smoothing:antialiased}
-
-  /* ---- living backdrop ---- */
-  .field{position:fixed;inset:-25%;z-index:0;filter:blur(58px) saturate(150%)}
-  .blob{position:absolute;border-radius:50%;mix-blend-mode:screen}
-  .b1{width:74vw;height:74vw;background:#6A3CE0;top:2%;left:-12%;animation:d1 26s ease-in-out infinite}
-  .b2{width:66vw;height:66vw;background:#1E9BE0;top:32%;right:-16%;animation:d2 31s ease-in-out infinite}
-  .b3{width:58vw;height:58vw;background:#E0603C;bottom:2%;left:8%;animation:d3 24s ease-in-out infinite}
-  .b4{width:50vw;height:50vw;background:#17B79A;bottom:20%;right:6%;animation:d1 35s ease-in-out infinite reverse}
-  @keyframes d1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(14%,10%) scale(1.16)}}
-  @keyframes d2{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-16%,-9%) scale(.9)}}
-  @keyframes d3{0%,100%{transform:translate(0,0) scale(.95)}50%{transform:translate(11%,-13%) scale(1.2)}}
-  .veil{position:fixed;inset:0;z-index:1;pointer-events:none;
-        background:radial-gradient(120% 80% at 50% 0%,rgba(0,0,0,.18),rgba(0,0,0,.60))}
-  @media (prefers-reduced-motion:reduce){.blob{animation:none}}
-
-  /* ---- glass ---- */
-  .glass{position:relative;background:rgba(255,255,255,.11);
-    -webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%);
-    border:.5px solid rgba(255,255,255,.30);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.42),inset 0 -1px 0 rgba(255,255,255,.10),
-               0 6px 22px rgba(0,0,0,.22);
-    overflow:hidden}
-  .glass::before{content:"";position:absolute;inset:0;pointer-events:none;
-    background:linear-gradient(160deg,rgba(255,255,255,.32) 0%,rgba(255,255,255,.05) 34%,transparent 60%)}
-
-  #app{position:relative;z-index:2;height:100%;max-width:540px;margin:0 auto;
-       display:flex;flex-direction:column;
-       padding:calc(env(safe-area-inset-top) + 8px) 12px calc(env(safe-area-inset-bottom) + 10px)}
-
-  /* ---- display ---- */
-  .display{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;
-           padding:16px 16px 15px;border-radius:26px;margin-bottom:9px}
-  .expr{font-size:15px;color:var(--dim);text-align:right;min-height:20px;font-variant-numeric:tabular-nums}
-  .value{text-align:right;line-height:.95;margin-top:8px;font-size:clamp(42px,14vw,64px);
-         font-weight:300;letter-spacing:-.025em;font-variant-numeric:tabular-nums;
-         text-shadow:0 1px 14px rgba(0,0,0,.28);word-break:break-word}
-  .value.err{font-size:17px;font-weight:500;color:#FFD08A;letter-spacing:0}
-  .fr{display:inline-flex;flex-direction:column;align-items:center;font-size:.42em;line-height:1.06;
-      vertical-align:.44em;margin-left:.14em;font-weight:500}
-  .fr .den{border-top:1.5px solid currentColor;padding-top:1px;margin-top:1px}
-  .fr.nlit .top{color:#7FE7F5}
-  .fr.dlit .den{color:#C9A8FF}
-  .alt{text-align:right;font-size:12px;color:var(--faint);margin-top:11px;min-height:16px;
-       font-variant-numeric:tabular-nums}
-  .alt b{color:var(--dim);font-weight:500}
-  .alt .sep{padding:0 6px;opacity:.45}
-
-  /* ---- hamburger ---- */
-  .menu{position:absolute;top:13px;left:13px;width:40px;height:40px;border-radius:14px;
-        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-        cursor:pointer;z-index:3;border:.5px solid rgba(255,255,255,.28)}
-  .menu i{display:block;width:16px;height:1.6px;border-radius:1px;background:rgba(255,255,255,.85)}
-  .menu:active{transform:scale(.92)}
-  .dot{position:absolute;top:9px;right:9px;width:6px;height:6px;border-radius:50%;background:#FFC15E;
-       box-shadow:0 0 7px rgba(255,193,94,.9);opacity:0;transition:opacity .2s}
-  .dot.on{opacity:1}
-
-  /* ---- keypad ---- */
-  .pad{flex:0 0 auto;height:clamp(420px,65vh,610px);display:grid;
-       grid-template-columns:1.5fr 2.9fr 1fr;gap:var(--gap)}
-  .zone{display:grid;gap:var(--gap);min-height:0}
-  .zone.whole{grid-template-columns:1fr 1fr;grid-template-rows:repeat(6,1fr)}
-  .zone.ops{grid-template-rows:repeat(6,1fr)}
-  .frac{display:flex;flex-direction:column;gap:var(--gap);min-height:0}
-  .subpad{flex:1 1 0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(4,1fr);
-          gap:var(--gap);min-height:0}
-  .subpad .wide{grid-column:span 2}
-
-  .bar{flex:0 0 auto;height:13px;border-radius:6.5px;background:rgba(255,255,255,.55);position:relative;
-       box-shadow:0 0 14px rgba(255,255,255,.28),inset 0 1px 0 rgba(255,255,255,.9)}
-
-  button{font-family:var(--ui);font-weight:300;color:var(--ink);
-         border-radius:21px;border:.5px solid rgba(255,255,255,.26);
-         background:rgba(255,255,255,.13);
-         -webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);
-         box-shadow:inset 0 1px 0 rgba(255,255,255,.40),0 3px 12px rgba(0,0,0,.18);
-         display:flex;align-items:center;justify-content:center;
-         cursor:pointer;touch-action:manipulation;user-select:none;min-width:0;min-height:0;
-         text-shadow:0 1px 6px rgba(0,0,0,.3);
-         transition:transform .08s ease,filter .08s ease}
-  button:active{transform:scale(.94);filter:brightness(1.45)}
-  button:focus-visible{outline:2px solid #FFC15E;outline-offset:2px}
-
-  .zone.whole button{font-size:clamp(24px,6.6vw,32px)}
-  .subpad button{font-size:clamp(19px,5.2vw,25px);border-radius:17px}
-  .zone.ops button{font-size:clamp(24px,6.6vw,32px);font-weight:400}
-
-  .num button{background:rgba(64,208,232,.19);border-color:rgba(140,240,255,.34)}
-  .den button{background:rgba(168,120,255,.19);border-color:rgba(206,176,255,.34)}
-  .zone.ops button{background:rgba(72,146,255,.26);border-color:rgba(150,196,255,.40)}
-  .zone.ops button.clear{background:rgba(255,92,92,.28);border-color:rgba(255,160,160,.42);
-                         font-size:21px;font-weight:500}
-  .zone.ops button.eq{background:rgba(255,166,48,.42);border-color:rgba(255,206,140,.55);font-weight:500}
-  .subpad button.del{font-size:12.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:600;
-                     color:rgba(255,255,255,.72)}
-  .zone.whole button.sym{font-size:21px;color:rgba(255,255,255,.72)}
-
-  /* ---- history panel ---- */
-  .scrim{position:fixed;inset:0;z-index:8;background:rgba(6,3,16,.5);opacity:0;pointer-events:none;
-         transition:opacity .26s;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
-  .scrim.on{opacity:1;pointer-events:auto}
-  .panel{position:fixed;top:0;bottom:0;left:0;z-index:9;width:min(350px,87vw);
-         border-radius:0 26px 26px 0;border-left:none;
-         display:flex;flex-direction:column;
-         transform:translateX(-101%);transition:transform .3s cubic-bezier(.3,.9,.25,1)}
-  .panel.on{transform:translateX(0)}
-  @media (prefers-reduced-motion:reduce){.panel{transition:none}.scrim{transition:none}}
-  .phead{flex:0 0 auto;display:flex;align-items:center;gap:7px;
-         padding:calc(env(safe-area-inset-top) + 16px) 15px 13px;
-         border-bottom:.5px solid rgba(255,255,255,.16)}
-  .ptitle{flex:1;font-size:19px;font-weight:600;letter-spacing:-.01em}
-  .pill{flex:0 0 auto;height:32px;padding:0 14px;border-radius:16px;font-size:12.5px;font-weight:600;
-        letter-spacing:.02em;background:rgba(255,255,255,.16);border:.5px solid rgba(255,255,255,.3)}
-  .pill.danger{background:rgba(255,92,92,.26);border-color:rgba(255,160,160,.4)}
-  .rows{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;
-        padding:10px 12px calc(env(safe-area-inset-bottom) + 16px)}
-  .row{width:100%;display:block;text-align:right;padding:12px 14px;margin-bottom:8px;
-       border-radius:17px;background:rgba(255,255,255,.09);border:.5px solid rgba(255,255,255,.17);
-       box-shadow:none;font-weight:300}
-  .row:active{transform:scale(.98);filter:brightness(1.3)}
-  .rexpr{font-size:12.5px;color:var(--faint);font-variant-numeric:tabular-nums;margin-bottom:3px}
-  .rres{font-size:27px;line-height:1.05;font-variant-numeric:tabular-nums}
-  .rres .fr{font-size:.44em;vertical-align:.42em}
-  .empty{padding:40px 22px;text-align:center;font-size:13px;color:var(--faint);line-height:1.55}
-
-  .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 26px);z-index:20;
-         transform:translate(-50%,14px);opacity:0;pointer-events:none;
-         padding:11px 20px;border-radius:20px;font-size:13px;font-weight:500;
-         background:rgba(20,14,42,.82);border:.5px solid rgba(255,255,255,.26);
-         -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
-         transition:opacity .22s,transform .22s}
-  .toast.on{opacity:1;transform:translate(-50%,0)}
-</style>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2685.6">
+  <style type="text/css">
+    body {background-color: #0c0917}
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'Helvetica Neue'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #561cd8; min-height: 15.0px}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'Helvetica Neue'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #1d87d8; min-height: 15.0px}
+    p.p3 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'Helvetica Neue'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #d64a2e; min-height: 15.0px}
+    p.p4 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'Helvetica Neue'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #1dab88; min-height: 15.0px}
+    p.p5 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'Helvetica Neue'; color: #ffffff; -webkit-text-stroke: #ffffff; min-height: 15.0px}
+    p.p6 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'Helvetica Neue'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #07030e; background-color: rgba(7, 3, 14, 0.5); min-height: 15.0px}
+    p.p7 {margin: 0.0px 0.0px 0.0px 0.0px; font: 19.0px '.SF NS'; color: #ffffff; -webkit-text-stroke: #ffffff}
+    p.p8 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.5px '.SF NS'; color: #ffffff; -webkit-text-stroke: #ffffff}
+    p.p9 {margin: 0.0px 0.0px 0.0px 0.0px; font: 11.0px '.SF NS'; color: #ffffff; color: rgba(255, 255, 255, 0.34); -webkit-text-stroke: rgba(255, 255, 255, 0.34)}
+    p.p10 {margin: 0.0px 0.0px 0.0px 0.0px; font: 13.0px '.SF NS'; color: #ffffff; -webkit-text-stroke: #ffffff}
+    p.p11 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: center; font: 11.0px '.SF NS Light'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #ffffff; background-color: rgba(255, 255, 255, 0.85); min-height: 13.0px}
+    p.p12 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: center; font: 11.0px '.SF NS'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #fdb54c; min-height: 13.0px}
+    p.p13 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: right; font: 15.0px 'Helvetica Neue'; color: #ffffff; color: rgba(255, 255, 255, 0.58); -webkit-text-stroke: rgba(255, 255, 255, 0.58); min-height: 18.0px}
+    p.p14 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: right; font: 64.0px '.SF NS'; color: #ffffff; -webkit-text-stroke: #ffffff}
+    p.p15 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: right; font: 12.0px 'Helvetica Neue'; color: #ffffff; color: rgba(255, 255, 255, 0.34); -webkit-text-stroke: rgba(255, 255, 255, 0.34); min-height: 15.0px}
+    p.p16 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'Helvetica Neue'; color: #ffffff; -webkit-text-stroke: #ffffff}
+    p.p17 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'Helvetica Neue'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #ffffff; background-color: rgba(255, 255, 255, 0.55); min-height: 15.0px}
+    p.p18 {margin: 0.0px 0.0px 0.0px 0.0px; font: 25.0px '.SF NS'; color: #ffffff; -webkit-text-stroke: #ffffff}
+    p.p19 {margin: 0.0px 0.0px 0.0px 0.0px; font: 13.0px '.SF NS'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #100b1f; background-color: rgba(16, 11, 31, 0.82); min-height: 16.0px}
+    span.s1 {font-kerning: none}
+    span.s2 {font-kerning: none; background-color: rgba(255, 255, 255, 0.11)}
+    span.s3 {font-kerning: none; background-color: rgba(255, 255, 255, 0.16); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s4 {font: 12.0px 'Helvetica Neue'; font-kerning: none; background-color: rgba(255, 255, 255, 0.11)}
+    span.s5 {font-kerning: none; background-color: rgba(252, 67, 74, 0.26); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s6 {font-kerning: none; background-color: rgba(255, 255, 255, 0.09)}
+    span.s7 {font-kerning: none; text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s8 {font-kerning: none; background-color: rgba(255, 255, 255, 0.11); text-shadow: 0.0px 1.0px 14.0px rgba(255, 255, 255, 0)}
+    span.s9 {font: 32.0px '.SF NS'; font-kerning: none; background-color: rgba(255, 255, 255, 0.13); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s10 {font: 21.0px '.SF NS'; font-kerning: none; color: rgba(255, 255, 255, 0.72); background-color: rgba(255, 255, 255, 0.13); -webkit-text-stroke: 0px rgba(255, 255, 255, 0.72); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s11 {font: 25.0px '.SF NS'; font-kerning: none; background-color: rgba(56, 198, 226, 0.19); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s12 {font: 12.5px '.SF NS'; font-kerning: none; color: rgba(255, 255, 255, 0.72); background-color: rgba(56, 198, 226, 0.19); -webkit-text-stroke: 0px rgba(255, 255, 255, 0.72); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s13 {font-kerning: none; background-color: rgba(150, 91, 255, 0.19); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s14 {font: 12.0px 'Helvetica Neue'; font-kerning: none}
+    span.s15 {font: 12.5px '.SF NS'; font-kerning: none; color: rgba(255, 255, 255, 0.72); background-color: rgba(150, 91, 255, 0.19); -webkit-text-stroke: 0px rgba(255, 255, 255, 0.72); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s16 {font: 21.0px '.SF NS'; font-kerning: none; background-color: rgba(252, 67, 74, 0.28); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s17 {font: 32.0px 'Helvetica Neue'; font-kerning: none; background-color: rgba(58, 123, 255, 0.26); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+    span.s18 {font: 32.0px '.SF NS'; font-kerning: none; background-color: rgba(253, 149, 38, 0.42); text-shadow: 0.0px 1.0px 6.0px rgba(255, 255, 255, 0)}
+  </style>
 </head>
 <body>
-
-<div class="field">
-  <div class="blob b1"></div><div class="blob b2"></div>
-  <div class="blob b3"></div><div class="blob b4"></div>
-</div>
-<div class="veil"></div>
-
-<div class="scrim" id="scrim"></div>
-
-<aside class="panel glass" id="panel" aria-label="History">
-  <div class="phead">
-    <div class="ptitle">History</div>
-    <button class="pill" id="copyBtn">Copy</button>
-    <button class="pill danger" id="wipeBtn">Clear</button>
-  </div>
-  <div class="rows" id="rows"></div>
-</aside>
-
-<div id="app">
-
-  <div class="display glass">
-    <button class="menu glass" id="menuBtn" aria-label="History" aria-expanded="false">
-      <i></i><i></i><i></i><span class="dot" id="dot"></span>
-    </button>
-    <div class="expr" id="expr"></div>
-    <div class="value" id="value">0</div>
-    <div class="alt" id="alt"></div>
-  </div>
-
-  <div class="pad">
-
-    <div class="zone whole" aria-label="Whole number">
-      <button data-k="w9">9</button><button data-k="w8">8</button>
-      <button data-k="w7">7</button><button data-k="w6">6</button>
-      <button data-k="w5">5</button><button data-k="w4">4</button>
-      <button data-k="w3">3</button><button data-k="w2">2</button>
-      <button data-k="w1">1</button><button data-k="w0">0</button>
-      <button class="sym" data-k="neg" aria-label="Positive or negative">&plusmn;</button>
-      <button class="sym" data-k="wdot" aria-label="Decimal point">.</button>
-    </div>
-
-    <div class="frac">
-      <div class="subpad num" aria-label="Numerator">
-        <button data-k="n7">7</button><button data-k="n8">8</button><button data-k="n9">9</button>
-        <button data-k="n4">4</button><button data-k="n5">5</button><button data-k="n6">6</button>
-        <button data-k="n1">1</button><button data-k="n2">2</button><button data-k="n3">3</button>
-        <button data-k="n0">0</button><button class="wide del" data-k="ndel">del</button>
-      </div>
-
-      <div class="bar"></div>
-
-      <div class="subpad den" aria-label="Denominator">
-        <button data-k="d7">7</button><button data-k="d8">8</button><button data-k="d9">9</button>
-        <button data-k="d4">4</button><button data-k="d5">5</button><button data-k="d6">6</button>
-        <button data-k="d1">1</button><button data-k="d2">2</button><button data-k="d3">3</button>
-        <button data-k="d0">0</button><button class="wide del" data-k="ddel">del</button>
-      </div>
-    </div>
-
-    <div class="zone ops">
-      <button class="clear" data-k="clear" id="clearKey">AC</button>
-      <button data-k="&divide;">&divide;</button>
-      <button data-k="&times;">&times;</button>
-      <button data-k="&minus;">&minus;</button>
-      <button data-k="+">+</button>
-      <button class="eq" data-k="=">=</button>
-    </div>
-
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
-
-<script>
-(function(){
-  "use strict";
-
-  /* ================= exact rational arithmetic ================= */
-  function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a;}
-  function F(n,d){ if(!d) return null; if(d<0){n=-n;d=-d;} var g=gcd(n,d)||1; return {n:n/g,d:d/g}; }
-  function add(a,b){return F(a.n*b.d+b.n*a.d,a.d*b.d);}
-  function sub(a,b){return F(a.n*b.d-b.n*a.d,a.d*b.d);}
-  function mul(a,b){return F(a.n*b.n,a.d*b.d);}
-  function dvd(a,b){return b.n===0?null:F(a.n*b.d,a.d*b.n);}
-  function apply(o,a,b){return o==="+"?add(a,b):o==="\u2212"?sub(a,b):o==="\u00d7"?mul(a,b):dvd(a,b);}
-  function isPow2(d){return (d&(d-1))===0;}
-
-  /* ================= state ================= */
-  var cur={w:"",n:"",d:"",neg:false};
-  var acc=null, pend=null, justEq=false, err=null;
-  var parts=[];
-  var hist=[];
-
-  /* history is stored on this device only, under this web address */
-  try{
-    var raw=localStorage.getItem("calculator.hist");
-    if(raw) hist=JSON.parse(raw)||[];
-  }catch(e){ hist=[]; }
-  function save(){ try{ localStorage.setItem("calculator.hist",JSON.stringify(hist)); }catch(e){} }
-
-  var exprEl=document.getElementById("expr"),
-      valEl=document.getElementById("value"),
-      altEl=document.getElementById("alt"),
-      clearKey=document.getElementById("clearKey"),
-      rowsEl=document.getElementById("rows"),
-      panel=document.getElementById("panel"),
-      scrim=document.getElementById("scrim"),
-      menuBtn=document.getElementById("menuBtn"),
-      dot=document.getElementById("dot"),
-      toastEl=document.getElementById("toast");
-
-  function blank(){return cur.w===""&&cur.n===""&&cur.d===""&&!cur.neg;}
-  function reset(){cur={w:"",n:"",d:"",neg:false};}
-
-  function curFrac(){
-    var n=cur.n===""?0:parseInt(cur.n,10);
-    var d=cur.d===""?1:parseInt(cur.d,10);
-    if(d===0) return null;
-    var wf;
-    if(cur.w.indexOf(".")>-1){
-      var f2=cur.w.split(".")[1]||"", p=Math.pow(10,f2.length);
-      wf=F(Math.round(parseFloat(cur.w)*p),p);
-    } else wf=F(cur.w===""?0:parseInt(cur.w,10),1);
-    var f=add(wf,F(n,d));
-    if(cur.neg) f={n:-f.n,d:f.d};
-    return f;
-  }
-
-  /* ================= formatting ================= */
-  function frGlyph(n,d,cls){
-    return '<span class="fr '+(cls||"")+'"><span class="top">'+n+'</span><span class="den">'+d+'</span></span>';
-  }
-  function mixedHTML(f){
-    var s=f.n<0?"\u2212":"", n=Math.abs(f.n), w=Math.floor(n/f.d), r=n-w*f.d;
-    if(r===0) return s+w;
-    if(w===0) return s+frGlyph(r,f.d);
-    return s+w+frGlyph(r,f.d);
-  }
-  function mixedText(f){
-    var s=f.n<0?"\u2212":"", n=Math.abs(f.n), w=Math.floor(n/f.d), r=n-w*f.d;
-    if(r===0) return s+w;
-    if(w===0) return s+r+"/"+f.d;
-    return s+w+" "+r+"/"+f.d;
-  }
-  function entryHTML(){
-    var out=cur.neg?"\u2212":"";
-    if(cur.w!=="") out+=cur.w;
-    if(cur.n!==""||cur.d!==""){
-      out+=frGlyph(cur.n===""?"\u00b7":cur.n, cur.d===""?"\u00b7":cur.d,
-                   (cur.n===""?"":"nlit")+" "+(cur.d===""?"":"dlit"));
-    }
-    return out===""?"0":out;
-  }
-
-  /* ================= toast ================= */
-  var toastT;
-  function toast(msg){
-    toastEl.textContent=msg; toastEl.classList.add("on");
-    clearTimeout(toastT); toastT=setTimeout(function(){toastEl.classList.remove("on");},1900);
-  }
-
-  /* ================= history ================= */
-  function pushHist(expr,res){
-    hist.unshift({expr:expr,res:res});
-    if(hist.length>200) hist.pop();
-    save(); paintHist();
-    if(!panel.classList.contains("on")) dot.classList.add("on");
-  }
-
-  function paintHist(){
-    if(!hist.length){
-      rowsEl.innerHTML='<div class="empty">Nothing yet.<br>Results land here when you press&nbsp;=</div>';
-      return;
-    }
-    var html="";
-    for(var i=0;i<hist.length;i++){
-      html+='<button class="row" data-i="'+i+'">'+
-              '<div class="rexpr">'+hist[i].expr+'</div>'+
-              '<div class="rres">'+mixedHTML(hist[i].res)+'</div>'+
-            '</button>';
-    }
-    rowsEl.innerHTML=html;
-  }
-
-  function histText(){
-    var lines=["Fraction calculations",""];
-    for(var i=hist.length-1;i>=0;i--) lines.push(hist[i].expr+" = "+mixedText(hist[i].res));
-    return lines.join("\n");
-  }
-
-  function legacyCopy(text){
-    var ta=document.createElement("textarea");
-    ta.value=text; ta.setAttribute("readonly","");
-    ta.style.cssText="position:fixed;top:0;left:0;opacity:0;";
-    document.body.appendChild(ta);
-    ta.select(); ta.setSelectionRange(0,text.length);
-    var ok=false;
-    try{ ok=document.execCommand("copy"); }catch(e){ ok=false; }
-    document.body.removeChild(ta);
-    return ok;
-  }
-
-  function copyHist(){
-    if(!hist.length){ toast("Nothing to copy yet"); return; }
-    var text=histText(), n=hist.length;
-    if(navigator.clipboard && window.isSecureContext){
-      navigator.clipboard.writeText(text).then(
-        function(){ toast("Copied \u2014 "+n+" calculations"); },
-        function(){ toast(legacyCopy(text)?"Copied \u2014 "+n+" calculations":"Couldn't reach the clipboard"); });
-    } else {
-      toast(legacyCopy(text)?"Copied \u2014 "+n+" calculations":"Couldn't reach the clipboard");
-    }
-  }
-
-  function openPanel(){ panel.classList.add("on"); scrim.classList.add("on");
-                        menuBtn.setAttribute("aria-expanded","true"); dot.classList.remove("on"); }
-  function closePanel(){ panel.classList.remove("on"); scrim.classList.remove("on");
-                         menuBtn.setAttribute("aria-expanded","false"); }
-
-  menuBtn.addEventListener("click",function(){
-    panel.classList.contains("on")?closePanel():openPanel();
-  });
-  scrim.addEventListener("click",closePanel);
-  document.getElementById("copyBtn").addEventListener("click",copyHist);
-  document.getElementById("wipeBtn").addEventListener("click",function(){
-    if(!hist.length){ toast("History is already empty"); return; }
-    hist=[]; save(); paintHist(); toast("History cleared");
-  });
-  rowsEl.addEventListener("click",function(e){
-    var row=e.target.closest?e.target.closest(".row"):null;
-    if(!row) return;
-    var h=hist[+row.dataset.i];
-    acc=h.res; pend=null; parts=[]; reset(); justEq=true; err=null;
-    closePanel(); render();
-  });
-  document.addEventListener("keydown",function(e){ if(e.key==="Escape") closePanel(); });
-
-  /* ================= render ================= */
-  function render(){
-    clearKey.textContent=(blank()&&acc===null)?"AC":"C";
-
-    if(err){
-      exprEl.textContent="";
-      valEl.className="value err"; valEl.textContent=err;
-      altEl.innerHTML=""; return;
-    }
-
-    exprEl.textContent=parts.join(" ");
-
-    var live;
-    if(!blank()){ live=curFrac(); valEl.innerHTML=entryHTML(); }
-    else { live=acc; valEl.innerHTML = acc!==null ? mixedHTML(acc) : "0"; }
-    valEl.className="value";
-
-    if(!live){ altEl.innerHTML=""; return; }
-    var dec=live.n/live.d;
-    var bits=['<b>'+live.n+"/"+live.d+'</b>',
-              dec.toFixed(4).replace(/0+$/,"").replace(/\.$/,"")];
-    if(!isPow2(live.d)||live.d>64){
-      bits.push('\u2248 '+mixedText(F(Math.round(dec*16),16))+' to 1/16');
-    }
-    altEl.innerHTML=bits.join('<span class="sep">\u00b7</span>');
-  }
-
-  /* ================= input ================= */
-  function press(k){
-    if(err && k!=="clear") err=null;
-
-    if(k==="clear"){
-      if(!blank()) reset(); else { acc=null; pend=null; parts=[]; }
-      err=null; justEq=false; render(); return;
-    }
-    if(k==="ndel"){ cur.n=cur.n.slice(0,-1); render(); return; }
-    if(k==="ddel"){ cur.d=cur.d.slice(0,-1); render(); return; }
-    if(k==="neg"){ cur.neg=!cur.neg; render(); return; }
-
-    if(k==="="){
-      var v = blank() ? (acc||F(0,1)) : curFrac();
-      if(!v){ err="A denominator can't be zero."; reset(); render(); return; }
-      var full=parts.concat([blank() ? (acc?mixedText(acc):"0") : mixedText(v)]);
-      var r = (pend && acc!==null) ? apply(pend,acc,v) : v;
-      if(!r){ err="Can't divide by zero."; reset(); pend=null; parts=[]; render(); return; }
-      if(parts.length) pushHist(full.join(" "),r);
-      acc=r; pend=null; parts=[]; reset(); justEq=true; render(); return;
-    }
-
-    if("+\u2212\u00d7\u00f7".indexOf(k)>-1){
-      if(blank()){
-        if(acc!==null){
-          pend=k;
-          if(!parts.length) parts=[mixedText(acc),k];
-          else parts[parts.length-1]=k;
-        }
-      } else {
-        var val=curFrac();
-        if(!val){ err="A denominator can't be zero."; reset(); render(); return; }
-        parts.push(mixedText(val)); parts.push(k);
-        if(acc===null||!pend) acc=val;
-        else {
-          var res=apply(pend,acc,val);
-          if(!res){ err="Can't divide by zero."; reset(); pend=null; parts=[]; render(); return; }
-          acc=res;
-        }
-        pend=k; reset();
-      }
-      justEq=false; render(); return;
-    }
-
-    if(justEq){ acc=null; pend=null; parts=[]; reset(); justEq=false; }
-
-    var field=k.charAt(0), ch=k.slice(1);
-    if(field==="w"){
-      if(ch==="dot"){ if(cur.w.indexOf(".")<0) cur.w=(cur.w===""?"0.":cur.w+"."); }
-      else if(cur.w.replace(".","").length<7){ cur.w=(cur.w==="0"?"":cur.w)+ch; }
-    } else if(field==="n"){
-      if(cur.n.length<4) cur.n=(cur.n==="0"?"":cur.n)+ch;
-    } else if(field==="d"){
-      if(cur.d.length<4) cur.d=(cur.d==="0"?"":cur.d)+ch;
-    }
-    render();
-  }
-
-  document.querySelectorAll(".pad button").forEach(function(b){
-    b.addEventListener("click",function(){ press(b.dataset.k); });
-  });
-
-  paintHist();
-  render();
-
-  /* keeps it working with no signal */
-  if("serviceWorker" in navigator){
-    window.addEventListener("load",function(){
-      navigator.serviceWorker.register("sw.js").catch(function(){});
-    });
-  }
-})();
-</script>
+<p class="p1"><span class="s1"></span><br></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p3"><span class="s1"></span><br></p>
+<p class="p4"><span class="s1"></span><br></p>
+<p class="p5"><span class="s1"></span><br></p>
+<p class="p6"><span class="s1"></span><br></p>
+<p class="p7"><span class="s2"><b>History</b><b></b></span></p>
+<p class="p8"><span class="s3"><b>Copy</b></span><span class="s4"> </span><span class="s5"><b>Clear</b><b></b></span></p>
+<p class="p9"><span class="s2"><b>THEME</b><b></b></span></p>
+<p class="p10"><span class="s6"><b>Day</b></span><span class="s4"> </span><span class="s6"><b>Night</b></span><span class="s4"> </span><span class="s6"><b>Aurora</b><b></b></span></p>
+<p class="p5"><span class="s1"></span><br></p>
+<p class="p11"><span class="s7"><i></i></span><br></p>
+<p class="p11"><span class="s7"><i></i></span><br></p>
+<p class="p11"><span class="s7"><i></i></span><br></p>
+<p class="p12"><span class="s7"></span><br></p>
+<p class="p13"><span class="s1"></span><br></p>
+<p class="p14"><span class="s8">0</span></p>
+<p class="p15"><span class="s1"></span><br></p>
+<p class="p16"><span class="s9">98</span><span class="s1"> </span><span class="s9">76</span><span class="s1"> </span><span class="s9">54</span><span class="s1"> </span><span class="s9">32</span><span class="s1"> </span><span class="s9">10</span><span class="s1"> </span><span class="s10">±</span><span class="s1"> </span><span class="s10">.</span><span class="s1"> </span><span class="s11">789</span><span class="s1"> </span><span class="s11">456</span><span class="s1"> </span><span class="s11">123</span><span class="s1"> </span><span class="s11">0</span><span class="s12"><b>DEL</b><b></b></span></p>
+<p class="p17"><span class="s1"></span><br></p>
+<p class="p18"><span class="s13">789</span><span class="s14"> </span><span class="s13">456</span><span class="s14"> </span><span class="s13">123</span><span class="s14"> </span><span class="s13">0</span><span class="s15"><b>DEL</b></span><span class="s14"> </span><span class="s16">AC</span><span class="s14"> </span><span class="s17">÷</span><span class="s14"> </span><span class="s17">×</span><span class="s14"> </span><span class="s17">−</span><span class="s14"> </span><span class="s17">+</span><span class="s14"> </span><span class="s18">=</span></p>
+<p class="p19"><span class="s1"></span><br></p>
 </body>
 </html>
