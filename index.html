@@ -27,7 +27,15 @@ body{
   padding:max(24px,env(safe-area-inset-top)) 16px max(32px,env(safe-area-inset-bottom));
 }
 main{max-width:880px;margin:0 auto;position:relative;z-index:2}
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 28px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 28px;position:relative;z-index:5}
+.menu-wrap{position:relative}
+.burger{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0}
+.burger i{display:block;width:18px;height:2px;border-radius:2px;background:var(--text)}
+.menu{position:absolute;right:0;top:52px;background:var(--surface);border:1px solid var(--line);border-radius:16px;
+  padding:12px;box-shadow:0 12px 32px rgba(0,0,0,.18);animation:pop .15s ease-out}
+.menu-label{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin:0 0 8px 4px}
+@keyframes pop{from{opacity:0;transform:translateY(-4px)}}
 h1{font-size:28px;margin:0;letter-spacing:-.02em}
 
 .seg{display:flex;background:var(--line);border-radius:12px;padding:3px}
@@ -47,12 +55,13 @@ h1{font-size:28px;margin:0;letter-spacing:-.02em}
 @keyframes d2{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-16%,-9%) scale(.9)}}
 @keyframes d3{0%,100%{transform:translate(0,0) scale(.95)}50%{transform:translate(11%,-13%) scale(1.2)}}
 [data-theme="aurora"] .app,
-[data-theme="aurora"] .seg{
+[data-theme="aurora"] .burger{
   position:relative;overflow:hidden;
   -webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%);
   border:.5px solid rgba(255,255,255,.3);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.42),inset 0 -1px 0 rgba(255,255,255,.1),0 6px 22px rgba(0,0,0,.22);
 }
+[data-theme="aurora"] .menu{background:rgba(20,14,42,.82);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border:.5px solid rgba(255,255,255,.22)}
 [data-theme="aurora"] .seg{background:rgba(255,255,255,.08)}
 [data-theme="aurora"] .seg button.on{background:rgba(255,255,255,.22);box-shadow:none}
 [data-theme="aurora"] .app::before{content:"";position:absolute;inset:0;pointer-events:none;
@@ -106,8 +115,14 @@ dialog::backdrop{background:transparent}
 <main>
   <header>
     <h1>dorrance.me</h1>
-    <div class="seg" id="theme" role="group" aria-label="Theme">
-      <button data-t="auto">Auto</button><button data-t="light">Day</button><button data-t="dark">Night</button><button data-t="aurora">Aurora</button>
+    <div class="menu-wrap">
+      <button class="burger" id="burger" aria-label="Menu" aria-expanded="false" aria-controls="menu"><i></i><i></i><i></i></button>
+      <div class="menu" id="menu" hidden>
+        <div class="menu-label">Theme</div>
+        <div class="seg" id="theme" role="group" aria-label="Theme">
+          <button data-t="auto">Auto</button><button data-t="light">Day</button><button data-t="dark">Night</button><button data-t="aurora">Aurora</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -156,6 +171,12 @@ function setTheme(t){
 }
 document.getElementById('theme').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setTheme(b.dataset.t)});
 setTheme(root.dataset.theme||'auto');
+
+const burger=document.getElementById('burger'), menu=document.getElementById('menu');
+function openMenu(o){menu.hidden=!o;burger.setAttribute('aria-expanded',o)}
+burger.addEventListener('click',()=>openMenu(menu.hidden));
+document.addEventListener('click',e=>{if(!menu.hidden&&!e.target.closest('.menu-wrap'))openMenu(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')openMenu(false)});
 
 const photos=[...document.querySelectorAll('.photo')];
 const dlg=document.getElementById('viewer'), img=document.getElementById('viewer-img');
