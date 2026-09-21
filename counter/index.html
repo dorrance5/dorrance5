@@ -117,7 +117,7 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 0 calc(
 header,main{position:relative;z-index:2}
 
 /* Cards: Calculator key colors. Day = deep solid fill, Night = rich tint + glowing edge,
-   yellow = solid with dark text like Calculator's "=" key */
+*/
 .card{border:.5px solid transparent}
 :root:not([data-mode]) .card{background:color-mix(in srgb,var(--c) 90%,#000);border-color:color-mix(in srgb,var(--c) 70%,#000);
   color:#fff;box-shadow:0 2px 8px color-mix(in srgb,var(--c) 30%,transparent)}
@@ -127,9 +127,6 @@ header,main{position:relative;z-index:2}
   color:color-mix(in oklch,var(--c) 60%,#fff)}
 :root[data-mode="dark"] .num{background:rgba(0,0,0,.25)}
 :root[data-mode="dark"] .more button,:root[data-mode="dark"] .move button{background:rgba(255,255,255,.08);color:inherit}
-:root:not([data-mode="aurora"]) .card.solid{background:var(--c);border-color:color-mix(in srgb,var(--c) 85%,#000);color:#101014;box-shadow:0 2px 8px color-mix(in srgb,var(--c) 30%,transparent)}
-:root:not([data-mode="aurora"]) .card.solid .num{background:rgba(0,0,0,.08);box-shadow:none}
-:root:not([data-mode="aurora"]) .card.solid .more button,:root:not([data-mode="aurora"]) .card.solid .move button{background:rgba(0,0,0,.1);color:#101014}
 
 /* Aurora: moving color field behind frosted glass */
 .field,.veil{display:none}
@@ -180,10 +177,9 @@ header,main{position:relative;z-index:2}
 <script>
 const KEY = 'counter-v1';
 // Calculator palette: blue, red, yellow first
-const COLORS = ['#0A57D0','#D02A2A','#FFD60A','#1F9D55','#0E8FB8','#7C3AED','#F28A00','#6E6E76'];
-const SOLID = new Set(['#FFD60A']);
+const COLORS = ['#0A57D0','#D02A2A','#F4B400','#1F9D55','#0E8FB8','#7C3AED','#F28A00','#6E6E76'];
 // old palette -> new, so existing counters pick up the new colors
-const OLD_COLORS = {'#4fb89a':'#1F9D55','#4a8fd9':'#0A57D0','#e0a13a':'#FFD60A','#e06a58':'#D02A2A','#8b6fd6':'#7C3AED','#3fa7b8':'#0E8FB8','#7a8a99':'#6E6E76'};
+const OLD_COLORS = {'#4fb89a':'#1F9D55','#4a8fd9':'#0A57D0','#e0a13a':'#F4B400','#FFD60A':'#F4B400','#e06a58':'#D02A2A','#8b6fd6':'#7C3AED','#3fa7b8':'#0E8FB8','#7a8a99':'#6E6E76'};
 const ICON = {
   chev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 9 7 7 7-7"/></svg>',
   up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
@@ -228,7 +224,7 @@ function cardHTML(c, i, n) {
         ? `<div class="move"><button data-action="up" ${i === 0 ? 'disabled' : ''} aria-label="Move up">${ICON.up}</button><button data-action="down" ${i === n - 1 ? 'disabled' : ''} aria-label="Move down">${ICON.down}</button></div>`
         : '<div></div>')
     : `<button class="chev" data-action="toggle" aria-label="More">${ICON.chev}</button>`;
-  return `<div class="card${open ? ' open' : ''}${SOLID.has(c.color) ? ' solid' : ''}" style="--c:${c.color}" data-id="${c.id}" data-action="${editing ? 'edit' : 'inc'}">
+  return `<div class="card${open ? ' open' : ''}" style="--c:${c.color}" data-id="${c.id}" data-action="${editing ? 'edit' : 'inc'}">
     <div class="left"><div class="name">${esc(c.name)}</div>${left}</div>
     <div class="num" id="n-${c.id}">${editing ? ICON.pen : count(c)}</div>
     ${open ? `<div class="more" data-action="none">
