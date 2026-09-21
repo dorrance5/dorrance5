@@ -1,7 +1,7 @@
 /* Calculator — offline cache.
    Bump CACHE below whenever you upload a changed index.html,
    otherwise phones may keep serving the old copy. */
-const CACHE = "calculator-v3";
+const CACHE = "calculator-v4";
 const FILES = ["./", "./index.html", "./icon.png"];
 
 self.addEventListener("install", e => {
@@ -11,7 +11,7 @@ self.addEventListener("install", e => {
 self.addEventListener("activate", e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k.startsWith("calculator-") && k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
