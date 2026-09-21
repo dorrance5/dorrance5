@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Counter">
+<meta name="theme-color" content="#f2f3f5">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Counter</title>
+<style>
+:root{
+  --bg:#f2f3f5; --surface:#fff; --text:#16181b; --muted:#6c717a; --line:#dfe2e6; --track:#e4e6ea;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#000;--surface:#17191d;--text:#f2f3f5;--muted:#8d929b;--line:#2a2d33;--track:#1f2227;color-scheme:dark}
+}
+:root[data-theme="dark"]{--bg:#000;--surface:#17191d;--text:#f2f3f5;--muted:#8d929b;--line:#2a2d33;--track:#1f2227;color-scheme:dark}
+:root[data-theme="aurora"]{--bg:#0E0A1E;--surface:rgba(255,255,255,.11);--text:#fff;--muted:rgba(255,255,255,.62);--line:rgba(255,255,255,.28);--track:rgba(255,255,255,.10);color-scheme:dark}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,sans-serif;
+  display:flex; flex-direction:column; overflow:hidden;
+  touch-action:manipulation; -webkit-user-select:none; user-select:none;
+}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+
+header{display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 12px}
+.round{height:46px;min-width:46px;border-radius:23px;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;font-size:18px;font-weight:600}
+.round.pill{padding:0 18px}
+.round svg{width:22px;height:22px}
+.sp{flex:1}
+
+.seg{display:flex;background:var(--track);border-radius:14px;padding:3px}
+.seg button{flex:1;height:36px;border-radius:11px;font-size:16px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 0 calc(env(safe-area-inset-bottom,0px) + 12px)}
+
+.card{background:var(--c);color:#fff;border-radius:18px;margin:0 12px 10px;display:grid;grid-template-columns:1fr auto;min-height:96px;transition:filter .1s}
+.card:active{filter:brightness(.93)}
+.left{padding:14px 16px 8px;display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+.name{font-size:21px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chev{width:44px;height:36px;margin-left:-10px;display:grid;place-items:center}
+.chev svg{width:24px;height:24px;transition:transform .2s}
+.open .chev svg{transform:rotate(180deg)}
+.num{margin:8px;border-radius:13px;background:rgba(0,0,0,.13);min-width:42vw;display:flex;align-items:center;justify-content:flex-end;padding:0 16px;font-size:58px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1;transform-origin:right center}
+.num svg{width:28px;height:28px;opacity:.9}
+.bump{animation:bump .18s ease-out}
+@keyframes bump{40%{transform:scale(1.1)}}
+.more{grid-column:1/-1;display:flex;gap:8px;align-items:center;padding:0 10px 10px}
+.more button{background:rgba(255,255,255,.22);color:#fff;border-radius:12px;height:46px;padding:0 18px;font-size:18px;font-weight:650}
+.move{display:flex;gap:6px}
+.move button{width:40px;height:34px;border-radius:10px;background:rgba(255,255,255,.22);display:grid;place-items:center}
+.move button:disabled{opacity:.35}
+.move svg{width:20px;height:20px}
+
+.empty{text-align:center;padding:60px 24px;color:var(--muted);font-size:17px}
+.empty .primary{margin-top:8px}
+
+
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;z-index:10;animation:fade .15s}
+.backdrop.top{align-items:flex-start;padding:calc(env(safe-area-inset-top,0px) + 56px) 12px 0}
+.sheet{background:var(--surface);width:100%;max-width:560px;margin:0 auto;border-radius:22px 22px 0 0;padding:20px 16px calc(env(safe-area-inset-bottom,0px) + 16px);animation:up .2s ease-out}
+.top .sheet{border-radius:22px;padding-bottom:16px}
+.sheet h2{margin:0 0 14px;font-size:20px;font-weight:650}
+.sheet input{width:100%;height:50px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;font-size:18px;padding:0 14px;outline:none;-webkit-user-select:text;user-select:text}
+.sheet input:focus{border-color:var(--muted)}
+.swatches{display:flex;gap:10px;margin:14px 0 18px;flex-wrap:wrap}
+.sw{width:40px;height:40px;border-radius:50%;background:var(--c);border:3px solid transparent}
+.sw.on{border-color:var(--text)}
+.actions{display:flex;gap:8px;align-items:center}
+.btn,.primary,.danger{height:46px;border-radius:12px;padding:0 18px;font-size:17px;font-weight:600;background:var(--track)}
+.primary{background:var(--text);color:var(--bg)}
+.danger{color:#e0483c}
+.opt{display:flex;align-items:center;width:100%;height:52px;padding:0 6px;font-size:18px;border-bottom:1px solid var(--line);text-align:left}
+.opt:last-child{border-bottom:0}
+.opt .check{margin-left:auto;font-weight:700}
+.label{font-size:15px;color:var(--muted);margin:4px 0 8px}
+.sheet .seg{margin:0 0 20px}
+.stack{display:flex;flex-direction:column;gap:8px}
+.stack .btn{width:100%}
+.stack .danger{background:var(--track);width:100%}
+
+header,main{position:relative;z-index:2}
+
+/* Aurora: moving color field behind frosted glass */
+.field,.veil{display:none}
+[data-theme="aurora"] .field{display:block;position:fixed;inset:-25%;z-index:0;filter:blur(58px) saturate(150%)}
+[data-theme="aurora"] .veil{display:block;position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 80% at 50% 0%,rgba(0,0,0,.18),rgba(0,0,0,.6))}
+.blob{position:absolute;border-radius:50%;mix-blend-mode:screen}
+.b1{width:74vw;height:74vw;background:#6A3CE0;top:2%;left:-12%;animation:d1 26s ease-in-out infinite}
+.b2{width:66vw;height:66vw;background:#1E9BE0;top:32%;right:-16%;animation:d2 31s ease-in-out infinite}
+.b3{width:58vw;height:58vw;background:#E0603C;bottom:2%;left:8%;animation:d3 24s ease-in-out infinite}
+.b4{width:50vw;height:50vw;background:#17B79A;bottom:20%;right:6%;animation:d1 35s ease-in-out infinite reverse}
+@keyframes d1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(14%,10%) scale(1.16)}}
+@keyframes d2{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-16%,-9%) scale(.9)}}
+@keyframes d3{0%,100%{transform:translate(0,0) scale(.95)}50%{transform:translate(11%,-13%) scale(1.2)}}
+
+[data-theme="aurora"] .round,
+[data-theme="aurora"] .card{
+  position:relative;overflow:hidden;
+  -webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%);
+  border:.5px solid rgba(255,255,255,.3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.42),inset 0 -1px 0 rgba(255,255,255,.1),0 6px 22px rgba(0,0,0,.22);
+}
+[data-theme="aurora"] .card{background:color-mix(in srgb,var(--c) 42%,transparent)}
+[data-theme="aurora"] .round::before,
+[data-theme="aurora"] .card::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(160deg,rgba(255,255,255,.32) 0%,rgba(255,255,255,.05) 34%,transparent 60%)}
+[data-theme="aurora"] .num{background:rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
+[data-theme="aurora"] .sheet{background:rgba(20,14,42,.82);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border:.5px solid rgba(255,255,255,.22);border-bottom:0}
+[data-theme="aurora"] .sheet input{background:rgba(255,255,255,.08)}
+[data-theme="aurora"] .seg button.on{background:rgba(255,255,255,.22);box-shadow:none}
+
+@keyframes fade{from{opacity:0}}
+@keyframes up{from{transform:translateY(24px);opacity:0}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="field"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
+<div class="veil"></div>
+<header>
+  <button class="round" id="addBtn" aria-label="Add counter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button class="round pill" id="editBtn">Edit</button>
+  <button class="round" id="sortBtn" aria-label="Sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4v16M2.5 6.5 5 4l2.5 2.5M2.5 17.5 5 20l2.5-2.5M11 6h10M11 12h10M11 18h7"/></svg></button>
+  <span class="sp"></span>
+  <button class="round" id="setBtn" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+</header>
+
+<main id="list"></main>
+
+<script>
+const KEY = 'counter-v1';
+const COLORS = ['#4fb89a','#4a8fd9','#e0a13a','#e06a58','#8b6fd6','#3fa7b8','#7a8a99'];
+const ICON = {
+  chev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 9 7 7 7-7"/></svg>',
+  up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
+  down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  pen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>'
+};
+
+const $ = s => document.querySelector(s);
+const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && Array.isArray(s.counters)) return Object.assign({sort:'manual', theme:'auto'}, s);
+  } catch (e) {}
+  return {counters:[], sort:'manual', theme:'auto'};
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+let S = load();
+let editing = false;
+const expanded = new Set();
+
+// events = list of tap timestamps
+const count = c => c.events.length;
+
+function sorted() {
+  const a = [...S.counters];
+  if (S.sort === 'name') a.sort((x, y) => x.name.localeCompare(y.name, undefined, {numeric:true}));
+  if (S.sort === 'count') a.sort((x, y) => count(y) - count(x));
+  return a;
+}
+
+function cardHTML(c, i, n) {
+  const open = expanded.has(c.id) && !editing;
+  const left = editing
+    ? (S.sort === 'manual'
+        ? `<div class="move"><button data-action="up" ${i === 0 ? 'disabled' : ''} aria-label="Move up">${ICON.up}</button><button data-action="down" ${i === n - 1 ? 'disabled' : ''} aria-label="Move down">${ICON.down}</button></div>`
+        : '<div></div>')
+    : `<button class="chev" data-action="toggle" aria-label="More">${ICON.chev}</button>`;
+  return `<div class="card${open ? ' open' : ''}" style="--c:${c.color}" data-id="${c.id}" data-action="${editing ? 'edit' : 'inc'}">
+    <div class="left"><div class="name">${esc(c.name)}</div>${left}</div>
+    <div class="num" id="n-${c.id}">${editing ? ICON.pen : count(c)}</div>
+    ${open ? `<div class="more" data-action="none">
+      <button data-action="dec">−1</button>
+      <button data-action="reset">Reset</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function render() {
+  $('#editBtn').textContent = editing ? 'Done' : 'Edit';
+  const arr = sorted();
+  $('#list').innerHTML = arr.length
+    ? arr.map((c, i) => cardHTML(c, i, arr.length)).join('')
+    : `<div class="empty"><p>No counters yet.</p><button class="primary" data-action="add">Add a counter</button></div>`;
+}
+
+function bump(id) {
+  const el = document.getElementById('n-' + id);
+  if (!el) return;
+  el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+}
+
+function applyTheme() {
+  const r = document.documentElement;
+  if (S.theme === 'auto') r.removeAttribute('data-theme'); else r.dataset.theme = S.theme;
+  $('meta[name="theme-color"]').content = getComputedStyle(document.body).backgroundColor;
+}
+
+/* Sheets */
+function sheet(html, cls = '') {
+  closeSheet();
+  const b = document.createElement('div');
+  b.className = 'backdrop ' + cls;
+  b.innerHTML = `<div class="sheet">${html}</div>`;
+  b.addEventListener('click', e => { if (e.target === b) closeSheet(); });
+  document.body.appendChild(b);
+  return b.firstElementChild;
+}
+function closeSheet() { document.querySelector('.backdrop')?.remove(); }
+
+function openCounterSheet(c) {
+  let color = c ? c.color : COLORS[S.counters.length % COLORS.length];
+  const el = sheet(`<h2>${c ? 'Edit counter' : 'New counter'}</h2>
+    <input id="fName" type="text" placeholder="Name" maxlength="30" autocomplete="off" enterkeyhint="done" value="${c ? esc(c.name) : ''}">
+    <div class="swatches">${COLORS.map(x => `<button class="sw${x === color ? ' on' : ''}" style="--c:${x}" data-color="${x}" aria-label="Color"></button>`).join('')}</div>
+    <div class="actions">${c ? '<button class="danger" data-act="del">Delete</button>' : ''}<span class="sp"></span>
+      <button class="btn" data-act="cancel">Cancel</button><button class="primary" data-act="save">${c ? 'Save' : 'Add'}</button></div>`, 'top');
+  const input = el.querySelector('#fName');
+  input.focus();
+
+  const doSave = () => {
+    const name = input.value.trim();
+    if (!name) { input.placeholder = 'Enter a name'; input.focus(); return; }
+    if (c) { c.name = name; c.color = color; }
+    else S.counters.push({id: uid(), name, color, events: []});
+    save(); closeSheet(); render();
+  };
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') doSave(); });
+  el.addEventListener('click', e => {
+    const sw = e.target.closest('[data-color]');
+    if (sw) {
+      color = sw.dataset.color;
+      el.querySelectorAll('.sw').forEach(s => s.classList.toggle('on', s === sw));
+      return;
+    }
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'cancel') closeSheet();
+    if (act === 'save') doSave();
+    if (act === 'del' && confirm(`Delete ${c.name}?`)) {
+      S.counters = S.counters.filter(x => x !== c);
+      save(); closeSheet(); render();
+    }
+  });
+}
+
+function openSortSheet() {
+  const opts = [['manual','Manual order'],['name','Name'],['count','Highest count']];
+  const el = sheet(`<h2>Sort</h2>${opts.map(([k, l]) =>
+    `<button class="opt" data-sort="${k}">${l}<span class="check">${S.sort === k ? '✓' : ''}</span></button>`).join('')}`);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-sort]');
+    if (!b) return;
+    S.sort = b.dataset.sort; save(); closeSheet(); render();
+  });
+}
+
+function openSettings() {
+  const themes = [['auto','Auto'],['light','Day'],['dark','Night'],['aurora','Aurora']];
+  const el = sheet(`<h2>Settings</h2>
+    <div class="label">Theme</div>
+    <div class="seg">${themes.map(([k, l]) => `<button data-theme="${k}" class="${S.theme === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="stack">
+      <button class="danger" data-act="all">Reset all counts</button>
+    </div>`);
+  el.addEventListener('click', e => {
+    const t = e.target.closest('[data-theme]');
+    if (t) {
+      S.theme = t.dataset.theme; save(); applyTheme();
+      el.querySelectorAll('[data-theme]').forEach(b => b.classList.toggle('on', b === t));
+      return;
+    }
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'all' && confirm('Reset every counter to 0?')) {
+      S.counters.forEach(c => c.events = []);
+      save(); closeSheet(); render();
+    }
+  });
+}
+
+/* Events */
+$('#list').addEventListener('click', e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const a = btn.dataset.action;
+  if (a === 'add') return openCounterSheet();
+  const id = e.target.closest('.card')?.dataset.id;
+  const c = S.counters.find(x => x.id === id);
+  if (!c) return;
+
+  if (a === 'inc') { c.events.push(Date.now()); save(); render(); bump(id); }
+  if (a === 'dec' && count(c) > 0) { c.events.pop(); save(); render(); bump(id); }
+  if (a === 'toggle') { expanded.has(id) ? expanded.delete(id) : expanded.add(id); render(); }
+  if (a === 'edit') openCounterSheet(c);
+  if (a === 'reset' && confirm(`Reset ${c.name} to 0?`)) { c.events = []; save(); render(); }
+  if (a === 'up' || a === 'down') {
+    const i = S.counters.indexOf(c), j = a === 'up' ? i - 1 : i + 1;
+    if (j < 0 || j >= S.counters.length) return;
+    [S.counters[i], S.counters[j]] = [S.counters[j], S.counters[i]];
+    save(); render();
+  }
+});
+
+$('#addBtn').onclick = () => openCounterSheet();
+$('#editBtn').onclick = () => { editing = !editing; render(); };
+$('#sortBtn').onclick = openSortSheet;
+$('#setBtn').onclick = openSettings;
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+applyTheme();
+render();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
