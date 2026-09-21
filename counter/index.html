@@ -327,6 +327,7 @@ function openSettings() {
     <div class="seg">${themes.map(([k, l]) => `<button data-theme="${k}" class="${S.theme === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div class="stack">
       <button class="danger" data-act="all">Reset all counts</button>
+      <button class="danger" data-act="wipe">Delete all counters</button>
     </div>`);
   el.addEventListener('click', e => {
     const t = e.target.closest('[data-theme]');
@@ -338,6 +339,10 @@ function openSettings() {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'all' && confirm('Reset every counter to 0?')) {
       S.counters.forEach(c => c.events = []);
+      save(); closeSheet(); render();
+    }
+    if (act === 'wipe' && S.counters.length && confirm(`Delete all ${S.counters.length} counters? This can't be undone.`)) {
+      S.counters = []; expanded.clear(); editing = false;
       save(); closeSheet(); render();
     }
   });
