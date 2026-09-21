@@ -7,22 +7,58 @@
 <link rel="icon" href="favicon.ico" type="image/x-icon">
 <meta name="theme-color" content="#f2f3f5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<script>
+try{const t=localStorage.getItem('theme');if(t&&t!=='auto')document.documentElement.dataset.theme=t}catch(e){}
+</script>
 <style>
 :root{
   --bg:#f2f3f5; --surface:#fff; --text:#16181b; --muted:#6c717a; --line:#dfe2e6;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
-  :root{--bg:#000;--surface:#17191d;--text:#f2f3f5;--muted:#8d929b;--line:#2a2d33;color-scheme:dark}
+  :root:not([data-theme="light"]){--bg:#000;--surface:#17191d;--text:#f2f3f5;--muted:#8d929b;--line:#2a2d33;color-scheme:dark}
 }
+:root[data-theme="dark"]{--bg:#000;--surface:#17191d;--text:#f2f3f5;--muted:#8d929b;--line:#2a2d33;color-scheme:dark}
+:root[data-theme="aurora"]{--bg:#0E0A1E;--surface:rgba(255,255,255,.11);--text:#fff;--muted:rgba(255,255,255,.62);--line:rgba(255,255,255,.28);color-scheme:dark}
 *{box-sizing:border-box}
 body{
   margin:0; background:var(--bg); color:var(--text);
   font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   padding:max(24px,env(safe-area-inset-top)) 16px max(32px,env(safe-area-inset-bottom));
 }
-main{max-width:880px;margin:0 auto}
-h1{font-size:28px;margin:8px 0 28px;letter-spacing:-.02em}
+main{max-width:880px;margin:0 auto;position:relative;z-index:2}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 28px}
+h1{font-size:28px;margin:0;letter-spacing:-.02em}
+
+.seg{display:flex;background:var(--line);border-radius:12px;padding:3px}
+.seg button{border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:var(--muted);padding:6px 12px;border-radius:9px;cursor:pointer}
+.seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+/* Aurora: moving color field behind frosted glass (same as Counter) */
+.field,.veil{display:none}
+[data-theme="aurora"] .field{display:block;position:fixed;inset:-25%;z-index:0;filter:blur(58px) saturate(150%)}
+[data-theme="aurora"] .veil{display:block;position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 80% at 50% 0%,rgba(0,0,0,.18),rgba(0,0,0,.6))}
+.blob{position:absolute;border-radius:50%;mix-blend-mode:screen}
+.b1{width:74vw;height:74vw;background:#6A3CE0;top:2%;left:-12%;animation:d1 26s ease-in-out infinite}
+.b2{width:66vw;height:66vw;background:#1E9BE0;top:32%;right:-16%;animation:d2 31s ease-in-out infinite}
+.b3{width:58vw;height:58vw;background:#E0603C;bottom:2%;left:8%;animation:d3 24s ease-in-out infinite}
+.b4{width:50vw;height:50vw;background:#17B79A;bottom:20%;right:6%;animation:d1 35s ease-in-out infinite reverse}
+@keyframes d1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(14%,10%) scale(1.16)}}
+@keyframes d2{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-16%,-9%) scale(.9)}}
+@keyframes d3{0%,100%{transform:translate(0,0) scale(.95)}50%{transform:translate(11%,-13%) scale(1.2)}}
+[data-theme="aurora"] .app,
+[data-theme="aurora"] .seg{
+  position:relative;overflow:hidden;
+  -webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%);
+  border:.5px solid rgba(255,255,255,.3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.42),inset 0 -1px 0 rgba(255,255,255,.1),0 6px 22px rgba(0,0,0,.22);
+}
+[data-theme="aurora"] .seg{background:rgba(255,255,255,.08)}
+[data-theme="aurora"] .seg button.on{background:rgba(255,255,255,.22);box-shadow:none}
+[data-theme="aurora"] .app::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(160deg,rgba(255,255,255,.32) 0%,rgba(255,255,255,.05) 34%,transparent 60%)}
+[data-theme="aurora"] .photo{box-shadow:0 6px 22px rgba(0,0,0,.3);outline:.5px solid rgba(255,255,255,.3)}
+@media (prefers-reduced-motion:reduce){.blob{animation:none}}
 h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:32px 0 12px;font-weight:600}
 a{color:inherit;text-decoration:none}
 
@@ -65,8 +101,15 @@ dialog::backdrop{background:transparent}
 </style>
 </head>
 <body>
+<div class="field"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
+<div class="veil"></div>
 <main>
-  <h1>dorrance.me</h1>
+  <header>
+    <h1>dorrance.me</h1>
+    <div class="seg" id="theme" role="group" aria-label="Theme">
+      <button data-t="auto">Auto</button><button data-t="light">Day</button><button data-t="dark">Night</button><button data-t="aurora">Aurora</button>
+    </div>
+  </header>
 
   <h2>Apps</h2>
   <div class="apps">
@@ -103,6 +146,17 @@ dialog::backdrop{background:transparent}
 </dialog>
 
 <script>
+const root=document.documentElement, meta=document.querySelectorAll('meta[name="theme-color"]');
+function setTheme(t){
+  if(t==='auto')delete root.dataset.theme; else root.dataset.theme=t;
+  try{localStorage.setItem('theme',t)}catch(e){}
+  document.querySelectorAll('#theme button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  const bg=getComputedStyle(document.body).backgroundColor;
+  meta.forEach(m=>m.content=t==='auto'?(m.media.includes('dark')?'#000000':'#f2f3f5'):bg);
+}
+document.getElementById('theme').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setTheme(b.dataset.t)});
+setTheme(root.dataset.theme||'auto');
+
 const photos=[...document.querySelectorAll('.photo')];
 const dlg=document.getElementById('viewer'), img=document.getElementById('viewer-img');
 let i=0;
