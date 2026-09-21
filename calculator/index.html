@@ -159,7 +159,7 @@
   .ptheme{flex:0 0 auto;padding:12px 15px 4px}
   .plabel{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
           color:var(--faint);margin-bottom:8px}
-  .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
   .seg button{height:36px;border-radius:13px;font-size:13px;font-weight:600;letter-spacing:.01em;
               background:rgba(255,255,255,.09);border:.5px solid rgba(255,255,255,.18);
               box-shadow:none;text-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
@@ -225,10 +225,10 @@
 </head>
 <body>
 <script>
-try{
-  var t=localStorage.getItem("calculator.theme");
-  if(t==="day"||t==="night") document.body.dataset.theme=t;
-}catch(e){}
+var t="auto";
+try{ t=localStorage.getItem("calculator.theme")||"auto"; }catch(e){}
+if(t==="auto") t=matchMedia("(prefers-color-scheme: dark)").matches?"night":"day";
+if(t==="day"||t==="night") document.body.dataset.theme=t;
 </script>
 
 <div class="field">
@@ -248,6 +248,7 @@ try{
   <div class="ptheme">
     <div class="plabel">Theme</div>
     <div class="seg" id="themeSeg" role="group" aria-label="Theme">
+      <button data-t="auto">Auto</button>
       <button data-t="day">Day</button>
       <button data-t="night">Night</button>
       <button data-t="aurora">Aurora</button>
@@ -480,20 +481,28 @@ try{
   var themeMeta=document.querySelector('meta[name="theme-color"]');
   var THEME_BG={day:"#F2F2F7",night:"#000000",aurora:"#0E0A1E"};
 
+  var darkMQ=matchMedia("(prefers-color-scheme: dark)");
+  var themePref="auto";
+  try{ themePref=localStorage.getItem("calculator.theme")||"auto"; }catch(e){}
+
+  // t = auto | day | night | aurora; Auto follows the device's light/dark setting
   function setTheme(t){
-    if(t==="aurora") delete document.body.dataset.theme;
-    else document.body.dataset.theme=t;
-    if(themeMeta) themeMeta.setAttribute("content",THEME_BG[t]||THEME_BG.aurora);
+    themePref=t;
+    var mode=t==="auto"?(darkMQ.matches?"night":"day"):t;
+    if(mode==="aurora") delete document.body.dataset.theme;
+    else document.body.dataset.theme=mode;
+    if(themeMeta) themeMeta.setAttribute("content",THEME_BG[mode]||THEME_BG.aurora);
     themeSeg.querySelectorAll("button").forEach(function(b){
       b.classList.toggle("sel",b.dataset.t===t);
     });
     try{ localStorage.setItem("calculator.theme",t); }catch(e){}
   }
+  darkMQ.addEventListener("change",function(){ if(themePref==="auto") setTheme("auto"); });
   themeSeg.addEventListener("click",function(e){
     var b=e.target.closest?e.target.closest("button"):null;
     if(b) setTheme(b.dataset.t);
   });
-  setTheme(document.body.dataset.theme||"night");
+  setTheme(themePref);
 
   /* ================= render ================= */
   function render(){
