@@ -24,7 +24,8 @@
 .draw .lbl{font-family:var(--ui);font-size:13px;fill:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
 .draw .lbl.ang{fill:var(--blue)}
 .draw .v{fill:var(--text)}
-.draw .msg{font-family:var(--ui);font-size:15px;fill:var(--muted)}
+.draw .msg{font-family:var(--ui);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;fill:var(--muted)}
+.draw .lbl.ex{font-size:17px;font-weight:700}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .f{position:relative}
 .f .input{height:58px;padding:18px 10px 0;font-size:20px;font-variant-numeric:tabular-nums;text-align:center}
@@ -173,7 +174,9 @@ function solve(k) {
 /* ---- drawing ---- */
 function draw(t) {
   const svg = $('#svg'), W = 360, H = 240, P = 44;
-  if (!t) { svg.innerHTML = `<text class="msg" x="${W / 2}" y="${H / 2}" text-anchor="middle">Enter three values to see the triangle</text>`; return; }
+  // with nothing solved, show a labelled example so the letters are clear
+  const ex = !t;
+  if (ex) t = solve({ a: 6, b: 5, c: 7, A: NaN, B: NaN, C: NaN }).sols[0];
   // B at origin, C along +x (side a), A above
   const pts = { B: [0, 0], C: [t.a, 0], A: [t.c * Math.cos(t.B * D), t.c * Math.sin(t.B * D)] };
   const xs = Object.values(pts).map(p => p[0]), ys = Object.values(pts).map(p => p[1]);
@@ -184,7 +187,7 @@ function draw(t) {
   const V = {}; for (const k in pts) V[k] = [X(pts[k]), Y(pts[k])];
   const unit = (p, q) => { const dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; };
   const anchor = dx => dx > .35 ? 'start' : dx < -.35 ? 'end' : 'middle';
-  const text = (cls, x, y, dir, str) => `<text class="lbl ${cls}" x="${x}" y="${y + 4}" text-anchor="${anchor(dir[0])}">${str}</text>`;
+  const text = (cls, x, y, dir, str) => `<text class="lbl ${cls}${ex ? ' ex' : ''}" x="${x}" y="${y + (ex ? 6 : 4)}" text-anchor="${anchor(dir[0])}">${str}</text>`;
   let h = `<defs><linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1E9BE0" stop-opacity=".28"/><stop offset="1" stop-color="#6A3CE0" stop-opacity=".12"/></linearGradient></defs>`;
   h += `<polygon class="fill" points="${V.A} ${V.B} ${V.C}"/><polygon class="side" points="${V.A} ${V.B} ${V.C}"/>`;
   // angle arcs
@@ -202,15 +205,16 @@ function draw(t) {
     // label on the outward bisector of the vertex angle
     const u1 = unit(V[v], p), u2 = unit(V[v], q); let bx = -(u1[0] + u2[0]), by = -(u1[1] + u2[1]);
     const bl = Math.hypot(bx, by) || 1; bx /= bl; by /= bl;
-    h += `<circle class="v" cx="${V[v][0]}" cy="${V[v][1]}" r="3"/>` + text('ang', V[v][0] + bx * 14, V[v][1] + by * 14, [bx, by], `${v} ${fmt(t[v])}°`);
+    h += `<circle class="v" cx="${V[v][0]}" cy="${V[v][1]}" r="3"/>` + text('ang', V[v][0] + bx * 14, V[v][1] + by * 14, [bx, by], ex ? v : `${v} ${fmt(t[v])}°`);
   }
   for (const [s, p, q, o] of [['a', 'B', 'C', 'A'], ['b', 'C', 'A', 'B'], ['c', 'A', 'B', 'C']]) {
     // label on the side's outward normal (away from the opposite vertex)
     const m = [(V[p][0] + V[q][0]) / 2, (V[p][1] + V[q][1]) / 2], u = unit(V[p], V[q]);
     let nx = -u[1], ny = u[0];
     if ((V[o][0] - m[0]) * nx + (V[o][1] - m[1]) * ny > 0) { nx = -nx; ny = -ny; }
-    h += text('', m[0] + nx * 12, m[1] + ny * 12, [nx, ny], `${s} = ${fmt(t[s])}`);
+    h += text('', m[0] + nx * 12, m[1] + ny * 12, [nx, ny], ex ? s : `${s} = ${fmt(t[s])}`);
   }
+  if (ex) h += `<text class="msg" x="10" y="20">Example</text>`;
   svg.innerHTML = h;
 }
 
