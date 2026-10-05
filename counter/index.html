@@ -206,7 +206,20 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 // one theme setting is shared by every app on this site: auto | light | dark | aurora
 function loadTheme() { try { return localStorage.getItem('theme') || S.theme || 'auto'; } catch (e) { return 'auto'; } }
 function saveTheme(t) { S.theme = t; save(); try { localStorage.setItem('theme', t); } catch (e) {} }
-const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+// Haptics: Android has navigator.vibrate. iOS WebKit does not, but toggling a
+// native switch control (iOS 18+) fires the system haptic, so we click a hidden one.
+const hapticSwitch = (() => {
+  const l = document.createElement('label');
+  l.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden';
+  l.setAttribute('aria-hidden', 'true');
+  l.innerHTML = '<input type="checkbox" switch tabindex="-1">';
+  document.body.appendChild(l);
+  return l;
+})();
+const buzz = p => {
+  if (navigator.vibrate) { try { navigator.vibrate(p); return; } catch (e) {} }
+  try { hapticSwitch.click(); } catch (e) {}
+};
 
 let S = load();
 S.theme = loadTheme();
