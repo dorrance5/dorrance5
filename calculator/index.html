@@ -9,8 +9,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Calculator">
 <meta name="theme-color" content="#0E0A1E">
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<meta name="description" content="Fraction calculator with exact mixed-number math and a history panel. Works offline.">
 <style>
   :root{
     --ui:system-ui,-apple-system,"SF Pro Display","Segoe UI",Roboto,sans-serif;
@@ -226,9 +228,13 @@
 <body>
 <script>
 var t="auto";
-try{ t=localStorage.getItem("calculator.theme")||"auto"; }catch(e){}
-if(t==="auto") t=matchMedia("(prefers-color-scheme: dark)").matches?"night":"day";
-if(t==="day"||t==="night") document.body.dataset.theme=t;
+try{
+  t=localStorage.getItem("theme")||localStorage.getItem("calculator.theme")||"auto";
+  t={day:"light",night:"dark"}[t]||t;
+}catch(e){}
+if(t==="auto") t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+if(t==="light") document.body.dataset.theme="day";
+if(t==="dark") document.body.dataset.theme="night";
 </script>
 
 <div class="field">
@@ -483,7 +489,13 @@ if(t==="day"||t==="night") document.body.dataset.theme=t;
 
   var darkMQ=matchMedia("(prefers-color-scheme: dark)");
   var themePref="auto";
-  try{ themePref=localStorage.getItem("calculator.theme")||"auto"; }catch(e){}
+  /* one theme setting is shared by every app on this site: auto | light | dark | aurora */
+  var TO_SHARED={day:"light",night:"dark"}, FROM_SHARED={light:"day",dark:"night"};
+  try{
+    themePref=localStorage.getItem("theme")||localStorage.getItem("calculator.theme")||"auto";
+    themePref=FROM_SHARED[themePref]||themePref;
+    localStorage.removeItem("calculator.theme");
+  }catch(e){}
 
   // t = auto | day | night | aurora; Auto follows the device's light/dark setting
   function setTheme(t){
@@ -495,8 +507,11 @@ if(t==="day"||t==="night") document.body.dataset.theme=t;
     themeSeg.querySelectorAll("button").forEach(function(b){
       b.classList.toggle("sel",b.dataset.t===t);
     });
-    try{ localStorage.setItem("calculator.theme",t); }catch(e){}
+    try{ localStorage.setItem("theme",TO_SHARED[t]||t); }catch(e){}
   }
+  window.addEventListener("storage",function(e){
+    if(e.key==="theme"&&e.newValue) setTheme(FROM_SHARED[e.newValue]||e.newValue);
+  });
   darkMQ.addEventListener("change",function(){ if(themePref==="auto") setTheme("auto"); });
   themeSeg.addEventListener("click",function(e){
     var b=e.target.closest?e.target.closest("button"):null;
@@ -539,6 +554,7 @@ if(t==="day"||t==="night") document.body.dataset.theme=t;
       if(!blank()) reset(); else { acc=null; pend=null; parts=[]; }
       err=null; justEq=false; render(); return;
     }
+    if(k==="wdel"){ cur.w=cur.w.slice(0,-1); render(); return; }
     if(k==="ndel"){ cur.n=cur.n.slice(0,-1); render(); return; }
     if(k==="ddel"){ cur.d=cur.d.slice(0,-1); render(); return; }
     if(k==="neg"){ cur.neg=!cur.neg; render(); return; }
@@ -592,6 +608,40 @@ if(t==="day"||t==="night") document.body.dataset.theme=t;
   document.querySelectorAll(".pad button").forEach(function(b){
     b.addEventListener("click",function(){ press(b.dataset.k); });
   });
+
+  /* keyboard: digits fill the whole number; space moves to the numerator,
+     "/" to the denominator (type "1 3/4"); + - * for operators, ":" or "?" to divide;
+     Enter = equals, Backspace deletes, Escape clears */
+  var kf="w";
+  document.addEventListener("keydown",function(e){
+    if(e.metaKey||e.ctrlKey||e.altKey) return;
+    var tag=(e.target.tagName||"").toLowerCase();
+    if(tag==="input"||tag==="textarea") return;
+    var k=e.key, h=true;
+    if(k>="0"&&k<="9"){ press(kf+k); }
+    else if(k==="."){ if(kf==="w") press("wdot"); }
+    else if(k===" "){ if(!blank()||justEq) kf="n"; }
+    else if(k==="/"){
+      if(kf==="w"&&cur.n===""&&cur.w.indexOf(".")<0){ cur.n=cur.w; cur.w=""; }
+      kf="d"; render();
+    }
+    else if(k==="+"){ press("+"); kf="w"; }
+    else if(k==="-"){ press("\u2212"); kf="w"; }
+    else if(k==="*"||k==="x"||k==="X"){ press("\u00d7"); kf="w"; }
+    else if(k===":"||k==="?"){ press("\u00f7"); kf="w"; }
+    else if(k==="Enter"||k==="="){ press("="); kf="w"; }
+    else if(k==="Backspace"){
+      if(kf==="d"&&cur.d==="") kf="n";
+      if(kf==="n"&&cur.n==="") kf="w";
+      press(kf+"del");
+    }
+    else if(k==="Escape"){ if(panel.classList.contains("on")) closePanel(); else press("clear"); kf="w"; }
+    else if(k==="n"||k==="N"){ press("neg"); }
+    else h=false;
+    if(h) e.preventDefault();
+  });
+  var _press=press;
+  press=function(k){ if(k==="clear"||k==="=") kf="w"; _press(k); };
 
   paintHist();
   render();

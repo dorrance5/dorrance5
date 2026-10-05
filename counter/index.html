@@ -10,6 +10,7 @@
 <meta name="theme-color" content="#F2F2F7">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
+<meta name="description" content="Tally counters with colors, sorting and history. Works offline.">
 <title>Counter</title>
 <style>
 :root{
@@ -202,8 +203,13 @@ function load() {
   return {counters:[], sort:'manual', theme:'auto'};
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+// one theme setting is shared by every app on this site: auto | light | dark | aurora
+function loadTheme() { try { return localStorage.getItem('theme') || S.theme || 'auto'; } catch (e) { return 'auto'; } }
+function saveTheme(t) { S.theme = t; save(); try { localStorage.setItem('theme', t); } catch (e) {} }
+const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 
 let S = load();
+S.theme = loadTheme();
 let editing = false;
 const expanded = new Set();
 
@@ -325,7 +331,7 @@ function openSettings() {
   el.addEventListener('click', e => {
     const t = e.target.closest('[data-theme]');
     if (t) {
-      S.theme = t.dataset.theme; save(); applyTheme();
+      saveTheme(t.dataset.theme); applyTheme();
       el.querySelectorAll('[data-theme]').forEach(b => b.classList.toggle('on', b === t));
       return;
     }
@@ -351,8 +357,8 @@ $('#list').addEventListener('click', e => {
   const c = S.counters.find(x => x.id === id);
   if (!c) return;
 
-  if (a === 'inc') { c.events.push(Date.now()); save(); render(); bump(id); }
-  if (a === 'dec' && count(c) > 0) { c.events.pop(); save(); render(); bump(id); }
+  if (a === 'inc') { c.events.push(Date.now()); save(); render(); bump(id); buzz(12); }
+  if (a === 'dec' && count(c) > 0) { c.events.pop(); save(); render(); bump(id); buzz([8, 30, 8]); }
   if (a === 'toggle') { expanded.has(id) ? expanded.delete(id) : expanded.add(id); render(); }
   if (a === 'edit') openCounterSheet(c);
   if (a === 'reset' && confirm(`Reset ${c.name} to 0?`)) { c.events = []; save(); render(); }
@@ -369,6 +375,7 @@ $('#editBtn').onclick = () => { editing = !editing; render(); };
 $('#sortBtn').onclick = openSortSheet;
 $('#setBtn').onclick = openSettings;
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+window.addEventListener('storage', e => { if (e.key === 'theme' && e.newValue) { S.theme = e.newValue; applyTheme(); } });
 
 applyTheme();
 render();
