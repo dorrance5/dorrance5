@@ -25,7 +25,7 @@ try{const t=localStorage.getItem('theme');if(t&&t!=='auto')document.documentElem
 *{box-sizing:border-box}
 body{
   margin:0; background:var(--bg); color:var(--text);
-  font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font:16px/1.5 ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   padding:max(24px,env(safe-area-inset-top)) 16px max(32px,env(safe-area-inset-bottom));
 }
 main{max-width:880px;margin:0 auto;position:relative;z-index:2}
@@ -38,7 +38,8 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
   padding:12px;box-shadow:0 12px 32px rgba(0,0,0,.18);animation:pop .15s ease-out}
 .menu-label{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin:0 0 8px 4px}
 @keyframes pop{from{opacity:0;transform:translateY(-4px)}}
-h1{font-size:28px;margin:0;letter-spacing:-.02em}
+h1{font-size:26px;margin:0;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+h1 img{width:36px;height:36px}
 
 .seg{display:flex;background:var(--line);border-radius:12px;padding:3px}
 .seg button{border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:var(--muted);padding:6px 12px;border-radius:9px;cursor:pointer}
@@ -56,7 +57,6 @@ h1{font-size:28px;margin:0;letter-spacing:-.02em}
 @keyframes d1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(14%,10%) scale(1.16)}}
 @keyframes d2{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-16%,-9%) scale(.9)}}
 @keyframes d3{0%,100%{transform:translate(0,0) scale(.95)}50%{transform:translate(11%,-13%) scale(1.2)}}
-[data-theme="aurora"] .app,
 [data-theme="aurora"] .burger{
   position:relative;overflow:hidden;
   -webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%);
@@ -66,27 +66,24 @@ h1{font-size:28px;margin:0;letter-spacing:-.02em}
 [data-theme="aurora"] .menu{background:rgba(20,14,42,.82);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border:.5px solid rgba(255,255,255,.22)}
 [data-theme="aurora"] .seg{background:rgba(255,255,255,.08)}
 [data-theme="aurora"] .seg button.on{background:rgba(255,255,255,.22);box-shadow:none}
-[data-theme="aurora"] .app::before{content:"";position:absolute;inset:0;pointer-events:none;
-  background:linear-gradient(160deg,rgba(255,255,255,.32) 0%,rgba(255,255,255,.05) 34%,transparent 60%)}
 [data-theme="aurora"] .photo{box-shadow:0 6px 22px rgba(0,0,0,.3);outline:.5px solid rgba(255,255,255,.3)}
 @media (prefers-reduced-motion:reduce){.blob{animation:none}}
-h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:32px 0 12px;font-weight:600}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:30px 0 14px;font-weight:600}
 a{color:inherit;text-decoration:none}
 
-.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
-.app{
-  display:flex;align-items:center;gap:12px;padding:14px;
-  background:var(--surface);border:1px solid var(--line);border-radius:16px;
-  transition:transform .15s ease, box-shadow .15s ease;
-}
-.app:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.08)}
-.app img{width:44px;height:44px;border-radius:11px;flex:none}
-.app span{font-weight:600}
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:18px 10px;padding:4px 0}
+.app{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;transition:transform .15s ease}
+.app:hover{transform:translateY(-3px)}
+.app:active{transform:scale(.94)}
+.app img{width:66px;height:66px;border-radius:18px;box-shadow:0 8px 20px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.3);transition:box-shadow .15s}
+.app:hover img{box-shadow:0 14px 28px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.3)}
+.app span{font-weight:600;font-size:13.5px;letter-spacing:-.01em}
+[data-theme="aurora"] .app{text-shadow:0 1px 6px rgba(0,0,0,.5)}
 
 .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
 .photo{
   display:block;padding:0;border:0;cursor:zoom-in;background:var(--surface);
-  border-radius:16px;overflow:hidden;aspect-ratio:3/2;width:100%;
+  border-radius:20px;overflow:hidden;aspect-ratio:3/2;width:100%;box-shadow:0 8px 24px rgba(0,0,0,.12);
 }
 .photo img{width:100%;height:100%;object-fit:cover;object-position:50% 30%;display:block;transition:transform .3s ease}
 .photo:hover img{transform:scale(1.03)}
@@ -116,7 +113,7 @@ dialog::backdrop{background:transparent}
 <div class="veil"></div>
 <main>
   <header>
-    <h1>dorrance.me</h1>
+    <h1><img src="favicon.svg" alt="" width="36" height="36">dorrance.me</h1>
     <div class="menu-wrap">
       <button class="burger" id="burger" aria-label="Menu" aria-expanded="false" aria-controls="menu"><i></i><i></i><i></i></button>
       <div class="menu" id="menu" hidden>
@@ -130,9 +127,10 @@ dialog::backdrop{background:transparent}
 
   <h2>Apps</h2>
   <div class="apps">
-    <a class="app" href="calculator/"><img src="calculator/icon-180.png" alt=""><span>Calculator</span></a>
-    <a class="app" href="counter/"><img src="counter/icon-180.png" alt=""><span>Counter</span></a>
-    <a class="app" href="converter/"><img src="converter/icon-180.png" alt=""><span>Converter</span></a>
+    <a class="app" href="calculator/"><img src="calculator/icon-180.png" alt="" width="66" height="66"><span>Calculator</span></a>
+    <a class="app" href="counter/"><img src="counter/icon-180.png" alt="" width="66" height="66"><span>Counter</span></a>
+    <a class="app" href="converter/"><img src="converter/icon-180.png" alt="" width="66" height="66"><span>Converter</span></a>
+    <a class="app" href="triangle/"><img src="triangle/icon-180.png" alt="" width="66" height="66"><span>Triangle</span></a>
   </div>
 
   <h2>Photos</h2>
