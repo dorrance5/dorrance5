@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tip">
+<meta name="theme-color" content="#F2F2F7">
+<meta name="description" content="Tip calculator and bill splitter. Works offline.">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="stylesheet" href="../shared/base.css">
+<title>Tip</title>
+<style>
+.bill{position:relative}
+.bill .input{font-size:34px;height:76px;padding-left:44px;font-variant-numeric:tabular-nums;font-weight:300}
+.bill .cur{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:28px;color:var(--muted);font-weight:300}
+.chips{margin-bottom:12px}
+.chips .chip{flex:1;padding:0;min-width:56px}
+.slider{display:flex;align-items:center;gap:12px}
+.slider input[type=range]{flex:1;accent-color:var(--primary)}
+.slider b{min-width:48px;text-align:right;font-variant-numeric:tabular-nums;font-size:18px}
+.step{display:flex;align-items:center;gap:12px}
+.step button{width:52px;height:52px;border-radius:16px;background:var(--chip);border:.5px solid var(--chip-line);font-size:26px;font-weight:300;display:grid;place-items:center}
+.step b{font-size:28px;min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
+.step span{color:var(--muted)}
+.res{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.res .card{margin:0;text-align:center;padding:16px 10px}
+.res .k{color:var(--muted);font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.res .v{font-size:clamp(24px,7.5vw,34px);font-weight:300;margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;word-break:break-all}
+.res .big{grid-column:1/-1;background:var(--primary);border-color:var(--primary-line);color:var(--primary-text)}
+.res .big .k{color:inherit;opacity:.7}
+.res .big .v{font-size:clamp(40px,13vw,56px)}
+.toggle{display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 0;font-size:17px}
+.sw{width:52px;height:32px;border-radius:16px;background:var(--track);border:.5px solid var(--chip-line);position:relative;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.sw.on{background:var(--green)}
+.sw.on::after{transform:translateX(20px)}
+</style>
+</head>
+<body>
+<header>
+  <a class="round" href="../" aria-label="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg></a>
+  <h1>Tip</h1>
+  <span class="sp"></span>
+  <button class="round" id="setBtn" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+</header>
+
+<main>
+  <div class="label">Bill</div>
+  <div class="bill"><span class="cur" id="cur">$</span><input class="input" id="bill" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+
+  <div class="label">Tip</div>
+  <div class="chips" id="chips"></div>
+  <div class="slider"><input type="range" id="range" min="0" max="50" step="1"><b id="pct"></b></div>
+
+  <div class="label">Split between</div>
+  <div class="step"><button id="minus" aria-label="Fewer people">−</button><b id="people">1</b><span id="plabel">person</span><span class="sp"></span><button id="plus" aria-label="More people">+</button></div>
+
+  <div class="label">Result</div>
+  <div class="res">
+    <div class="card big"><div class="k" id="eachK">Each pays</div><div class="v" id="each">$0.00</div></div>
+    <div class="card"><div class="k">Tip</div><div class="v" id="tip">$0.00</div></div>
+    <div class="card"><div class="k">Total</div><div class="v" id="total">$0.00</div></div>
+  </div>
+  <div class="card" style="margin-top:10px;padding:2px 16px">
+    <button class="toggle" id="roundBtn">Round up each share<span class="sw" id="roundSw"></span></button>
+  </div>
+</main>
+
+<script src="../shared/base.js"></script>
+<script>
+const { $, load, save, buzz, sheet, themeSegHTML } = App;
+App.init();
+
+const KEY = 'tip-v1';
+const S = Object.assign({ pct: 20, people: 1, round: false, cur: '$', bill: '' }, load(KEY, {}));
+const persist = () => save(KEY, S);
+const PRESETS = [10, 15, 18, 20, 25];
+const money = x => S.cur + x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function calc() {
+  const bill = parseFloat(String($('#bill').value).replace(/[^0-9.]/g, '')) || 0;
+  S.bill = $('#bill').value; persist();
+  let tip = bill * S.pct / 100, total = bill + tip, each = total / S.people;
+  if (S.round) { each = Math.ceil(each); total = each * S.people; tip = Math.max(0, total - bill); }
+  $('#tip').textContent = money(tip);
+  $('#total').textContent = money(total);
+  $('#each').textContent = money(each);
+  $('#eachK').textContent = S.people > 1 ? 'Each pays' : 'You pay';
+  $('#pct').textContent = S.pct + '%';
+  $('#range').value = S.pct;
+  $('#people').textContent = S.people;
+  $('#plabel').textContent = S.people === 1 ? 'person' : 'people';
+  $('#minus').disabled = S.people <= 1;
+  $('#roundSw').classList.toggle('on', S.round);
+  $('#cur').textContent = S.cur;
+  document.querySelectorAll('#chips .chip').forEach(c => c.classList.toggle('on', +c.dataset.p === S.pct));
+}
+
+$('#chips').innerHTML = PRESETS.map(p => `<button class="chip" data-p="${p}">${p}%</button>`).join('');
+$('#chips').addEventListener('click', e => { const b = e.target.closest('[data-p]'); if (b) { S.pct = +b.dataset.p; buzz(8); calc(); } });
+$('#range').addEventListener('input', () => { S.pct = +$('#range').value; calc(); });
+$('#bill').addEventListener('input', calc);
+$('#minus').onclick = () => { if (S.people > 1) { S.people--; buzz(8); calc(); } };
+$('#plus').onclick = () => { if (S.people < 99) { S.people++; buzz(8); calc(); } };
+$('#roundBtn').onclick = () => { S.round = !S.round; buzz(8); calc(); };
+$('#setBtn').onclick = () => {
+  const el = sheet(`<h2>Settings</h2>${themeSegHTML()}
+    <div class="label">Currency symbol</div>
+    <div class="seg">${['$', '€', '£', '¥'].map(c => `<button data-cur="${c}" class="${S.cur === c ? 'on' : ''}">${c}</button>`).join('')}</div>`);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-cur]'); if (!b) return;
+    S.cur = b.dataset.cur; el.querySelectorAll('[data-cur]').forEach(x => x.classList.toggle('on', x === b)); calc();
+  });
+};
+
+$('#bill').value = S.bill;
+calc();
+if (!S.bill) $('#bill').focus();
+</script>
+</body>
+</html>
