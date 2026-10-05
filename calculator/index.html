@@ -92,7 +92,7 @@
           gap:var(--gap);min-height:0}
   .subpad .wide{grid-column:span 2}
 
-  .bar{flex:0 0 auto;height:13px;border-radius:6.5px;background:rgba(255,255,255,.55);position:relative;
+  .bar{flex:0 0 auto;height:7px;border-radius:3.5px;margin:3px 0;background:linear-gradient(90deg,#40D0E8,#A878FF);position:relative;
        box-shadow:0 0 14px rgba(255,255,255,.28),inset 0 1px 0 rgba(255,255,255,.9)}
 
   button{font-family:var(--ui);font-weight:300;color:var(--ink);
@@ -187,7 +187,7 @@
   body[data-theme="night"] .zone.ops button.clear{background:rgba(255,45,45,.20);
     border-color:rgba(255,110,110,.45);color:#FF8080}
   body[data-theme="night"] .zone.ops button.eq{background:linear-gradient(180deg,rgba(255,255,255,.22),transparent) #FFD60A;border-color:#FFD60A;color:#000}
-  body[data-theme="night"] .bar{background:rgba(255,255,255,.32);box-shadow:none}
+  body[data-theme="night"] .bar{opacity:.8;box-shadow:none}
   body[data-theme="night"] .toast{background:rgba(18,18,20,.95)}
   body[data-theme="night"] .seg button.sel{background:rgba(255,214,10,.18);
     border-color:rgba(255,214,10,.6);color:#FFD60A}
@@ -210,7 +210,7 @@
   body[data-theme="day"] .pad button{background:#FFFFFF;border-color:rgba(0,0,0,.08);
     box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.05);text-shadow:none;
     backdrop-filter:none;-webkit-backdrop-filter:none}
-  body[data-theme="day"] .bar{background:rgba(0,0,0,.38);box-shadow:none}
+  body[data-theme="day"] .bar{background:linear-gradient(90deg,#0E7C9E,#7C3AED);opacity:.55;box-shadow:none}
   body[data-theme="day"] .subpad button.del,
   body[data-theme="day"] .zone.whole button.sym{color:rgba(0,0,0,.55)}
   body[data-theme="day"] .zone.ops button{background:#E4EDFF;
