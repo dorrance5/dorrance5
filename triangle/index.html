@@ -18,7 +18,8 @@
 .draw{padding:10px;margin-bottom:12px}
 .draw svg{width:100%;height:auto;display:block}
 .draw .side{fill:none;stroke:var(--text);stroke-width:2.5;stroke-linejoin:round}
-.draw .fill{fill:var(--blue);opacity:.12}
+.draw .fill{fill:url(#tg)}
+.draw .side{stroke-width:3}
 .draw .arc{fill:none;stroke:var(--blue);stroke-width:2}
 .draw .lbl{font-family:var(--ui);font-size:13px;fill:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
 .draw .lbl.ang{fill:var(--blue)}
@@ -28,7 +29,8 @@
 .f{position:relative}
 .f .input{height:58px;padding:18px 10px 0;font-size:20px;font-variant-numeric:tabular-nums;text-align:center}
 .f label{position:absolute;top:7px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;pointer-events:none}
-.f.solved .input{color:var(--blue);background:var(--blue-bg);border-color:transparent}
+.f.solved .input{color:var(--blue);background:var(--blue-bg);border-color:transparent;animation:pop .22s ease-out}
+@keyframes pop{from{transform:scale(.96);opacity:.5}}
 .f.bad .input{border-color:var(--red)}
 .grid .label{grid-column:1/-1;margin:10px 0 0}
 .grid .label:first-child{margin-top:0}
@@ -39,6 +41,9 @@
 .fact .k{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .fact .v{font-size:22px;font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;overflow-wrap:anywhere}
 .fact.wide{grid-column:1/-1}
+.fact.hero{grid-column:1/-1;background:var(--blue-bg);border-color:transparent}
+.fact.hero .k{color:var(--blue)}
+.fact.hero .v{font-size:34px;font-weight:500;color:var(--blue);letter-spacing:-.02em}
 .note{text-align:center;color:var(--muted);font-size:14px;margin:10px 4px 0;min-height:20px}
 .note.err{color:var(--red)}
 .alt{display:flex;gap:6px;justify-content:center;margin-top:10px}
@@ -180,7 +185,8 @@ function draw(t) {
   const unit = (p, q) => { const dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; };
   const anchor = dx => dx > .35 ? 'start' : dx < -.35 ? 'end' : 'middle';
   const text = (cls, x, y, dir, str) => `<text class="lbl ${cls}" x="${x}" y="${y + 4}" text-anchor="${anchor(dir[0])}">${str}</text>`;
-  let h = `<polygon class="fill" points="${V.A}${' '}${V.B} ${V.C}"/><polygon class="side" points="${V.A} ${V.B} ${V.C}"/>`;
+  let h = `<defs><linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1E9BE0" stop-opacity=".28"/><stop offset="1" stop-color="#6A3CE0" stop-opacity=".12"/></linearGradient></defs>`;
+  h += `<polygon class="fill" points="${V.A} ${V.B} ${V.C}"/><polygon class="side" points="${V.A} ${V.B} ${V.C}"/>`;
   // angle arcs
   const opp = { A: ['B', 'C'], B: ['C', 'A'], C: ['A', 'B'] };
   for (const v of ['A', 'B', 'C']) {
@@ -238,7 +244,7 @@ function update() {
     ['Type', kind(t)]
   ];
   if (S.frac) facts.splice(1, 0, ['Sides to 1/' + S.prec, `a ${frac(t.a, S.prec)} · b ${frac(t.b, S.prec)} · c ${frac(t.c, S.prec)}`]);
-  $('#facts').innerHTML = facts.map(([k, v], i) => `<div class="fact${k === 'Type' || k.startsWith('Sides') ? ' wide' : ''}"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('');
+  $('#facts').innerHTML = facts.map(([k, v], i) => `<div class="fact${k === 'Area' ? ' hero' : k === 'Type' || k.startsWith('Sides') ? ' wide' : ''}"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('');
 }
 function clearSolved() { KEYS.forEach(x => { const f = $('#' + x).parentElement; if (f.classList.contains('solved')) { $('#' + x).value = ''; f.classList.remove('solved'); } }); }
 
