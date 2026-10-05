@@ -29,9 +29,10 @@
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .f{position:relative}
 .f .input{height:58px;padding:18px 10px 0;font-size:20px;font-variant-numeric:tabular-nums;text-align:center}
-.f label{position:absolute;top:7px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;pointer-events:none}
+.f label{position:absolute;top:5px;left:0;right:0;text-align:center;font-size:14px;font-weight:700;color:var(--muted);pointer-events:none}
 .f.solved .input{color:var(--blue);background:var(--blue-bg);border-color:transparent;animation:pop .22s ease-out}
 @keyframes pop{from{transform:scale(.96);opacity:.5}}
+.f.solved label{color:var(--blue);opacity:.75}
 .f.bad .input{border-color:var(--red)}
 .grid .label{grid-column:1/-1;margin:10px 0 0}
 .grid .label:first-child{margin-top:0}
@@ -69,9 +70,9 @@
     <div class="f"><label for="b">b</label><input class="input" id="b" inputmode="decimal" autocomplete="off"></div>
     <div class="f"><label for="c">c</label><input class="input" id="c" inputmode="decimal" autocomplete="off"></div>
     <div class="label">Angles (degrees)</div>
-    <div class="f"><label for="A">A · opposite a</label><input class="input" id="A" inputmode="decimal" autocomplete="off"></div>
-    <div class="f"><label for="B">B · opposite b</label><input class="input" id="B" inputmode="decimal" autocomplete="off"></div>
-    <div class="f"><label for="C">C · opposite c</label><input class="input" id="C" inputmode="decimal" autocomplete="off"></div>
+    <div class="f"><label for="A">A</label><input class="input" id="A" inputmode="decimal" autocomplete="off"></div>
+    <div class="f"><label for="B">B</label><input class="input" id="B" inputmode="decimal" autocomplete="off"></div>
+    <div class="f"><label for="C">C</label><input class="input" id="C" inputmode="decimal" autocomplete="off"></div>
   </div>
   <div class="note" id="note"></div>
   <div class="alt" id="alt" hidden><button class="chip on" data-sol="0">Solution 1</button><button class="chip" data-sol="1">Solution 2</button></div>
