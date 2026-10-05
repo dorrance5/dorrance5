@@ -206,23 +206,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 // one theme setting is shared by every app on this site: auto | light | dark | aurora
 function loadTheme() { try { return localStorage.getItem('theme') || S.theme || 'auto'; } catch (e) { return 'auto'; } }
 function saveTheme(t) { S.theme = t; save(); try { localStorage.setItem('theme', t); } catch (e) {} }
-// Haptics: Android has navigator.vibrate. iOS WebKit does not, but toggling a
-// native switch control (iOS 18+) fires the system haptic, so we click a hidden one.
-// Same approach as the ios-haptics package: a fresh element each time.
-const VERSION = 'v15';
-function iosHaptic() {
-  const l = document.createElement('label');
-  l.setAttribute('aria-hidden', 'true');
-  l.style.display = 'none';
-  const i = document.createElement('input');
-  i.type = 'checkbox'; i.setAttribute('switch', '');
-  l.appendChild(i); document.head.appendChild(l);
-  l.click(); l.remove();
-}
-const buzz = p => {
-  if (navigator.vibrate) { try { navigator.vibrate(p); return; } catch (e) {} }
-  try { iosHaptic(); } catch (e) {}
-};
+const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
 
 let S = load();
 S.theme = loadTheme();
@@ -343,9 +327,7 @@ function openSettings() {
     <div class="stack">
       <button class="danger" data-act="all">Reset all counts</button>
       <button class="danger" data-act="wipe">Delete all counters</button>
-      <button class="btn" data-act="haptic">Test haptic</button>
-    </div>
-    <p class="label" style="margin:12px 0 0">Counter ${VERSION} · ${navigator.vibrate ? 'vibrate API' : 'iOS switch haptic'}</p>`);
+    </div>`);
   el.addEventListener('click', e => {
     const t = e.target.closest('[data-theme]');
     if (t) {
@@ -354,7 +336,6 @@ function openSettings() {
       return;
     }
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'haptic') buzz(12);
     if (act === 'all' && confirm('Reset every counter to 0?')) {
       S.counters.forEach(c => c.events = []);
       save(); closeSheet(); render();
