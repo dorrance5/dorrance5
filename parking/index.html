@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Parking">
+<meta name="theme-color" content="#F2F2F7">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="stylesheet" href="../shared/base.css">
+<title>Parking</title>
+<style>
+:root{--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--hot:#D02A2A}
+.mono{font-family:var(--mono);font-weight:700;letter-spacing:.04em}
+
+/* status pill */
+.pill{display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:17px;font-size:13px;font-weight:600;background:var(--chip);border:.5px solid var(--chip-line);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.dot.ok{background:var(--green)} .dot.warn{background:#E0A000} .dot.bad{background:var(--red)}
+.dot.busy{background:var(--blue);animation:blink 1s ease-in-out infinite}
+@keyframes blink{50%{opacity:.25}}
+
+.banner{border-radius:16px;padding:12px 14px;margin-bottom:10px;font-size:15px;line-height:1.4;background:var(--blue-bg);color:var(--text)}
+.banner.bad{background:var(--danger);color:var(--danger-text)}
+.banner button{font-weight:700;text-decoration:underline;margin-left:4px}
+
+/* entry card */
+.plate-in{height:64px;font:700 30px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;text-align:center;padding:0 10px}
+.plate-in::placeholder{letter-spacing:.06em;font-weight:600}
+.hint{min-height:22px;font-size:15px;line-height:1.4;color:var(--muted);margin:9px 2px 9px}
+.hint b{color:var(--text)}
+.hint.repeat b.n{color:var(--red)} .hint.second b.n{color:var(--blue)}
+.sugg{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 9px}
+.sugg button{height:34px;padding:0 11px;border-radius:10px;font:700 15px var(--mono);letter-spacing:.05em;background:var(--chip);border:.5px solid var(--chip-line)}
+.go{display:flex;gap:8px;margin-top:10px}
+.go .primary{flex:1.25} .go .btn{flex:1}
+
+.seg.tabs{margin:14px 0 8px}
+.seg.tabs button{font-size:14px}
+.seg.tabs b{font-weight:700;opacity:.6;margin-left:3px}
+
+.head{display:flex;align-items:baseline;justify-content:space-between;margin:6px 4px 2px;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+
+/* list rows */
+.list{padding:2px 14px}
+.item{display:flex;align-items:center;gap:12px;width:100%;padding:13px 0;border-bottom:1px solid var(--line);text-align:left}
+.item:last-child{border-bottom:0}
+.item .pl{font-size:18px;min-width:92px}
+.item .mid{flex:1;min-width:0}
+.item .l1{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .l2{font-size:13px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item.pending .pl::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#E0A000;margin-left:6px;vertical-align:middle}
+.flags{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.flag{font-size:12px;font-weight:700;padding:4px 8px;border-radius:9px;white-space:nowrap;background:var(--chip);border:.5px solid var(--chip-line);color:var(--muted)}
+.flag.blue{color:var(--blue);background:var(--blue-bg);border-color:transparent}
+.flag.red{color:var(--danger-text);background:var(--danger);border-color:var(--danger-line)}
+.flag.hot{color:#fff;background:var(--hot);border-color:var(--hot)}
+.bar{height:6px;border-radius:3px;background:var(--track);overflow:hidden;margin-top:7px}
+.bar i{display:block;height:100%;background:var(--blue);border-radius:3px}
+.bar.done i{background:var(--hot)}
+.days{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.days span{font-size:12px;font-weight:600;padding:3px 7px;border-radius:7px;background:var(--chip);border:.5px solid var(--chip-line)}
+
+/* detail sheet */
+.sheet .plate-h{font:700 28px var(--mono);letter-spacing:.08em;margin:0}
+.sheet .meta{color:var(--muted);font-size:15px;margin:4px 0 10px}
+.sheet textarea.input{height:80px;padding:12px 14px;resize:none;line-height:1.35}
+.sheet .flags{flex-direction:row;flex-wrap:wrap;align-items:center}
+.nbox{border-radius:14px;padding:12px 14px;background:var(--chip);border:.5px solid var(--chip-line);font-size:15px;line-height:1.45}
+.nbox.done{background:var(--danger);border-color:var(--danger-line)}
+.linkbtn{font-size:15px;font-weight:600;color:var(--blue);padding:10px 2px}
+.when{display:flex;gap:8px;margin-top:8px} .when .input{flex:1;font-size:16px}
+.hist{font-size:15px}
+.hist div{display:flex;justify-content:space-between;padding:8px 2px;border-bottom:1px solid var(--line)}
+.hist div:last-child{border-bottom:0}
+.hist span{color:var(--muted)}
+.foot{display:flex;gap:8px;margin-top:18px}
+.foot .primary{flex:1}
+.msg{font-size:14px;margin-top:10px;line-height:1.4}
+.msg.ok{color:var(--green)} .msg.bad{color:var(--red)}
+.muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Parking</h1>
+  <div class="sp"></div>
+  <button class="pill" id="status"><span class="dot"></span><span>Starting</span></button>
+  <button class="round" id="gear" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+</header>
+
+<main>
+  <div id="banner"></div>
+
+  <div class="card">
+    <input id="plate" class="input plate-in" placeholder="PLATE" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next" maxlength="12" aria-label="Plate">
+    <div id="hint" class="hint"></div>
+    <div id="sugg" class="sugg" hidden></div>
+    <input id="loc" class="input" placeholder="Unit or spot" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done" maxlength="40" aria-label="Unit or spot">
+    <div class="go">
+      <button class="primary" id="log">Log</button>
+      <button class="btn" id="logn">Log + notice</button>
+    </div>
+  </div>
+
+  <div class="seg tabs" id="tabs"></div>
+  <div id="view"></div>
+</main>
+
+<script src="../shared/base.js"></script>
+<script>
+const { $, esc, uid, buzz, sheet, closeSheet, toast, themeSegHTML } = App;
+App.init();
+
+/* ---------------------------------------------------------------- storage
+   The Google Sheet is the record. This phone keeps a copy for offline use
+   and a queue of changes not yet sent. If storage can't be read, nothing is
+   written back, so a bad read can never wipe the queue. */
+const K = { cfg: 'parking-cfg', rows: 'parking-rows', queue: 'parking-queue', meta: 'parking-meta' };
+let storageOK = true;
+function read(key, def) {
+  try { const s = localStorage.getItem(key); return s == null ? def : JSON.parse(s); }
+  catch (e) { storageOK = false; return def; }
+}
+function write(key, val) {
+  if (!storageOK) return;
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { storageOK = false; }
+}
+
+let cfg = read(K.cfg, { url: '', key: '' });
+let rows = read(K.rows, []);
+let queue = read(K.queue, []);
+let meta = read(K.meta, { lastSync: 0, sheetUrl: '', settings: null });
+const SET = Object.assign({ repeatNights: 3, windowDays: 30, cutoffHour: 6 }, meta.settings || {});
+const net = { busy: false, again: false, error: '', inflight: new Set() };
+let tab = 'walk';
+
+const OUTCOMES = ['Moved', 'Towed', 'Has pass', 'Void'];
+const NOT_COUNTED = ['Void', 'Has pass'];
+
+/* ---------------------------------------------------------------- dates */
+const pad = n => String(n).padStart(2, '0');
+const ymdOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const hmOf = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function toDate(ymd, hm) {
+  const [y, m, d] = ymd.split('-').map(Number), [h, mi] = (hm || '00:00').split(':').map(Number);
+  return new Date(y, m - 1, d, h, mi);
+}
+function nightKey(ymd, hm) {
+  if (!hm || +hm.slice(0, 2) >= SET.cutoffHour) return ymd;
+  const d = toDate(ymd, '12:00'); d.setDate(d.getDate() - 1); return ymdOf(d);
+}
+const nowNight = () => { const n = new Date(); return nightKey(ymdOf(n), hmOf(n)); };
+const dayDiff = (a, b) => Math.round((toDate(b, '12:00') - toDate(a, '12:00')) / 864e5);
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const md = ymd => { const [, m, d] = ymd.split('-').map(Number); return `${m}/${d}`; };
+const day = ymd => `${DOW[toDate(ymd, '12:00').getDay()]} ${md(ymd)}`;
+function clock(hm) {
+  if (!hm) return '';
+  let [h, m] = hm.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+  return `${h}:${pad(m)} ${ap}`;
+}
+const stamp = d => `${DOW[d.getDay()]} ${d.getMonth() + 1}/${d.getDate()} ${clock(hmOf(d))}`;
+function span(ms) {
+  const m = Math.max(0, Math.round(ms / 60000)), h = Math.floor(m / 60);
+  return h ? `${h}h ${pad(m % 60)}m` : `${m}m`;
+}
+function ago(t) {
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60); if (h < 24) return h + ' hr ago';
+  return Math.round(h / 24) + ' days ago';
+}
+const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+/* ---------------------------------------------------------------- model */
+function entries() {                       // sheet rows with queued changes on top
+  let list = rows.map(r => Object.assign({}, r));
+  for (const op of queue) {
+    if (op.type === 'add') {
+      if (!list.some(r => r.id === op.id)) list.push({ id: op.id, date: op.date, time: op.time, plate: op.plate,
+        loc: op.loc || '', ndate: op.ndate || '', ntime: op.ntime || '', outcome: op.outcome || '', notes: op.notes || '', pending: true });
+    } else if (op.type === 'update') {
+      const r = list.find(r => r.id === op.id); if (r) { Object.assign(r, op.fields); r.pending = true; }
+    } else if (op.type === 'delete') list = list.filter(r => r.id !== op.id);
+  }
+  return list.filter(r => r.plate && r.date).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+}
+
+function plateStats(list) {
+  const today = nowNight(), by = {};
+  for (const r of list) {
+    const s = by[r.plate] || (by[r.plate] = { plate: r.plate, entries: [], all: new Set(), recent: new Set() });
+    s.entries.push(r);
+    if (NOT_COUNTED.includes(r.outcome)) continue;
+    const k = nightKey(r.date, r.time);
+    s.all.add(k);
+    const age = dayDiff(k, today);
+    if (age >= 0 && age < SET.windowDays) s.recent.add(k);
+  }
+  return by;
+}
+const level = s => !s ? 'first' : s.recent.size >= SET.repeatNights ? 'repeat' : s.recent.size >= 2 ? 'second' : 'first';
+const ord = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+
+function notice(r) {
+  if (!r.ndate || !r.ntime) return null;
+  const t = toDate(r.ndate, r.ntime), elig = new Date(t.getTime() + 864e5);
+  return { t, elig, open: !r.outcome, ready: Date.now() >= elig, frac: Math.min(1, (Date.now() - t) / 864e5) };
+}
+
+function flagsHTML(r, s) {
+  const out = [], n = notice(r);
+  if (r.outcome) out.push(`<span class="flag">${esc(r.outcome)}</span>`);
+  else if (n && n.ready) out.push(`<span class="flag hot">Tow eligible</span>`);
+  else if (n) out.push(`<span class="flag blue">Notice ${span(n.elig - Date.now())}</span>`);
+  const lv = level(s);
+  if (lv === 'repeat') out.push(`<span class="flag red">${s.recent.size} nights</span>`);
+  else if (lv === 'second') out.push(`<span class="flag blue">2 nights</span>`);
+  return out.join('');
+}
+
+/* ---------------------------------------------------------------- queue */
+function enqueue(op, quiet) {
+  op.opId = uid();
+  const free = q => !net.inflight.has(q.opId);
+  if (op.type === 'update') {
+    const add = queue.find(q => q.type === 'add' && q.id === op.id && free(q));
+    if (add) { Object.assign(add, op.fields); return commit(quiet); }
+    const upd = queue.find(q => q.type === 'update' && q.id === op.id && free(q));
+    if (upd) { Object.assign(upd.fields, op.fields); return commit(quiet); }
+  }
+  if (op.type === 'delete') {
+    const add = queue.find(q => q.type === 'add' && q.id === op.id && free(q));
+    if (add && !rows.some(r => r.id === op.id)) {
+      queue = queue.filter(q => q.id !== op.id || !free(q));
+      if (!queue.some(q => q.id === op.id)) return commit();
+    }
+  }
+  queue.push(op);
+  commit(quiet);
+}
+function commit(quiet) {
+  write(K.queue, queue);
+  render(quiet);
+  clearTimeout(commit.t); commit.t = setTimeout(sync, 400);
+}
+
+function addEntry(withNotice) {
+  const plate = norm($('#plate').value);
+  if (!plate) { $('#plate').focus(); buzz(20); return; }
+  const list = entries();
+  const dup = list.find(r => r.plate === plate && nightKey(r.date, r.time) === nowNight());
+  if (dup) { openEntry(dup.id); return; }
+  const now = new Date(), date = ymdOf(now), time = hmOf(now);
+  const op = { type: 'add', id: uid() + uid(), plate, loc: $('#loc').value.trim().toUpperCase(), date, time };
+  if (withNotice) { op.ndate = date; op.ntime = time; }
+  enqueue(op);
+  const s = plateStats(entries())[plate], lv = level(s);
+  let msg = `${plate} logged`;
+  if (lv === 'repeat') msg += `, ${ord(s.recent.size)} night in ${SET.windowDays} days`;
+  else if (lv === 'second') msg += ', 2nd night';
+  if (withNotice) msg += ', notice started';
+  toast(msg);
+  buzz(lv === 'repeat' ? [40, 70, 40, 70, 40] : lv === 'second' ? [40, 70, 40] : 25);
+  $('#plate').value = ''; $('#loc').value = '';
+  tab = 'walk';
+  render();
+  $('#plate').focus();
+}
+
+/* ---------------------------------------------------------------- sync */
+async function call(body) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const res = await fetch(cfg.url.trim(), { method: 'POST', body: JSON.stringify(body), redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl.signal, cache: 'no-store' });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (e) { throw new Error('The link did not answer like the parking sheet. Check the web app address, and that access is set to Anyone.'); }
+    if (!data.ok) throw new Error(data.error || 'The sheet returned an error');
+    return data;
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('The sheet took too long to answer');
+    if (e instanceof TypeError) throw new Error(navigator.onLine ? 'Could not reach the sheet' : 'No signal');
+    throw e;
+  } finally { clearTimeout(t); }
+}
+
+async function sync() {
+  if (!cfg.url || !cfg.key) { render(); return; }
+  if (net.busy) { net.again = true; return; }
+  net.busy = true; net.again = false; renderStatus();
+  const ops = queue.slice(0, 40);
+  ops.forEach(o => net.inflight.add(o.opId));
+  try {
+    const data = await call({ key: cfg.key, ops });
+    const done = new Set(data.done || []);
+    queue = queue.filter(o => !done.has(o.opId));
+    rows = Array.isArray(data.rows) ? data.rows : rows;
+    meta = { lastSync: Date.now(), sheetUrl: data.sheetUrl || meta.sheetUrl, settings: data.settings || meta.settings };
+    Object.assign(SET, meta.settings || {});
+    write(K.queue, queue); write(K.rows, rows); write(K.meta, meta);
+    (data.errors || []).forEach(e => toast(e.error));
+    net.error = '';
+  } catch (e) {
+    net.error = e.message || 'Could not reach the sheet';
+  } finally {
+    ops.forEach(o => net.inflight.delete(o.opId));
+    net.busy = false;
+  }
+  render();
+  if (!net.error && (net.again || queue.length)) setTimeout(sync, 50);
+  return !net.error;
+}
+
+/* ---------------------------------------------------------------- render */
+function renderStatus() {
+  const el = $('#status');
+  let dot = 'ok', text = 'Synced';
+  if (!cfg.url || !cfg.key) { dot = 'warn'; text = queue.length ? `${queue.length} on phone` : 'Connect'; }
+  else if (net.busy) { dot = 'busy'; text = 'Syncing'; }
+  else if (queue.length) { dot = net.error ? 'bad' : 'warn'; text = `${queue.length} waiting`; }
+  else if (net.error) { dot = 'bad'; text = net.error === 'No signal' ? 'Offline' : 'Not synced'; }
+  else if (!meta.lastSync) { dot = 'warn'; text = 'Not synced'; }
+  el.innerHTML = `<span class="dot ${dot}"></span><span>${esc(text)}</span>`;
+}
+
+function renderBanner() {
+  let h = '';
+  if (!storageOK) h = `<div class="banner bad">This phone is not saving the app's data. Keep the app open until the top says Synced.</div>`;
+  else if (!cfg.url || !cfg.key) h = `<div class="banner">Not connected to the Google Sheet yet. Entries stay on this phone until you connect.<button data-act="settings">Connect</button></div>`;
+  else if (net.error && net.error !== 'No signal' && queue.length) h = `<div class="banner bad">${esc(net.error)}. Your entries are safe on this phone.<button data-act="retry">Retry</button></div>`;
+  $('#banner').innerHTML = h;
+}
+
+function renderHint() {
+  const plate = norm($('#plate').value), hint = $('#hint'), sugg = $('#sugg');
+  const list = entries(), stats = plateStats(list);
+  hint.className = 'hint';
+  sugg.hidden = true;
+  $('#log').textContent = 'Log'; $('#logn').hidden = false;
+  if (!plate) { hint.innerHTML = ''; return; }
+  const s = stats[plate];
+  if (!s) {
+    hint.innerHTML = 'New plate';
+    const near = Object.keys(stats).filter(p => p !== plate && p.startsWith(plate)).slice(0, 4);
+    if (plate.length >= 2 && near.length) {
+      sugg.hidden = false;
+      sugg.innerHTML = near.map(p => `<button data-fill="${esc(p)}">${esc(p)}</button>`).join('');
+    }
+    return;
+  }
+  const tonight = s.entries.find(r => nightKey(r.date, r.time) === nowNight());
+  if (tonight) {
+    hint.innerHTML = `<b>Already logged tonight</b> at ${clock(tonight.time)}${tonight.loc ? ', ' + esc(tonight.loc) : ''}`;
+    $('#log').textContent = 'Open entry'; $('#logn').hidden = true;
+    return;
+  }
+  const lv = level(s), n = s.recent.size, last = s.entries[0];
+  hint.className = 'hint ' + lv;
+  const nights = [...s.recent].sort().map(md).join(', ');
+  const parts = [];
+  if (n) parts.push(`<b class="n">${n} ${n === 1 ? 'night' : 'nights'}</b> in ${SET.windowDays} days (${nights})`);
+  else parts.push(`Last seen ${day(nightKey(last.date, last.time))}`);
+  if (last.loc) parts.push('last at ' + esc(last.loc));
+  const open = s.entries.find(r => notice(r) && !r.outcome);
+  if (open) parts.push(notice(open).ready ? '<b class="n">notice expired</b>' : 'notice running');
+  if (lv !== 'first') parts.push(`this would be the <b>${ord(n + 1)}</b>`);
+  hint.innerHTML = parts.join(' · ');
+}
+
+function renderTabs(list, stats) {
+  const open = list.filter(r => notice(r) && !r.outcome).length;
+  const reps = Object.values(stats).filter(s => s.recent.size >= 2).length;
+  const walk = walkKey(list);
+  const T = [['walk', walk === nowNight() ? 'Tonight' : 'Last walk', walk ? list.filter(r => nightKey(r.date, r.time) === walk).length : 0],
+             ['notices', 'Notices', open], ['repeats', 'Repeats', reps]];
+  $('#tabs').innerHTML = T.map(([k, l, c]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}${c ? `<b>${c}</b>` : ''}</button>`).join('');
+}
+
+function walkKey(list) {
+  let k = '';
+  for (const r of list) { const n = nightKey(r.date, r.time); if (n > k) k = n; }
+  return k;
+}
+
+function itemHTML(r, s, l1, l2, extra = '', flags = null, showPlate = true) {
+  return `<button class="item${r.pending ? ' pending' : ''}" data-open="${esc(r.id)}">
+    ${showPlate ? `<div class="pl mono">${esc(r.plate)}</div>` : ''}
+    <div class="mid"><div class="l1">${l1}</div>${l2 ? `<div class="l2">${l2}</div>` : ''}${extra}</div>
+    <div class="flags">${flags == null ? flagsHTML(r, s) : flags}</div></button>`;
+}
+function nightsChip(s) {
+  const lv = level(s);
+  return lv === 'repeat' ? `<span class="flag red">${s.recent.size} nights</span>` : lv === 'second' ? `<span class="flag blue">2 nights</span>` : '';
+}
+
+function renderView() {
+  const list = entries(), stats = plateStats(list);
+  renderTabs(list, stats);
+  const v = $('#view');
+
+  if (tab === 'walk') {
+    const k = walkKey(list);
+    if (!k) { v.innerHTML = `<div class="empty">Nothing logged yet.<br>Type a plate above to start.</div>`; return; }
+    const night = list.filter(r => nightKey(r.date, r.time) === k);
+    const flagged = night.filter(r => level(stats[r.plate]) !== 'first').length;
+    v.innerHTML = `<div class="head"><span>${day(k)}</span><span>${night.length} ${night.length === 1 ? 'car' : 'cars'}${flagged ? ` · ${flagged} flagged` : ''}</span></div>
+      <div class="card list">${night.map(r => {
+        return itemHTML(r, stats[r.plate], `${r.loc ? esc(r.loc) + ' · ' : ''}${clock(r.time)}`, r.notes ? esc(r.notes) : '');
+      }).join('')}</div>`;
+    return;
+  }
+
+  if (tab === 'notices') {
+    const open = list.filter(r => notice(r) && !r.outcome).sort((a, b) => notice(a).elig - notice(b).elig);
+    if (!open.length) { v.innerHTML = `<div class="empty">No open towing notices.<br>Use Log + notice when you place one.</div>`; return; }
+    v.innerHTML = `<div class="head"><span>Open notices</span><span>24-hour clock</span></div>
+      <div class="card list">${open.map(r => {
+        const n = notice(r);
+        const l1 = n.ready ? `<b style="color:var(--red)">Tow eligible now</b>` : `Tow in ${span(n.elig - Date.now())}`;
+        const l2 = `${r.loc ? esc(r.loc) + ' · ' : ''}placed ${stamp(n.t)}`;
+        return itemHTML(r, stats[r.plate], l1, l2, `<div class="bar${n.ready ? ' done' : ''}"><i style="width:${(n.frac * 100).toFixed(1)}%"></i></div>`, nightsChip(stats[r.plate]));
+      }).join('')}</div>`;
+    return;
+  }
+
+  const reps = Object.values(stats).filter(s => s.recent.size >= 2)
+    .sort((a, b) => b.recent.size - a.recent.size || (b.entries[0].date + b.entries[0].time).localeCompare(a.entries[0].date + a.entries[0].time));
+  if (!reps.length) { v.innerHTML = `<div class="empty">No plates seen on 2 or more nights in the last ${SET.windowDays} days.</div>`; return; }
+  v.innerHTML = `<div class="head"><span>Last ${SET.windowDays} days</span><span>${SET.repeatNights}+ nights is red</span></div>
+    <div class="card list">${reps.map(s => {
+      const r = s.entries[0];
+      const total = s.all.size > s.recent.size ? ` · ${s.all.size} nights total` : '';
+      return `<button class="item" data-plate="${esc(s.plate)}">
+        <div class="pl mono">${esc(s.plate)}</div>
+        <div class="mid"><div class="l1">${r.loc ? 'Last at ' + esc(r.loc) : 'Last seen ' + day(r.date)}${total}</div>
+        <div class="days">${[...s.recent].sort().reverse().map(k => `<span>${md(k)}</span>`).join('')}</div></div>
+        <div class="flags">${flagsHTML({ plate: s.plate }, s)}${(() => { const o = s.entries.find(e => notice(e) && !e.outcome); return o ? flagsHTML({ ndate: o.ndate, ntime: o.ntime }, null) : ''; })()}</div></button>`;
+    }).join('')}</div>`;
+}
+
+function render(keepEntry) {      // keepEntry: the open sheet already shows what was typed
+  renderStatus(); renderBanner(); renderHint(); renderView();
+  if (keepEntry) return;
+  const box = $('#entry'), typing = document.activeElement;
+  if (openId && box && !(typing && box.contains(typing) && /INPUT|TEXTAREA/.test(typing.tagName))) refreshEntry();
+}
+
+/* ---------------------------------------------------------------- entry sheet */
+let openId = null;
+
+function openEntry(id) {
+  openId = id;
+  const r = entries().find(x => x.id === id);
+  if (!r) { openId = null; return; }
+  const el = sheet(`<div id="entry"></div>`);
+  el.addEventListener('change', onEntryField);
+  el.addEventListener('click', onEntryClick);
+  refreshEntry(true);
+}
+
+function refreshEntry(first) {
+  const box = $('#entry'); if (!box) { openId = null; return; }
+  const list = entries(), r = list.find(x => x.id === openId);
+  if (!r) { closeSheet(); openId = null; return; }
+  const s = plateStats(list)[r.plate], n = notice(r);
+  const sig = JSON.stringify([r, s && s.entries.length, s && s.recent.size]);
+  if (!first && box.dataset.sig === sig) return;     // nothing changed, leave the buttons alone
+  box.dataset.sig = sig;
+  const keep = first ? null : { loc: $('#e-loc')?.value, notes: $('#e-notes')?.value, focus: document.activeElement?.id };
+
+  let nb;
+  if (n) {
+    nb = `<div class="nbox${n.open && n.ready ? ' done' : ''}">
+      Placed ${stamp(n.t)}<br>
+      ${n.open ? (n.ready ? `<b>Tow eligible since ${stamp(n.elig)}</b>` : `Tow eligible ${stamp(n.elig)}, in ${span(n.elig - Date.now())}`) : `Closed: ${esc(r.outcome)}`}
+      ${n.open ? `<div class="bar${n.ready ? ' done' : ''}"><i style="width:${(n.frac * 100).toFixed(1)}%"></i></div>` : ''}
+    </div><button class="linkbtn" data-act="clear-notice">Remove notice</button>`;
+  } else {
+    const now = new Date();
+    nb = `<button class="primary" style="width:100%" data-act="notice-now">Notice placed now</button>
+      <button class="linkbtn" data-act="notice-other">Enter a different time</button>
+      <div class="when" id="when" hidden><input class="input" type="date" id="n-date" value="${ymdOf(now)}"><input class="input" type="time" id="n-time" value="${hmOf(now)}"></div>
+      <button class="btn" id="n-save" data-act="notice-save" style="width:100%;margin-top:8px" hidden>Save notice time</button>`;
+  }
+
+  const hist = s ? s.entries.map(e => `<div><b class="mono">${day(e.date)}</b><span>${clock(e.time)}${e.loc ? ' · ' + esc(e.loc) : ''}${e.outcome ? ' · ' + esc(e.outcome) : ''}${e.id === r.id ? ' · this one' : ''}</span></div>`).join('') : '';
+  const lv = level(s);
+  const count = s ? `${s.recent.size} ${s.recent.size === 1 ? 'night' : 'nights'} in ${SET.windowDays} days${s.all.size > s.recent.size ? `, ${s.all.size} total` : ''}` : '';
+
+  $('#entry').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+      <h2 class="plate-h">${esc(r.plate)}</h2><div class="flags">${flagsHTML(r, s)}</div></div>
+    <div class="meta">${day(r.date)} · ${clock(r.time)}${r.pending ? ' · waiting to send' : ''}</div>
+    ${!r.id ? `<div class="banner bad">This entry has no ID yet. Run setup in the sheet once, then it can be edited here.</div>` : ''}
+    <div class="label">Unit or spot</div>
+    <input class="input" id="e-loc" value="${esc(r.loc)}" autocapitalize="characters" autocomplete="off">
+    <div class="label">Towing notice</div>${nb}
+    <div class="label">Outcome</div>
+    <div class="chips">${OUTCOMES.map(o => `<button class="chip${r.outcome === o ? ' on' : ''}" data-outcome="${o}">${o}</button>`).join('')}</div>
+    <div class="label">Notes</div>
+    <textarea class="input" id="e-notes" placeholder="Color, make, anything useful">${esc(r.notes)}</textarea>
+    <div class="label">${lv === 'repeat' ? '<span style="color:var(--red)">Repeat offender</span> · ' : ''}History · ${count}</div>
+    <div class="hist">${hist}</div>
+    <div class="foot"><button class="danger" data-act="delete">Delete</button><button class="primary" data-act="done">Done</button></div>`;
+
+  if (keep) {
+    if (keep.loc != null) $('#e-loc').value = keep.loc;
+    if (keep.notes != null) $('#e-notes').value = keep.notes;
+    if (keep.focus && $('#' + keep.focus)) $('#' + keep.focus).focus();
+  }
+}
+
+function saveFields() {
+  const r = entries().find(x => x.id === openId); if (!r || !r.id) return;
+  const loc = $('#e-loc')?.value.trim().toUpperCase() ?? r.loc, notes = $('#e-notes')?.value.trim() ?? r.notes;
+  const f = {};
+  if (loc !== r.loc) f.loc = loc;
+  if (notes !== r.notes) f.notes = notes;
+  if (Object.keys(f).length) enqueue({ type: 'update', id: r.id, fields: f }, true);
+}
+function onEntryField(e) { if (e.target.id === 'e-loc' || e.target.id === 'e-notes') saveFields(); }
+
+function onEntryClick(e) {
+  const r = entries().find(x => x.id === openId); if (!r) return;
+  const b = e.target.closest('[data-act],[data-outcome]'); if (!b) return;
+  if (!r.id && b.dataset.act !== 'done') return;
+  const act = b.dataset.act;
+  if (b.dataset.outcome) {
+    const o = r.outcome === b.dataset.outcome ? '' : b.dataset.outcome;
+    enqueue({ type: 'update', id: r.id, fields: { outcome: o } }); buzz(15);
+  } else if (act === 'notice-now') {
+    const now = new Date();
+    enqueue({ type: 'update', id: r.id, fields: { ndate: ymdOf(now), ntime: hmOf(now), outcome: '' } });
+    toast('Notice started, 24 hours'); buzz(25);
+  } else if (act === 'notice-other') {
+    $('#when').hidden = false; $('#n-save').hidden = false; b.hidden = true;
+  } else if (act === 'notice-save') {
+    const d = $('#n-date').value, t = $('#n-time').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^\d{2}:\d{2}/.test(t)) { toast('Pick a date and time'); return; }
+    enqueue({ type: 'update', id: r.id, fields: { ndate: d, ntime: t.slice(0, 5) } });
+  } else if (act === 'clear-notice') {
+    enqueue({ type: 'update', id: r.id, fields: { ndate: '', ntime: '' } });
+  } else if (act === 'delete') {
+    if (b.dataset.armed) { saveFields(); enqueue({ type: 'delete', id: r.id }); closeSheet(); openId = null; toast(r.plate + ' deleted'); render(); }
+    else { b.dataset.armed = '1'; b.textContent = 'Tap again to delete'; }
+  } else if (act === 'done') {
+    saveFields(); closeSheet(); openId = null; render();
+  }
+}
+
+/* ---------------------------------------------------------------- plate sheet */
+function openPlate(plate) {
+  const list = entries(), s = plateStats(list)[plate]; if (!s) return;
+  sheet(`<h2 class="plate-h">${esc(plate)}</h2>
+    <div class="meta">${s.recent.size} nights in ${SET.windowDays} days · ${s.all.size} total</div>
+    <div class="card list" style="margin:0">${s.entries.map(r => {
+      const n = notice(r);
+      return itemHTML(r, null, `<b>${day(r.date)}</b> · ${clock(r.time)}`, `${r.loc ? esc(r.loc) : ''}${n ? (r.loc ? ' · ' : '') + 'notice ' + clock(r.ntime) : ''}`, '', null, false);
+    }).join('')}</div>`).addEventListener('click', e => {
+    const b = e.target.closest('[data-open]'); if (b) openEntry(b.dataset.open);
+  });
+}
+
+/* ---------------------------------------------------------------- settings */
+function openSettings() {
+  openId = null;
+  const el = sheet(`<h2>Settings</h2>
+    <div class="label">Google Sheet connection</div>
+    <div class="stack">
+      <input class="input" id="s-url" placeholder="Web app address" value="${esc(cfg.url)}" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="url">
+      <input class="input" id="s-key" placeholder="Passcode" value="${esc(cfg.key)}" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="primary" data-act="save">Save and test</button>
+    </div>
+    <div class="msg" id="s-msg"></div>
+    <div class="label">Status</div>
+    <div class="nbox" id="s-status"></div>
+    ${meta.sheetUrl ? `<a class="btn" style="width:100%;margin-top:10px" href="${esc(meta.sheetUrl)}" target="_blank" rel="noopener">Open the Google Sheet</a>` : ''}
+    <div class="label" style="margin-top:18px">How flags work</div>
+    <div class="muted" style="font-size:14px;line-height:1.45">A plate turns blue on its 2nd night and red at ${SET.repeatNights} nights within ${SET.windowDays} days. Sightings before ${SET.cutoffHour} AM count toward the night before. Outcomes of Void or Has pass don't count. The sheet emails you about repeat offenders and expired notices.</div>
+    <div style="margin-top:18px">${themeSegHTML()}</div>`);
+  const status = () => {
+    const box = $('#s-status'); if (!box) return;
+    box.innerHTML = `${meta.lastSync ? 'Last synced ' + ago(meta.lastSync) : 'Never synced'}<br>
+      ${queue.length ? `${queue.length} ${queue.length === 1 ? 'change' : 'changes'} waiting to send` : 'Nothing waiting to send'}
+      ${net.error ? `<br><span style="color:var(--red)">${esc(net.error)}</span>` : ''}`;
+  };
+  status();
+  el.addEventListener('click', async e => {
+    if (!e.target.closest('[data-act="save"]')) return;
+    const url = $('#s-url').value.trim(), key = $('#s-key').value.trim(), msg = $('#s-msg');
+    if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) { msg.className = 'msg bad'; msg.textContent = 'Paste the web app address. It starts with https://script.google.com/'; return; }
+    if (!key) { msg.className = 'msg bad'; msg.textContent = 'Enter the passcode.'; return; }
+    cfg = { url, key }; write(K.cfg, cfg);
+    msg.className = 'msg'; msg.textContent = 'Testing…';
+    while (net.busy) await new Promise(r => setTimeout(r, 200));
+    const ok = await sync();
+    if (!$('#s-msg')) return;
+    msg.className = ok ? 'msg ok' : 'msg bad';
+    msg.textContent = ok ? `Connected. ${rows.length} entries in the sheet.` : net.error;
+    status();
+  });
+}
+
+/* ---------------------------------------------------------------- events */
+$('#plate').addEventListener('input', renderHint);
+$('#plate').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#loc').focus(); } });
+$('#loc').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addEntry(false); } });
+$('#log').addEventListener('click', () => addEntry(false));
+$('#logn').addEventListener('click', () => addEntry(true));
+$('#gear').addEventListener('click', openSettings);
+$('#status').addEventListener('click', () => (cfg.url && cfg.key && (queue.length || net.error)) ? sync() : openSettings());
+$('#sugg').addEventListener('click', e => {
+  const b = e.target.closest('[data-fill]'); if (!b) return;
+  $('#plate').value = b.dataset.fill; renderHint(); $('#loc').focus();
+});
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { tab = b.dataset.tab; renderView(); } });
+$('#view').addEventListener('click', e => {
+  const o = e.target.closest('[data-open]'); if (o) return openEntry(o.dataset.open);
+  const p = e.target.closest('[data-plate]'); if (p) openPlate(p.dataset.plate);
+});
+$('#banner').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'settings') openSettings(); else sync();
+});
+window.addEventListener('online', sync);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { render(); sync(); } });
+setInterval(() => { if (document.visibilityState === 'visible' && !document.querySelector('.backdrop')) renderView(); }, 30000);
+setInterval(() => { if (document.visibilityState === 'visible' && (queue.length || Date.now() - meta.lastSync > 120000)) sync(); }, 60000);
+
+render();
+sync();
+</script>
+</body>
+</html>
