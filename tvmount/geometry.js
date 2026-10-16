@@ -93,7 +93,7 @@
 
   /* ---------- the data model for one TV location ---------- */
 
-  const EDGE = { floor: 'center', mantle: 'bottom', ceiling: 'top' };
+  const EDGE = { floor: 'bottom', mantle: 'bottom', ceiling: 'bottom' };   // every placement starts on the TV bottom
   const KINDS = ['floor', 'mantle', 'ceiling'];
 
   function newTab(name) {
@@ -107,9 +107,9 @@
       },
       ref: {
         kind: 'floor', ff: null,
-        floor: { edge: 'center', value: null },
+        floor: { edge: 'bottom', value: null },
         mantle: { edge: 'bottom', value: null, h: null, hR: null, len: null },
-        ceiling: { edge: 'top', value: null, h: null }
+        ceiling: { edge: 'bottom', value: null, h: null }
       },
       center: { mode: 'half', from: 'left', a: null, b: null, d: null },
       studs: { from: 'center', list: [] },

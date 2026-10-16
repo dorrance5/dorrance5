@@ -42,11 +42,14 @@ test('unversioned data is backed up then migrated', () => {
   assert.equal(doc.tabs[0].ref.mantle.edge, 'bottom');
   assert.deepEqual(doc.tabs[0].studs.list, []);
   assert.equal(doc.tabs[0].bar.kind, 'none');           // tabs saved before the soundbar get one, off
-  assert.equal(doc.tabs[0].center.mode, 'two');         // the old default, not the new one
+  assert.equal(doc.tabs[0].center.mode, 'two');         // the old defaults, not the new ones
+  assert.equal(doc.tabs[0].ref.floor.edge, 'center');
+  assert.equal(doc.tabs[0].ref.ceiling.edge, 'top');
   assert.equal(doc.tabs[0].mount.holesFrom, 'top');
   const fresh = S.blank().tabs[0];
   assert.equal(fresh.tv.src, 'size');                    // new tabs start on a standard size
   assert.equal(fresh.center.mode, 'half');
+  for (const k of ['floor', 'mantle', 'ceiling']) assert.equal(fresh.ref[k].edge, 'bottom');
 });
 
 test('fields a newer app wrote are kept, bad numbers dropped', () => {

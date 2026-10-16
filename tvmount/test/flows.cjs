@@ -42,6 +42,8 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
 
   // new tabs start on a standard size and half a distance
   check('standard size and half a distance by default', !!(await page.$('[data-size="65"]')) && !!(await page.$('[data-k="center.d"]')));
+  const firsts = await page.$$eval('#form .seg', segs => segs.map(sg => sg.firstElementChild.classList.contains('on')));
+  check('every choice starts on its leftmost option', firsts.every(Boolean), firsts);
   await page.tap('[data-seg="tv.src"] [data-v="measured"]');
 
   // keypad: whole inches, then numerator over denominator like Calculator
@@ -89,6 +91,9 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.keyboard.type('3/8');
   check('typing 3/8 on a keyboard', (await tab0()).center.d === 0.375, (await tab0()).center.d);
   await keys('clear');
+  const edges = await page.$$eval('[data-seg="ref.floor.edge"] button', bs => bs.map(x => x.dataset.v + (x.classList.contains('on') ? '*' : '')));
+  check('Set the starts on TV bottom, leftmost', edges.join() === 'bottom*,center,top', edges);
+  await page.tap('[data-seg="ref.floor.edge"] [data-v="center"]');
   await page.tap('[data-k="ref.floor.value"]');
   await keys('4', '2', 'done');
   check('keypad closes on Done', !(await page.isVisible('#kp')));
