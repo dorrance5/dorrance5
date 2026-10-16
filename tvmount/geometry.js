@@ -694,10 +694,10 @@
       if (b.gap > EPS) add({ t: 'dim', side: 'right', a: b.top, b: y.bottom, v: b.gap, name: 'gap', key: 'bargap' });
       if (ref.edge === 'bar' && Math.abs(b.bottom - from) > EPS) add({ t: 'dim', side: 'left', a: from, b: b.bottom, v: Math.abs(b.bottom - from), name: 'bar bottom', key: 'barbottom', input: true });
     }
-    add({ t: 'dim', side: 'right', a: y.bottom, b: y.top, v: tv.h, name: 'height' });
+    add({ t: 'dim', side: 'right', a: y.bottom, b: y.top, v: tv.h, name: 'height', key: 'tv' });
     if (ref.kind !== 'floor' && ref.refNow != null) add({ t: 'dim', side: 'right', a: -ref.refNow, b: 0, v: ref.refNow, name: ref.kind === 'mantle' ? 'mantle' : 'ceiling', ref: true });
     if (ref.kind === 'floor' && Math.abs(ref.ff) > EPS) add({ t: 'dim', side: 'right', a: -ref.ff, b: 0, v: Math.abs(ref.ff), name: 'finish' });
-    if (tv.w) add({ t: 'dim', side: 'top', a: x0, b: x1, v: tv.w, name: 'width' });
+    if (tv.w) add({ t: 'dim', side: 'top', a: x0, b: x1, v: tv.w, name: 'width', key: 'tv' });
     if (ref.kind === 'mantle' && ref.gapL != null && Math.abs(ref.slope) > EPS && !r.bar) {
       add({ t: 'label', cls: 'gap', x: x0 + 1, y: y.bottom, lines: ['gap ' + T(ref.gapL)], anchor: 'start', below: true });
       add({ t: 'label', cls: 'gap', x: x1 - 1, y: y.bottom, lines: ['gap ' + T(ref.gapR)], anchor: 'end', below: true });

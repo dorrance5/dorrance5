@@ -196,10 +196,10 @@
     return `<div class="seg" data-seg="${path}">${opts.map(([v, l]) => `<button data-v="${v}" class="${cur === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   }
   const CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
-  // Each card has an icon in the color its part has on the sketch. The five Simple cards get
-  // five different colors; Pro cards take the rest.
+  // Each card has a color: its icon, its selected buttons and the field being typed in use it,
+  // and so does its part of the sketch. The five Simple cards get five different colors.
   const ICON = {
-    tv: ['tv', '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M9 20h6"/>'],
+    tv: ['purple', '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M9 20h6"/>'],
     bracket: ['blue', '<rect x="5" y="4" width="14" height="16" rx="2"/><circle cx="9" cy="8" r="1"/><circle cx="15" cy="8" r="1"/><circle cx="9" cy="16" r="1"/><circle cx="15" cy="16" r="1"/>'],
     place: ['orange', '<path d="M12 4v16M8.5 7.5 12 4l3.5 3.5M8.5 16.5 12 20l3.5-3.5"/>'],
     center: ['magenta', '<path d="M12 3v3M12 10.5v3M12 18v3M3 12h5M5.5 9.5 3 12l2.5 2.5M21 12h-5M18.5 9.5 21 12l-2.5 2.5"/>'],
@@ -211,7 +211,7 @@
   };
   function card(id, title, body, isPro) {
     const [hue, glyph] = ICON[id];
-    return `<section class="card sec${ui.shut[id] ? ' shut' : ''}" data-sec="${id}"><button class="sec-h" data-fold="${id}"><span class="ic ${hue}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></span><span>${title}</span>${isPro ? '<span class="pro">Pro</span>' : ''}${CHEV}</button><div class="sec-b">${body}</div></section>`;
+    return `<section class="card sec hue-${hue}${ui.shut[id] ? ' shut' : ''}" data-sec="${id}"><button class="sec-h" data-fold="${id}"><span class="ic ${hue}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></span><span>${title}</span>${isPro ? '<span class="pro">Pro</span>' : ''}${CHEV}</button><div class="sec-b">${body}</div></section>`;
   }
   const hint = s => `<p class="hint">${s}</p>`;
   function libButtons(kind) {
@@ -528,8 +528,8 @@
       }
     }
 
-    // dimensions: drill red, the number you set orange, bracket blue, soundbar teal, center line magenta
-    const dimCls = d => 'dl' + (d.key === 'hole' || d.key === 'barhole' ? ' hole' : d.input ? ' in' : d.key === 'chain' ? ' br'
+    // dimensions: drill red, the number you set orange, TV purple, bracket blue, soundbar teal, center line magenta
+    const dimCls = d => 'dl' + (d.key === 'hole' || d.key === 'barhole' ? ' hole' : d.input ? ' in' : d.key === 'chain' ? ' br' : d.key === 'tv' ? ' tv'
       : d.key === 'bargap' || d.key === 'bartop' ? ' sb' : d.side === 'bottom' ? ' cl' : '');
     const dims = [], t = f * 0.38;
     const tick = (x, y) => L('dim', x - t, y - t, x + t, y + t);
