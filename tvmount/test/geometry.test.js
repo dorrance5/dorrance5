@@ -377,6 +377,23 @@ test('with a soundbar, the bottom you measure to is the soundbar bottom', () => 
   assert.deepEqual(G.compute(tab(BASE, { bar: { kind: 'tv' } }), { mode: 'simple' }).bar.need, ['height']);
 });
 
+test('room items are sketch only, placed from the floor and the center line', () => {
+  const room = { ceil: 96, mantle: 20, left: 60, right: 40 };
+  const r = G.compute(tab(BASE, { ref: { ff: 0.75 }, room }), { mode: 'pro' });
+  const it = r.sketch.items.filter(i => i.room);
+  near(it.find(i => i.t === 'line' && i.cls === 'ceiling').y0, 95.25);   // 96 from today's floor, 3/4 below the finished floor
+  near(it.find(i => i.t === 'dim' && i.name === 'ceiling').v, 96);
+  near(it.find(i => i.t === 'label' && i.cls === 'mantle').top, 19.25);
+  const walls = it.filter(i => i.cls === 'wall').map(i => i.x0);
+  assert.deepEqual(walls, [-60, 40]);
+  near(it.find(i => i.t === 'dim' && i.key === 'wall' && i.a < 0).v, 60 - 57.125 / 2);
+  near(r.m.hole, G.compute(tab(BASE, { ref: { ff: 0.75 } }), { mode: 'pro' }).m.hole);   // the drill height does not change
+  // mantle and ceiling placements already have their own height; no floor known, no heights drawn
+  const m = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 4 } }, room }), { mode: 'simple' });
+  assert.ok(!m.sketch.items.some(i => i.room && i.cls !== 'wall' && i.key !== 'wall'));
+  assert.equal(m.sketch.items.filter(i => i.cls === 'wall').length, 2);
+});
+
 // Past jobs: add entries to jobs.json as
 // { "name": "...", "mode": "simple" | "pro", "tab": { ...overrides like BASE... }, "expect": { "hole": 53.875, "top": ..., "center": ..., "bottom": ... } }
 // expect values are what you measured from the reference (floor, mantle, or ceiling). Tolerance is 1/32".

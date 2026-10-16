@@ -128,6 +128,21 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   check('none hides the soundbar again', !(await page.$('#sk rect.sbar')) && (await tab0()).bar.w === 45);
   check('and TV bottom comes back', (await page.textContent('[data-seg="ref.floor.edge"] [data-v="bottom"]')) === 'TV bottom');
 
+  // room: folded at first, sketch only, drawn in screenshot mode
+  check('Room card starts folded', await page.$eval('[data-sec="room"]', el => el.classList.contains('shut')));
+  await page.tap('[data-fold="room"]');
+  await page.tap('[data-k="room.ceil"]');
+  await keys('9', '6', 'next', 'next', '6', '0', 'next', '4', '0', 'done');
+  const room = (await tab0()).room;
+  check('room fields fill in order', room.ceil === 96 && room.mantle === null && room.left === 60 && room.right === 40, room);
+  check('the phone sketch leaves the room out', !(await page.$('#sk line.wall')) && (await hero()).replace(/\u00a0/g, ' ') === '53 7/8"');
+  await page.tap('[data-shot]');
+  check('screenshot mode draws both walls and the ceiling', (await page.$$('#shotSk line.wall')).length === 2 && /Ceiling/.test(await page.textContent('#shotSk')));
+  await page.tap('#shotSk', { position: { x: 150, y: 400 } });
+  await page.waitForTimeout(400);
+  await page.tap('#shotX');
+  await page.tap('[data-fold="room"]');
+
   // modes keep their data
   await page.tap('#menuBtn');
   await page.tap('.sheet [data-set="mode"] [data-v="pro"]');

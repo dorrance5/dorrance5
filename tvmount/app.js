@@ -41,7 +41,8 @@
     'view.eye': ['Seated eye height', 40], 'view.dist': ['Eyes to wall'],
     'built.top': ['TV top'], 'built.bottom': ['TV bottom'],
     'bar.w': ['Bar width', 'for the sketch'], 'bar.h': ['Bar height'], 'bar.gap': ['TV bottom → bar top'],
-    'bar.below': ['Console top', 'floor'], 'bar.holesToTop': ['Holes → bar top']
+    'bar.below': ['Console top', 'floor'], 'bar.holesToTop': ['Holes → bar top'],
+    'room.ceil': ['Floor to ceiling'], 'room.mantle': ['Floor to mantle top'], 'room.left': ['Center line → left wall'], 'room.right': ['Center line → right wall']
   };
   function label(path) {
     const t = tab(), kind = t.ref.kind;
@@ -208,11 +209,14 @@
     studs: ['yellow', '<path d="M6 3v18M12 3v18M18 3v18"/>'],
     box: ['green', '<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/>'],
     view: ['purple', '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/>'],
-    built: ['lime', '<path d="m5 12.5 4.5 4.5L19 7.5"/>']
+    built: ['lime', '<path d="m5 12.5 4.5 4.5L19 7.5"/>'],
+    room: ['gray', '<path d="M3 11 12 4l9 7"/><path d="M5.5 9.5V20h13V9.5"/>']
   };
-  function card(id, title, body, isPro) {
+  // Cards are open unless folded; the sketch-only Room card starts folded.
+  const isShut = id => id in ui.shut ? ui.shut[id] : id === 'room';
+  function card(id, title, body, badge) {   // badge: true for Pro, or a word such as 'Sketch'
     const [hue, glyph] = ICON[id];
-    return `<section class="card sec hue-${hue}${ui.shut[id] ? ' shut' : ''}" data-sec="${id}"><button class="sec-h" data-fold="${id}"><span class="ic ${hue}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></span><span>${title}</span>${isPro ? '<span class="pro">Pro</span>' : ''}${CHEV}</button><div class="sec-b">${body}</div></section>`;
+    return `<section class="card sec hue-${hue}${isShut(id) ? ' shut' : ''}" data-sec="${id}"><button class="sec-h" data-fold="${id}"><span class="ic ${hue}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></span><span>${title}</span>${badge === true ? '<span class="pro">Pro</span>' : badge ? `<span class="tag">${badge}</span>` : ''}${CHEV}</button><div class="sec-b">${body}</div></section>`;
   }
   const hint = s => `<p class="hint">${s}</p>`;
   function libButtons(kind) {
@@ -301,6 +305,13 @@
     }
     h += card('bar', 'Soundbar', b);
 
+    // room: sketch only
+    b = `<div class="grid2">${kind !== 'ceiling' ? fld('room.ceil') : ''}${kind !== 'mantle' ? fld('room.mantle') : ''}${fld('room.left')}${fld('room.right')}</div>`;
+    b += hint('Only screenshot mode draws these. They do not change where you drill. Turn the phone sideways there to fit the whole wall.'
+      + (!r.floorKnown && (isNum(t.room.ceil) || isNum(t.room.mantle)) ? ' Add the ' + kind + ' height in Placement to place the heights.' : ''));
+    b += `<div class="row"><button class="btn" data-shot>Open screenshot mode</button></div>`;
+    h += card('room', 'Room', b, 'Sketch');
+
     if (P) {
       // studs
       b = seg('studs.from', [['center', 'From center line'], ['edge', 'From the edge']]);
@@ -332,7 +343,8 @@
   $('#form').addEventListener('click', e => {
     const t = tab();
     const fold = e.target.closest('[data-fold]');
-    if (fold) { const id = fold.dataset.fold; ui.shut[id] = !ui.shut[id]; saveUI(); fold.parentElement.classList.toggle('shut', ui.shut[id]); return; }
+    if (fold) { const id = fold.dataset.fold; ui.shut[id] = !isShut(id); saveUI(); fold.parentElement.classList.toggle('shut', ui.shut[id]); return; }
+    if (e.target.closest('[data-shot]')) { openShot(); return; }
     const f = e.target.closest('[data-k]');
     if (f) { buzz(4); openKeypad(f.dataset.k); return; }
     const sb = e.target.closest('[data-seg] button');
@@ -418,8 +430,8 @@
   const EXAMPLE = (() => { const t = G.newTab('Example'); t.tv.src = 'size'; t.tv.size = 65; t.mount.holesToTop = 4.5; t.ref.floor.value = 30; return t; })();
 
   // Lay the sketch out at label size f (wall inches). Returns svg markup and its viewBox.
-  function sketchSVG(sk, f, example, hid) {
-    const items = sk.items, tv = sk.tv;
+  function sketchSVG(sk, f, example, hid, room) {
+    const items = room ? sk.items : sk.items.filter(i => !i.room), tv = sk.tv;   // room items: screenshot mode only
     const B = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
     const grow = (x, y) => { B.x0 = Math.min(B.x0, x); B.x1 = Math.max(B.x1, x); B.y0 = Math.min(B.y0, y); B.y1 = Math.max(B.y1, y); };
     for (const it of items) {
@@ -427,14 +439,14 @@
       else if (it.t === 'poly') it.pts.forEach(p => grow(p[0], p[1]));
       else if (it.t === 'line') {
         if (it.hspan) { grow(it.x0, it.y0); grow(it.x1, it.y0); }
-        else if (it.vspan) { if (!it.far) grow(it.x0, tv.y0); }
+        else if (it.vspan) { if (!it.far) grow(it.x0, tv.y0); if (it.cls === 'wall') grow(it.x0 + it.side * 2, tv.y0); }
         else { grow(it.x0, it.y0); grow(it.x1, it.y1); }
       } else if (it.t === 'dot' || it.t === 'mark') grow(it.x, it.y);
     }
     if (items.some(i => i.t === 'label' && i.below)) grow(tv.x0, tv.y0 - f * 2);
     // the mantle's name sits under it; edge and mark names, when there are any, get a row below that
     const named = items.some(i => i.t === 'line' && i.vspan && i.text && i.cls !== 'stud');
-    if (items.some(i => i.t === 'label' && i.cls === 'mantle')) grow(0, -2.5 - f * (named ? 3.1 : 1.8));
+    for (const m of items.filter(i => i.t === 'label' && i.cls === 'mantle')) grow(0, m.top - 2.5 - f * (named ? 3.1 : 1.8));
     // stud and edge names sit just inside the bottom of the drawing (above the floor when there is one)
         const studRow = B.y0 + f * 0.8, edgeRow = B.y0 + f * 0.8;
 
@@ -474,13 +486,14 @@
           y0 = it.cls === 'edge' || it.cls === 'markline' ? E.y0 : B.y0; y1 = B.y1;
         }
         const ln = L(it.cls, x0, y0, x1, y1);
+        if (it.cls === 'wall') back.push(`<rect class="wallfill" x="${N(Math.min(x0, x0 + it.side * 2))}" y="${N(-y1)}" width="2" height="${N(y1 - y0)}"/>`);
         (['stud', 'drill', 'center'].includes(it.cls) ? front : back).push(ln);
         if (it.text) {
           const s = val(it.text);
           if (it.hspan) {
-            const below = it.cls === 'ceiling';
-            const tx = it.cls === 'eye' ? B.x1 : E.x1;
-            text.push(T(it.cls === 'eye' ? 'el' : 'll', tx, y0 + (below ? -f * 0.8 : f * 0.8), s, { anchor: 'end', fs: f * 0.9 }));
+            // the ceiling's name sits under it at the left, inside the drawing, clear of the right-hand dimensions
+            if (it.cls === 'ceiling') text.push(T('ll', B.x0 + f * 0.4, y0 - f * 0.8, s, { anchor: 'start', fs: f * 0.9 }));
+            else text.push(T(it.cls === 'eye' ? 'el' : 'll', it.cls === 'eye' ? B.x1 : E.x1, y0 + f * 0.8, s, { anchor: 'end', fs: f * 0.9 }));
           } else if (it.cls === 'stud') text.push(T('stl', it.x0, studRow + textW(s, f * 0.85) / 2 - f * 0.4, s, { fs: f * 0.85, rot: true }));
           else text.push(T('cll', it.x0, edgeRow, s, { fs: f * 0.85 }));
         }
@@ -518,12 +531,14 @@
             }
             return room / (textW(s, fs) * 1.12);   // model numbers are mostly capitals and digits, wider than average
           };
-          fs *= Math.max(0.6, Math.min(1, fit(val(it.lines[0]), fs, base)));
-          if (th > fs * 2.2) text.push(T('tl', x, base, val(it.lines[0]), { fs, anchor: 'start' }));
+          const k = Math.min(1, fit(val(it.lines[0]), fs, base));   // a small TV in a big drawing: shrink the name, or leave it out
+          fs *= Math.max(0.45, k);
+          if (k < 0.45) { /* no room for the name */ }
+          else if (th > fs * 2.2) text.push(T('tl', x, base, val(it.lines[0]), { fs, anchor: 'start' }));
           else text.push(T('tl', x, tv.y0 + th * 0.3, val(it.lines[0]), { fs: Math.min(fs, th * 0.5), anchor: 'start' }));
         } else if (it.cls === 'mantle') {
           const mx = Math.min(...items.filter(i => i.t === 'poly' && i.cls === 'mantle').flatMap(i => i.pts.map(p => p[0])));
-          text.push(T('ll', isFinite(mx) ? mx : it.x, -2.5 - f * 0.8, it.lines[0], { fs: f * 0.85, anchor: isFinite(mx) ? 'start' : 'middle' }));
+          text.push(T('ll', isFinite(mx) ? mx : it.x, it.top - 2.5 - f * 0.8, it.lines[0], { fs: f * 0.85, anchor: isFinite(mx) ? 'start' : 'middle' }));
         }
         else if (it.cls === 'gap') text.push(T('gl', it.x, it.y - f * 0.9, val(it.lines[0]), { anchor: it.anchor, fs: f * 0.85 }));
         else text.push(T('ll', it.x, it.y, val(it.lines.join(' ')), { anchor: it.anchor }));
@@ -571,6 +586,15 @@
         if (textW(s) > room && textW(s) * 0.6 <= room) fs = f * room / textW(s);
         text.push(T(dimCls(d), (a + b) / 2, Y, s, { fs }));
       }
+    }
+    // dimensions drawn inside the drawing at their own height, such as a wall to the TV side
+    for (const d of items.filter(i => i.t === 'dim' && i.side === 'inline')) {
+      const Y = d.at, full = example ? d.name : d.name + ' ' + fmt(d.v), room = Math.abs(d.b - d.a) - f * 0.6;
+      dims.push(L('dim', d.a, Y, d.b, Y), tick(d.a, Y), tick(d.b, Y));
+      let s = full, fs = f * 0.9;
+      if (textW(s, fs) > room) s = example ? d.name : fmt(d.v);
+      if (textW(s, fs) > room) fs = Math.max(f * 0.55, fs * room / textW(s, fs));
+      text.push(T(dimCls(d), (d.a + d.b) / 2, Y - fs * 0.75, s, { fs }));   // under the line, clear of the drill line above
     }
 
     const m = f * 1.2;
@@ -656,12 +680,12 @@
     const aspectH = vb => Math.max(220, Math.min(Math.min(470, innerHeight * 0.56), cw * vb.h / vb.w));
     let f = o.px * (sk.tv.x1 - sk.tv.x0) * 1.9 / cw, out;
     for (let i = 0; i < 3; i++) {
-      out = sketchSVG(sk, f, o.example, o.hid);
+      out = sketchSVG(sk, f, o.example, o.hid, o.room);
       if (o.autoHeight) svg.style.height = Math.round(aspectH(out.vb)) + 'px';
       const ch = svg.clientHeight || 300;
       f = o.px / Math.min(cw / out.vb.w, ch / out.vb.h);
     }
-    out = sketchSVG(sk, f, o.example, o.hid);
+    out = sketchSVG(sk, f, o.example, o.hid, o.room);
     svg.innerHTML = out.html;
     zm.setBase(fitAspect(out.vb, cw, svg.clientHeight || 300));
   }
@@ -701,7 +725,7 @@
     const edges = ['top', 'center', 'bottom'].filter(k => r.m[k] != null).map(k => k + ' ' + fmt(r.m[k])).join(' · ');
     const sbh = r.ok && r.bar && r.bar.hole != null ? `<span class="e">Soundbar holes ${esc(fmt(r.bar.m.hole))}</span>` : '';
     $('#shotCap').innerHTML = `<b>${esc(t.name)}</b><span>${r.ok ? 'Drill top holes ' + esc(fmt(hero.v)) + ' ' + esc(hero.sub) : 'Example'}</span>${r.ok && edges ? `<span class="e">TV ${esc(edges)}</span>` : ''}${sbh}`;
-    drawInto(shot.el.querySelector('#shotSk'), shot.zm, example ? G.compute(EXAMPLE, { mode: 'simple' }).sketch : r.sketch, { px: Math.max(13, Math.min(22, Math.min(innerWidth, innerHeight) / 29)), example, hid: 'hatchB' });
+    drawInto(shot.el.querySelector('#shotSk'), shot.zm, example ? G.compute(EXAMPLE, { mode: 'simple' }).sketch : r.sketch, { px: Math.max(13, Math.min(22, Math.min(innerWidth, innerHeight) / 29)), example, hid: 'hatchB', room: true });
   }
   $('#shotBtn').onclick = openShot;
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && shot) closeShot(); });
