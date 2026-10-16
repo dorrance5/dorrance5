@@ -199,6 +199,7 @@ test('mantle measured at both ends keeps the gap at the high end', () => {
 test('center tool', () => {
   assert.deepEqual(G.centerTool({ mode: 'two', from: 'left', a: 30, b: 94 }), { mode: 'two', from: 'left', pos: 62, a: 30, b: 94, half: 32 });
   assert.equal(G.centerTool({ mode: 'half', from: 'right', d: 150 }).pos, 75);
+  assert.equal(G.centerTool({ mode: 'half', from: 'right', d: 150 }).from, 'left');   // either end: counts from the left
   assert.equal(G.centerTool({ mode: 'two', a: 30 }), null);
   near(G.centerTool({ mode: 'two', a: 30.125, b: 94.5 }).pos, 62.3125);
 });
@@ -229,8 +230,11 @@ test('studs measured from the edge convert to the center line', () => {
   assert.deepEqual(r.studs, [-10.75, 5.25]);
   assert.ok(r.slide.ok);
   assert.equal(r.drill.length, 2);
-  const right = G.compute(tab(BASE, { center: { mode: 'half', from: 'right', d: 124 }, studs: { from: 'edge', list: [51.25] } }), { mode: 'pro' });
+  const right = G.compute(tab(BASE, { center: { mode: 'two', from: 'right', a: 30, b: 94 }, studs: { from: 'edge', list: [51.25] } }), { mode: 'pro' });
   assert.deepEqual(right.studs, [10.75]);
+  // half a distance has no left or right: studs count from the left end
+  const half = G.compute(tab(BASE, { center: { mode: 'half', from: 'right', d: 124 }, studs: { from: 'edge', list: [51.25] } }), { mode: 'pro' });
+  assert.deepEqual(half.studs, [-10.75]);
   assert.deepEqual(G.compute(t, { mode: 'simple' }).studs, []);
 });
 

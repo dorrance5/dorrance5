@@ -152,7 +152,7 @@
       mantleR: kind === 'mantle' ? p(k.hR) : null,
       mantleLen: kind === 'mantle' ? p(k.len) : null,
       ceilH: kind === 'ceiling' ? n(k.h) : null,
-      center: { mode: c.mode === 'half' ? 'half' : 'two', from: c.from === 'right' ? 'right' : 'left', a: n(c.a), b: n(c.b), d: n(c.d) },
+      center: { mode: c.mode === 'half' ? 'half' : 'two', from: c.mode !== 'half' && c.from === 'right' ? 'right' : 'left', a: n(c.a), b: n(c.b), d: n(c.d) },
       studsFrom: st.from === 'edge' ? 'edge' : 'center',
       studs: pro && Array.isArray(st.list) ? st.list.filter(isNum) : [],
       box: pro && bx.on ? { w: n(bx.w), h: n(bx.h), margin: isNum(bx.margin) ? bx.margin : DEFAULTS.boxMargin } : null,
@@ -170,10 +170,11 @@
 
   /* ---------- small tools ---------- */
 
-  // Center between two marks measured from one edge, or half of one distance.
+  // Center between two marks measured from one edge, or half of one distance. Half a distance
+  // is the same from either end; it counts from the left, for studs measured from the edge.
   function centerTool(c) {
     if (!c) return null;
-    const from = c.from === 'right' ? 'right' : 'left';
+    const from = c.mode !== 'half' && c.from === 'right' ? 'right' : 'left';
     if (c.mode === 'half') return isNum(c.d) ? { mode: 'half', from, pos: c.d / 2, d: c.d } : null;
     if (isNum(c.a) && isNum(c.b)) return { mode: 'two', from, pos: (c.a + c.b) / 2, a: c.a, b: c.b, half: Math.abs(c.b - c.a) / 2 };
     return null;
@@ -548,7 +549,7 @@
     }
     if (r.center) {
       const c = r.center;
-      rows.push({ id: 'centerline', k: 'Center line', v: c.pos, sub: 'from the ' + c.from + ' edge', alt: c.mode === 'two' ? 'between ' + T(c.a) + ' and ' + T(c.b) + ', ' + T(c.half) + ' each way' : 'half of ' + T(c.d) });
+      rows.push({ id: 'centerline', k: 'Center line', v: c.pos, sub: c.mode === 'half' ? 'from either end' : 'from the ' + c.from + ' edge', alt: c.mode === 'two' ? 'between ' + T(c.a) + ' and ' + T(c.b) + ', ' + T(c.half) + ' each way' : 'half of ' + T(c.d) });
     }
     if (r.mode === 'pro') {
       if (r.vesa && Math.abs(r.vesa.x) > EPS) rows.push({ id: 'vesa', k: 'VESA center', s: side(r.vesa.x), sub: 'of the TV center', cls: 'wide' });
