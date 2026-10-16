@@ -46,6 +46,7 @@ test('unversioned data is backed up then migrated', () => {
   assert.equal(doc.tabs[0].ref.floor.edge, 'center');
   assert.equal(doc.tabs[0].ref.ceiling.edge, 'top');
   assert.equal(doc.tabs[0].mount.holesFrom, 'top');
+  assert.deepEqual(doc.tabs[0].room, { ceil: null, mantle: null, left: null, right: null });
   const fresh = S.blank().tabs[0];
   assert.equal(fresh.tv.src, 'size');                    // new tabs start on a standard size
   assert.equal(fresh.center.mode, 'half');
