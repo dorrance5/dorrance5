@@ -12,7 +12,9 @@ window.App = (function () {
   function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
 
   /* ---- theme: one setting shared by every app, key "theme" = auto | light | dark | aurora ---- */
-  /* An app can leave Aurora out (App.init({ aurora: false })); it then shows Night for that setting. */
+  /* Aurora is secret: the picker shows Auto, Day and Night. Five taps on the "Theme" label within
+     2 seconds turn Aurora on, and an Aurora button shows, selected, until another theme is picked.
+     An app can leave Aurora out (App.init({ aurora: false })); it then shows Night for that setting. */
   const darkMQ = matchMedia('(prefers-color-scheme: dark)');
   let aurora = true;
   function themePref() { try { return localStorage.getItem('theme') || 'auto'; } catch (e) { return 'auto'; } }
@@ -24,17 +26,30 @@ window.App = (function () {
     if (mode === 'light') delete r.dataset.mode; else r.dataset.mode = mode;
     const m = $('meta[name="theme-color"]');
     if (m) m.content = getComputedStyle(document.body).backgroundColor;
-    document.querySelectorAll('[data-theme]').forEach(b => b.classList.toggle('on', b.dataset.theme === t));
+    document.querySelectorAll('[data-theme]').forEach(b => {
+      b.classList.toggle('on', b.dataset.theme === t);
+      if (b.dataset.theme === 'aurora') b.hidden = t !== 'aurora';
+    });
   }
   function setTheme(t) { try { localStorage.setItem('theme', t); } catch (e) {} applyTheme(); }
   darkMQ.addEventListener('change', applyTheme);
   window.addEventListener('storage', e => { if (e.key === 'theme') applyTheme(); });
 
-  const THEMES = [['auto','Auto'],['light','Day'],['dark','Night'],['aurora','Aurora']];
+  const THEMES = [['auto','Auto'],['light','Day'],['dark','Night']];
   function themeSegHTML() {
     const t = shown(themePref());
-    return `<div class="label">Theme</div><div class="seg">${THEMES.filter(([k]) => aurora || k !== 'aurora').map(([k, l]) =>
-      `<button data-theme="${k}" class="${t === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    return `<div class="label" data-theme-label>Theme</div><div class="seg">${THEMES.map(([k, l]) =>
+      `<button data-theme="${k}" class="${t === k ? 'on' : ''}">${l}</button>`).join('')}${aurora
+      ? `<button data-theme="aurora" class="on"${t === 'aurora' ? '' : ' hidden'}>Aurora</button>` : ''}</div>`;
+  }
+  let taps = [];
+  function secretTap() {
+    const now = Date.now();
+    taps = taps.filter(x => now - x < 2000).concat(now);
+    if (taps.length < 5) return;
+    taps = [];
+    setTheme('aurora');
+    toast('Aurora');
   }
 
   /* ---- sheets ---- */
@@ -47,6 +62,7 @@ window.App = (function () {
       if (e.target === b) { closeSheet(); return; }
       const t = e.target.closest('[data-theme]');
       if (t) setTheme(t.dataset.theme);
+      if (aurora && e.target.closest('[data-theme-label]')) secretTap();
     });
     document.body.appendChild(b);
     return b.firstElementChild;
