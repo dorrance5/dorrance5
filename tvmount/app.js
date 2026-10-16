@@ -4,7 +4,7 @@
   'use strict';
   const { $, esc, buzz, sheet, closeSheet, toast, copy, themeSegHTML } = App;
   const G = window.Geo, S = window.Store, isNum = G.isNum;
-  App.init();
+  App.init({ aurora: false });
 
   /* ---------- state ---------- */
   const loaded = S.load(localStorage);
@@ -39,7 +39,9 @@
     'center.a': ['First mark'], 'center.b': ['Second mark'], 'center.d': ['Whole distance'],
     'box.w': ['Box width'], 'box.h': ['Box height'], 'box.margin': ['Keep in from edges', 2],
     'view.eye': ['Seated eye height', 40], 'view.dist': ['Eyes to wall'],
-    'built.top': ['TV top'], 'built.bottom': ['TV bottom']
+    'built.top': ['TV top'], 'built.bottom': ['TV bottom'],
+    'bar.w': ['Bar width', 'for the sketch'], 'bar.h': ['Bar height'], 'bar.gap': ['TV bottom → bar top'],
+    'bar.below': ['Console top', 'floor'], 'bar.holesToTop': ['Holes → bar top']
   };
   function label(path) {
     const t = tab(), kind = t.ref.kind;
@@ -53,13 +55,16 @@
   }
 
   /* ---------- keypad ---------- */
-  const FR16 = ['1/16', '1/8', '3/16', '1/4', '5/16', '3/8', '7/16', '1/2', '9/16', '5/8', '11/16', '3/4', '13/16', '7/8', '15/16'];
-  $('#kpFr').innerHTML = FR16.map(f => `<button data-key="${f}">${f}</button>`).join('') + '<button data-key="x32" class="x32" aria-label="Add one thirty-second">+1/32</button>';
-  const kp = { path: null, w: '', f: null, neg: false, fresh: true };
-  const kpText = () => (kp.neg ? '−' : '') + [kp.w, kp.f].filter(Boolean).join(' ');
+  // Like Calculator: whole inches on the left, numerator over denominator on the right.
+  // kp.at is where keyboard digits go: w, n or d.
+  const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+  $('#kpNu').innerHTML = DIGITS.map(d => `<button data-key="n${d}" aria-label="Numerator ${d}">${d}</button>`).join('');
+  $('#kpDe').innerHTML = DIGITS.map(d => `<button data-key="d${d}" aria-label="Denominator ${d}">${d}</button>`).join('');
+  const kp = { path: null, w: '', n: '', d: '', neg: false, fresh: true, at: 'w' };
+  const kpBlank = () => !kp.w && !kp.n && !kp.d;
 
   function loadKp(v) {
-    kp.w = ''; kp.f = null; kp.neg = false;
+    kp.w = ''; kp.n = ''; kp.d = ''; kp.neg = false; kp.at = 'w';
     if (!isNum(v)) return;
     kp.neg = v < 0;
     const a = Math.abs(v), n64 = Math.round(a * 64);
@@ -68,21 +73,42 @@
       let num = n64 % 64, den = 64;
       while (num && num % 2 === 0) { num /= 2; den /= 2; }
       kp.w = w || !num ? String(w) : '';
-      kp.f = num ? num + '/' + den : null;
+      if (num) { kp.n = String(num); kp.d = String(den); }
     } else kp.w = String(+a.toFixed(4));
+  }
+  // null when blank, NaN while half typed. A fraction like 1/1 is half typed until the field
+  // is left, since 1/16 starts out that way.
+  function kpValue(leaving) {
+    if (kpBlank()) return null;
+    let f = 0;
+    if (kp.n || kp.d) {
+      const n = +kp.n, d = +kp.d;
+      if (!kp.n || !d || (!leaving && n >= d)) return NaN;
+      f = n / d;
+    }
+    return (kp.neg ? -1 : 1) * ((kp.w ? parseFloat(kp.w) : 0) + f);
+  }
+  // Leaving a field saves a fraction that was held back while typing, like 3/2.
+  function commitKp() {
+    if (!kp.path) return false;
+    const v = kpValue(true);
+    if (!isNum(v) || v === get(tab(), kp.path)) return false;
+    set(tab(), kp.path, v); persist();
+    return true;
   }
 
   function openKeypad(path) {
-    const first = !kp.path;
+    const first = !kp.path, changed = commitKp();
     kp.path = path; kp.fresh = true;
     loadKp(get(tab(), path));
     $('#kp').hidden = false;
-    renderForm(); syncKeypad();
+    if (changed) render(); else { renderForm(); syncKeypad(); }
     if (first) $('#main').style.paddingBottom = ($('#kp').offsetHeight + 16) + 'px';
     reveal(path);
   }
   function closeKeypad() {
     if (!kp.path) return;
+    commitKp();
     kp.path = null;
     $('#kp').hidden = true;
     $('#main').style.paddingBottom = '';
@@ -100,42 +126,41 @@
   }
   function syncKeypad() {
     if (!kp.path) return;
-    const s = kpText();
-    $('#kpVal').textContent = s ? s + (doc.settings.dec || kp.w || kp.f ? '"' : '') : '—';
-    $('#kpVal').classList.toggle('ph', !s);
+    let h = kpBlank() ? (kp.neg ? '−' : '—') : (kp.neg ? '−' : '') + esc(kp.w);
+    if (kp.n || kp.d) h += `<span class="fr"><span class="nu${kp.n ? ' lit' : ''}">${kp.n || '·'}</span><span class="de${kp.d ? ' lit' : ''}">${kp.d || '·'}</span></span>`;
+    $('#kpVal').innerHTML = h + (kpBlank() ? '' : '"');
+    $('#kpVal').classList.toggle('ph', kpBlank());
     const live = r && r.ok ? 'Drill ' + fmt(r.m.hole) + ' ' + r.rows[0].sub : '';
     $('#kpName').innerHTML = esc(label(kp.path)) + (live ? `<span class="live">${esc(live)}</span>` : '');
-    document.querySelectorAll('#kpFr [data-key]').forEach(b => b.classList.toggle('on', b.dataset.key === kp.f));
   }
   function key(k) {
     if (k === 'done') { closeKeypad(); return; }
     if (k === 'next' || k === 'prev') { stepField(k === 'next' ? 1 : -1); return; }
+    if (k === 'space') { if (kp.w) kp.at = 'n'; return; }       // keyboard: "57 1/8"
+    if (k === 'over') {                                          // keyboard: "3/4" moves the 3 up
+      if (kp.at === 'w' && !kp.n && kp.w && !kp.w.includes('.') && !kp.fresh) { kp.n = kp.w; kp.w = ''; }
+      kp.at = 'd'; syncKeypad(); return;
+    }
     const fresh = kp.fresh;
     kp.fresh = false;
-    const restart = () => { kp.w = ''; kp.f = null; if (fresh) kp.neg = false; };
-    if (/^\d$/.test(k)) {
-      if (fresh || kp.f) restart();
-      if (kp.w === '0') kp.w = '';
-      if (kp.w.replace('.', '').length < 6) kp.w += k;
-    } else if (k === '.') {
-      if (fresh || kp.f) restart();
-      if (!kp.w.includes('.')) kp.w = (kp.w || '0') + '.';
+    if (/^[nd]?\d$/.test(k) || k === '.') {
+      const at = k.length === 2 ? k[0] : 'w';
+      // The first key on a filled field replaces it. A whole-inch key starts over,
+      // a numerator key keeps the whole inches, a denominator key keeps the numerator too.
+      if (fresh) {
+        if (at === 'w') { kp.w = ''; kp.neg = false; }
+        if (at !== 'd') kp.n = '';
+        kp.d = '';
+      }
+      kp.at = at;
+      if (k === '.') { if (!kp.w.includes('.')) kp.w = (kp.w || '0') + '.'; }
+      else if (kp[at].replace('.', '').length < (at === 'w' ? 6 : 3)) kp[at] = (kp[at] === '0' ? '' : kp[at]) + k.slice(-1);
     } else if (k === 'back') {
-      if (kp.f) kp.f = null; else kp.w = kp.w.slice(0, -1);
+      const at = ['d', 'n', 'w'].find(p => kp[p]);
+      if (at) { kp[at] = kp[at].slice(0, -1); kp.at = at; }
     } else if (k === 'sign') kp.neg = !kp.neg;
-    else if (k === 'clear') { kp.w = ''; kp.f = null; kp.neg = false; }
-    else if (k === 'x32') {
-      const [n, d] = kp.f ? kp.f.split('/').map(Number) : [0, 1];
-      let w = parseInt(kp.w || '0', 10) || 0, n32 = Math.round(n * 32 / d) + 1;
-      if (n32 >= 32) { w += 1; n32 -= 32; }
-      let den = 32; while (n32 && n32 % 2 === 0) { n32 /= 2; den /= 2; }
-      kp.w = w ? String(w) : ''; kp.f = n32 ? n32 + '/' + den : null;
-      if (!kp.w && !kp.f) kp.w = '0';
-    } else if (k.includes('/')) {
-      if (kp.w.includes('.')) kp.w = kp.w.split('.')[0];
-      kp.f = kp.f === k ? null : k;
-    }
-    const v = G.parseInches(kpText());
+    else if (k === 'clear') { kp.w = ''; kp.n = ''; kp.d = ''; kp.neg = false; kp.at = 'w'; }
+    const v = kpValue(false);
     if (v === null) set(tab(), kp.path, null);
     else if (isNum(v)) set(tab(), kp.path, v);
     else { syncKeypad(); return; }                 // half typed: leave the saved value alone
@@ -149,8 +174,8 @@
   $('#kp').addEventListener('click', e => { const b = e.target.closest('[data-key]'); if (b) { buzz(4); key(b.dataset.key); } });
   document.addEventListener('keydown', e => {
     if (!kp.path || e.metaKey || e.ctrlKey || document.querySelector('.backdrop')) return;
-    const m = { Backspace: 'back', Enter: 'next', Escape: 'done', Delete: 'clear', '-': 'sign', '.': '.' };
-    let k = /^\d$/.test(e.key) ? e.key : m[e.key];
+    const m = { Backspace: 'back', Enter: 'next', Escape: 'done', Delete: 'clear', '-': 'sign', '.': '.', ' ': 'space', '/': 'over' };
+    let k = /^\d$/.test(e.key) ? (kp.at === 'w' ? '' : kp.at) + e.key : m[e.key];
     if (e.key === 'Tab') k = e.shiftKey ? 'prev' : 'next';
     if (k) { e.preventDefault(); key(k); }
   });
@@ -172,7 +197,7 @@
   }
   const CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
   function card(id, title, body, isPro) {
-    return `<section class="card sec${ui.shut[id] ? ' shut' : ''}" data-sec="${id}"><button class="sec-h" data-fold="${id}"><span>${title}</span>${isPro ? '<span class="badge">Pro</span>' : ''}${CHEV}</button><div class="sec-b">${body}</div></section>`;
+    return `<section class="card sec${ui.shut[id] ? ' shut' : ''}" data-sec="${id}"><button class="sec-h" data-fold="${id}"><span>${title}</span>${isPro ? '<span class="pro">Pro</span>' : ''}${CHEV}</button><div class="sec-b">${body}</div></section>`;
   }
   const hint = s => `<p class="hint">${s}</p>`;
   function libButtons(kind) {
@@ -239,6 +264,23 @@
     b += ct ? `<div class="res">Center line <b>${fmt(ct.pos)}</b> from the ${ct.from} edge${ct.mode === 'two' ? `, ${fmt(ct.half)} to each mark` : ''}</div>`
       : hint(t.center.mode === 'half' ? 'One distance, like the wall or the mantle; the center is half of it.' : 'Two marks measured from the same edge, like both sides of a fireplace.');
     h += card('center', 'Center line', b);
+
+    // soundbar
+    const sb = t.bar;
+    b = seg('bar.kind', [['none', 'None'], ['wall', 'On the wall'], ['tv', 'On the TV']]);
+    if (sb.kind === 'wall') b += `<div class="label">Place it</div>` + seg('bar.place', [['gap', 'Gap below TV'], ['center', 'Centered']]);
+    if (sb.kind !== 'none') {
+      const centered = sb.kind === 'wall' && sb.place === 'center';
+      b += `<div class="grid2">${fld('bar.w')}${fld('bar.h')}`;
+      if (!centered) b += fld('bar.gap', { ph: sb.kind === 'wall' ? G.DEFAULTS.barGap : G.DEFAULTS.barGapTV });
+      if (centered && kind !== 'mantle') b += fld('bar.below');
+      if (sb.kind === 'wall') b += fld('bar.holesToTop');
+      b += '</div>';
+      b += hint(sb.kind === 'tv' ? 'A soundbar attachment hangs the bar from the TV mount, so there is nothing to drill. Measure the TV bottom to the bar top once it hangs.'
+        : (centered ? (kind === 'mantle' ? 'Centered between the TV bottom and the mantle top.' : 'Centered between the TV bottom and the console top. Leave the console blank to center over the floor.') + ' '
+          : '') + 'Hang the bracket on the bar, then measure from its holes to the bar top. The bar is centered on the TV center line.');
+    }
+    h += card('bar', 'Soundbar', b);
 
     if (P) {
       // studs
@@ -341,7 +383,9 @@
       : `<div class="hero empty"><div class="k">Drill top holes</div><div class="v">—</div><div class="s">${esc(needText())}</div></div>`;
     const tri = ['top', 'center', 'bottom'].map(by);
     if (tri.some(x => x.v != null)) h += `<div class="tri">${tri.map(x => `<div class="fact"><div class="k">${x.k}</div><div class="v">${x.v != null ? fmt(x.v) : '—'}</div><div class="s">${esc(x.alt ? fill(x.alt) : x.sub)}</div></div>`).join('')}</div>`;
-    const rest = r.rows.filter(x => !['hole', 'top', 'center', 'bottom'].includes(x.id));
+    const bh = by('barhole');
+    if (bh) h += `<div class="hero sb"><div class="k">${esc(bh.k)}</div><div class="v">${fmt(bh.v)}</div><div class="s">${esc(bh.sub)}${bh.alt ? ' · ' + esc(fill(bh.alt)) : ''}</div></div>`;
+    const rest = r.rows.filter(x => !['hole', 'top', 'center', 'bottom', 'barhole'].includes(x.id));
     if (rest.length) h += `<div class="card list">${rest.map(factHTML).join('')}</div>`;
     if (r.warnings.length) h += `<ul class="warns">${r.warnings.map(w => `<li>${esc(fill(w))}</li>`).join('')}</ul>`;
     $('#res').innerHTML = h;
@@ -421,11 +465,13 @@
         back.push(`<polygon class="${it.cls}" points="${it.pts.map(p => N(p[0]) + ',' + N(-p[1])).join(' ')}"${VE}/>`);
       } else if (it.t === 'rect') {
         const w = it.x1 - it.x0, hh = it.y1 - it.y0;
-        const el = `<rect class="${it.cls}" x="${N(it.x0)}" y="${N(-it.y1)}" width="${N(w)}" height="${N(hh)}"${it.cls === 'tv' ? ` rx="${N(Math.min(0.6, hh / 20))}"` : ''}${it.cls === 'zone' ? ` fill="url(#${hid})"` : ''}${VE}/>`;
+        const el = `<rect class="${it.cls}" x="${N(it.x0)}" y="${N(-it.y1)}" width="${N(w)}" height="${N(hh)}"${it.cls === 'tv' ? ` rx="${N(Math.min(0.6, hh / 20))}"` : it.cls === 'sbar' ? ` rx="${N(Math.min(0.8, hh / 3))}"` : ''}${it.cls === 'zone' ? ` fill="url(#${hid})"` : ''}${VE}/>`;
         if (it.cls === 'tv') { mid.push(el); mid.push(`<rect class="scr" x="${N(it.x0 + 0.4)}" y="${N(-it.y1 + 0.4)}" width="${N(Math.max(0, w - 0.8))}" height="${N(Math.max(0, hh - 1.2))}"${VE}/>`); }
-        else if (it.cls === 'zone') mid.push(el);
+        else if (it.cls === 'zone' || it.cls === 'sbar') mid.push(el);
         else front.push(el);
-        if (it.text) text.push(T('zl', (it.x0 + it.x1) / 2, (it.y0 + it.y1) / 2, it.text, { fs: f * 0.85 }));
+        if (it.text) text.push(it.cls === 'sbar'
+          ? T('sbl', (it.x0 + it.x1) / 2, (it.y0 + it.y1) / 2, val(it.text), { fs: Math.min(f * 0.8, hh * 0.62) })
+          : T('zl', (it.x0 + it.x1) / 2, (it.y0 + it.y1) / 2, it.text, { fs: f * 0.85 }));
         if (it.cls === 'built') text.push(T('bl', it.x1 - f * 0.4, it.y0 + f * 0.5, 'as built', { fs: f * 0.75, anchor: 'end' }));
       } else if (it.t === 'dot') {
         front.push(`<circle class="${it.cls}" cx="${N(it.x)}" cy="${N(-it.y)}" r="${N(f * 0.32)}"${VE}/>`);
@@ -481,7 +527,7 @@
         let s = full, cy = (p.lo + p.hi) / 2, fs = f;
         if (textW(s) > room) s = example ? name : value;
         if (textW(s) > room) { if (textW(s) * 0.6 <= room) fs = f * room / textW(s); else cy = p.hi + textW(s) / 2 + f * 0.5; }
-        text.push(T('dl' + (d.key === 'hole' ? ' hole' : ''), X, cy, s, { rot: true, fs }));
+        text.push(T('dl' + (d.key === 'hole' || d.key === 'barhole' ? ' hole' : ''), X, cy, s, { rot: true, fs }));
       } else {
         const Y = d.side === 'top' ? B.y1 + off : B.y0 - off;
         let a = d.a, b = d.b;
@@ -629,7 +675,8 @@
     const t = tab(), example = !r.sketch;
     const hero = r.rows[0];
     const edges = ['top', 'center', 'bottom'].filter(k => r.m[k] != null).map(k => k + ' ' + fmt(r.m[k])).join(' · ');
-    $('#shotCap').innerHTML = `<b>${esc(t.name)}</b><span>${r.ok ? 'Drill top holes ' + esc(fmt(hero.v)) + ' ' + esc(hero.sub) : 'Example'}</span>${r.ok && edges ? `<span class="e">TV ${esc(edges)}</span>` : ''}`;
+    const sbh = r.ok && r.bar && r.bar.hole != null ? `<span class="e">Soundbar holes ${esc(fmt(r.bar.m.hole))}</span>` : '';
+    $('#shotCap').innerHTML = `<b>${esc(t.name)}</b><span>${r.ok ? 'Drill top holes ' + esc(fmt(hero.v)) + ' ' + esc(hero.sub) : 'Example'}</span>${r.ok && edges ? `<span class="e">TV ${esc(edges)}</span>` : ''}${sbh}`;
     drawInto(shot.el.querySelector('#shotSk'), shot.zm, example ? G.compute(EXAMPLE, { mode: 'simple' }).sketch : r.sketch, { px: Math.max(13, Math.min(22, Math.min(innerWidth, innerHeight) / 29)), example, hid: 'hatchB' });
   }
   $('#shotBtn').onclick = openShot;
@@ -695,6 +742,7 @@
     if (t.tv.src === 'size' && t.tv.size) out.push('TV size: ' + t.tv.size + '″ class (estimate)');
     if (pro() && t.tv.model) out.push('TV model: ' + t.tv.model);
     if (pro() && t.mount.model) out.push('Mount model: ' + t.mount.model);
+    if (t.bar.kind !== 'none') out.push('Soundbar: ' + (t.bar.kind === 'tv' ? 'TV attachment' : t.bar.place === 'center' ? 'on the wall, centered' : 'on the wall'));
     for (const [path, lab] of formFields) {
       const v = get(t, path);
       if (isNum(v)) out.push(lab + ': ' + fmtIn(v));
@@ -833,7 +881,7 @@
     renderSketch();
     syncKeypad();
     if (shot) renderShot();
-    $('h1').innerHTML = 'TV Mount' + (pro() ? ' <span style="font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--blue);background:var(--blue-bg);padding:2px 7px;border-radius:7px;vertical-align:3px">PRO</span>' : '');
+    $('h1').innerHTML = 'TV Mount' + (pro() ? ' <span class="pro">Pro</span>' : '');
   }
 
   let rt;

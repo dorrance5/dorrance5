@@ -115,19 +115,20 @@
       studs: { from: 'center', list: [] },
       box: { on: false, w: null, h: null, margin: null },
       view: { eye: null, dist: null },
-      built: { top: null, bottom: null }
+      built: { top: null, bottom: null },
+      bar: { kind: 'none', w: null, h: null, place: 'gap', gap: null, below: null, holesToTop: null }
     };
   }
 
   // Defaults that stand in for pro values in Simple mode, or when a pro field is blank.
-  const DEFAULTS = { sag: 0, ff: 0, slide: 0, holeDown: 0, boxMargin: 2, eye: 40, studWidth: 1.5 };
+  const DEFAULTS = { sag: 0, ff: 0, slide: 0, holeDown: 0, boxMargin: 2, eye: 40, studWidth: 1.5, barGap: 2, barGapTV: 0 };
 
   // The numbers compute() actually uses. Simple mode swaps every pro value for its default.
   function effective(tab, mode) {
     const pro = mode === 'pro';
     const t = tab || {}, tv = t.tv || {}, m = t.mount || {}, rf = t.ref || {};
     const kind = KINDS.includes(rf.kind) ? rf.kind : 'floor';
-    const k = rf[kind] || {}, c = t.center || {}, st = t.studs || {}, bx = t.box || {}, vw = t.view || {}, b = t.built || {};
+    const k = rf[kind] || {}, c = t.center || {}, st = t.studs || {}, bx = t.box || {}, vw = t.view || {}, b = t.built || {}, sb = t.bar || {};
     const n = v => isNum(v) ? v : null;
     const p = (v, d) => pro && isNum(v) ? v : (d === undefined ? null : d);
     return {
@@ -150,7 +151,14 @@
       studs: pro && Array.isArray(st.list) ? st.list.filter(isNum) : [],
       box: pro && bx.on ? { w: n(bx.w), h: n(bx.h), margin: isNum(bx.margin) ? bx.margin : DEFAULTS.boxMargin } : null,
       eye: p(vw.eye, DEFAULTS.eye), dist: p(vw.dist),
-      built: pro ? { top: n(b.top), bottom: n(b.bottom) } : null
+      built: pro ? { top: n(b.top), bottom: n(b.bottom) } : null,
+      // soundbar: kind wall = its own bracket, tv = an attachment that hangs it from the TV mount
+      bar: sb.kind === 'wall' || sb.kind === 'tv' ? {
+        kind: sb.kind, w: n(sb.w), h: n(sb.h),
+        place: sb.kind === 'wall' && sb.place === 'center' ? 'center' : 'gap',
+        gap: isNum(sb.gap) ? sb.gap : sb.kind === 'wall' ? DEFAULTS.barGap : DEFAULTS.barGapTV,
+        below: n(sb.below), holesToTop: sb.kind === 'wall' ? n(sb.holesToTop) : null
+      } : null
     };
   }
 
@@ -414,10 +422,45 @@
       };
     }
 
+    r.bar = barFor(e, y, r);
+
     r.ok = y.hole != null;
     r.rows = rowsFor(r);
     r.sketch = sketchFor(r);
     return r;
+  }
+
+  // A soundbar under the TV, centered on the TV center line. Its top sits a gap below the TV
+  // bottom, or (on the wall) halfway between the TV and the surface below it: the mantle top,
+  // a console top, or the floor.
+  function barFor(e, y, r) {
+    const B = e.bar;
+    if (!B) return null;
+    const ref = r.ref, b = { kind: B.kind, place: B.place, w: B.w && B.w > 0 ? B.w : null, h: B.h, need: [] };
+    let under = null;
+    if (ref.kind === 'mantle') under = { what: 'mantle', y: Math.abs(ref.slope) * Math.min(b.w || 0, ref.span || 0) / 2 };
+    else if (B.place === 'center' && isNum(B.below)) under = ref.refNow == null ? null : { what: 'console', y: r.toY.yOfAff(B.below) };
+    else if (ref.refNow != null) under = { what: 'floor', y: r.toY.yOfAff(0) };
+    b.under = under;
+    if (!isNum(B.h) || B.h <= 0) b.need.push('height');
+    if (y.bottom == null) b.need.push('position');
+    if (B.place === 'center' && !under) b.need.push('floor');
+    if (b.need.length) return b;
+
+    if (B.place === 'center') {
+      b.gap = (y.bottom - under.y - B.h) / 2;
+      if (b.gap < -EPS) r.warnings.push('The soundbar needs ' + T(-2 * b.gap) + ' more room between the TV and the ' + under.what + '.');
+    } else b.gap = B.gap;
+    b.top = y.bottom - b.gap;
+    b.bottom = b.top - B.h;
+    b.hole = isNum(B.holesToTop) ? b.top - B.holesToTop : null;
+    b.clear = under ? b.bottom - under.y : null;
+    if (B.place === 'gap' && b.clear != null && b.clear < -EPS) {
+      r.warnings.push('Soundbar bottom is ' + T(-b.clear) + ' below the ' + (under.what === 'floor' ? 'floor.' : under.what + ' top.'));
+    }
+    b.m = {}; b.aff = {};
+    for (const k of ['hole', 'top', 'bottom']) { b.m[k] = r.toMeasure(b[k]); b.aff[k] = b[k] == null || ref.refNow == null ? null : ref.refNow + b[k] - ref.ff; }
+    return b;
   }
 
   // Bays between studs (a stud is 1 1/2" wide); returns the box center nearest the center line.
@@ -466,6 +509,19 @@
       else if (ref.gap != null && ref.edge !== 'bottom') rows.push({ id: 'gap', k: 'Gap over mantle', v: ref.gap, sub: 'TV bottom to mantle top' });
     }
     if (ref.kind === 'ceiling' && ref.gap != null && ref.edge !== 'top') rows.push({ id: 'gap', k: 'Gap to ceiling', v: ref.gap, sub: 'TV top to ceiling' });
+    if (r.bar) {
+      const b = r.bar, title = b.kind === 'tv' ? 'Soundbar on the TV mount' : 'Soundbar on the wall';
+      if (b.need.length) {
+        const why = { height: 'add the bar height', position: 'place the TV first', floor: 'add the ' + ref.kind + ' height to center it' }[b.need[0]];
+        rows.push({ id: 'bar', k: title, s: why, cls: 'wide' });
+      } else {
+        const altFor = k => b.aff[k] == null ? '' : ffNow ? T(b.aff[k]) + ' above finished floor' : ref.kind !== 'floor' ? T(b.aff[k]) + ' above floor' : '';
+        if (b.hole != null) rows.push({ id: 'barhole', k: 'Drill soundbar holes', v: b.m.hole, sub, alt: [altFor('hole'), 'on the center line'].filter(Boolean).join(', ') });
+        const how = b.place === 'center' ? 'centered between the TV and the ' + (b.under.what === 'floor' ? 'floor' : b.under.what + ' top') + ', ' + T(b.gap) + ' each side'
+          : (Math.abs(b.gap) < EPS ? 'right under the TV' : T(b.gap) + ' below the TV') + (b.clear != null && b.clear >= -EPS ? ', ' + T(b.clear) + ' over the ' + (b.under.what === 'floor' ? 'floor' : b.under.what) : '');
+        rows.push({ id: 'bar', k: title, s: 'top ' + T(b.m.top) + ' · bottom ' + T(b.m.bottom), sub: sub + (b.kind === 'tv' ? ', hangs from the TV mount' : ''), alt: how, cls: 'wide' + (b.clear != null && b.clear < -EPS ? ' warn' : '') });
+      }
+    }
     if (r.center) {
       const c = r.center;
       rows.push({ id: 'centerline', k: 'Center line', v: c.pos, sub: 'from the ' + c.from + ' edge', alt: c.mode === 'two' ? 'between ' + T(c.a) + ' and ' + T(c.b) + ', ' + T(c.half) + ' each way' : 'half of ' + T(c.d) });
@@ -586,6 +642,11 @@
     if (r.box && r.box.at) add({ t: 'rect', cls: 'box', x0: r.box.at.x0, x1: r.box.at.x1, y0: r.box.at.y0, y1: r.box.at.y1, text: 'Box' });
     if (r.plate) add({ t: 'rect', cls: 'plate', x0: r.plate.x0, x1: r.plate.x1, y0: r.plate.y0, y1: r.plate.y1 });
     for (const hy of r.holeRows) add({ t: 'line', cls: 'drill', x0: x0 - 1.5, x1: x1 + 1.5, y0: hy, y1: hy });
+    const sb = r.bar && r.bar.top != null && r.bar.w ? r.bar : null;
+    if (sb) {
+      add({ t: 'rect', cls: 'sbar', x0: -sb.w / 2, x1: sb.w / 2, y0: sb.bottom, y1: sb.top, text: 'Soundbar' });
+      if (sb.hole != null) add({ t: 'line', cls: 'drill', x0: -sb.w / 2 - 1.5, x1: sb.w / 2 + 1.5, y0: sb.hole, y1: sb.hole });
+    }
     for (const d of r.drill) add({ t: 'dot', cls: 'hole', x: d.x, y: d.y });
     add({ t: 'mark', cls: 'cmark', x: 0, y: y.center });
 
@@ -602,6 +663,11 @@
     const keys = [['bottom', 'bottom'], ['center', 'center'], ['hole', 'holes'], ['top', 'top']];
     for (const [k, nm] of keys) if (y[k] != null && Math.abs(y[k] - from) > EPS) add({ t: 'dim', side: 'left', a: from, b: y[k], v: Math.abs(y[k] - from), name: nm, key: k });
     if (r.chain.hung != null && Math.abs(r.chain.hung) > EPS) add({ t: 'dim', side: 'right', a: y.hole, b: y.top, v: Math.abs(r.chain.hung), name: 'holes to top', key: 'chain' });
+    if (r.bar && r.bar.top != null) {
+      const b = r.bar;
+      if (b.kind === 'wall') add({ t: 'dim', side: 'left', a: from, b: b.hole != null ? b.hole : b.top, v: Math.abs((b.hole != null ? b.hole : b.top) - from), name: b.hole != null ? 'bar holes' : 'bar top', key: b.hole != null ? 'barhole' : 'bartop' });
+      if (b.gap > EPS) add({ t: 'dim', side: 'right', a: b.top, b: y.bottom, v: b.gap, name: 'gap', key: 'bargap' });
+    }
     add({ t: 'dim', side: 'right', a: y.bottom, b: y.top, v: tv.h, name: 'height' });
     if (ref.kind !== 'floor' && ref.refNow != null) add({ t: 'dim', side: 'right', a: -ref.refNow, b: 0, v: ref.refNow, name: ref.kind === 'mantle' ? 'mantle' : 'ceiling', ref: true });
     if (ref.kind === 'floor' && Math.abs(ref.ff) > EPS) add({ t: 'dim', side: 'right', a: -ref.ff, b: 0, v: Math.abs(ref.ff), name: 'finish' });

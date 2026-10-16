@@ -59,10 +59,21 @@ const scenes = [
   { name: '12-screenshot-mode', seed: jobDoc('pro'), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
   { name: '13-screenshot-simple', seed: jobDoc('simple'), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
   { name: '14-pro-night', seed: jobDoc('pro'), theme: 'dark' },
-  { name: '15-pro-aurora', seed: jobDoc('pro'), theme: 'aurora', scroll: 330 },
+  { name: '15-keypad-night', seed: jobDoc('simple'), theme: 'dark', act: async p => { await p.click('[data-k="ref.mantle.value"]'); await p.click('#kp [data-key="n3"]'); await p.waitForTimeout(400); } },
   { name: '16-menu', seed: jobDoc('pro'), act: async p => { await p.click('#menuBtn'); await p.waitForTimeout(400); } },
-  { name: '17-standard-size-floor', seed: (() => { const d = jobDoc('simple'); d.current = d.tabs[1].id; return d; })() }
+  { name: '17-standard-size-floor', seed: (() => { const d = jobDoc('simple'); d.current = d.tabs[1].id; return d; })() },
+  { name: '18-soundbar-wall', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1) },
+  { name: '19-soundbar-wall-results', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1), scroll: 330 },
+  { name: '20-soundbar-centered-mantle', seed: withBar(jobDoc('pro'), { kind: 'wall', place: 'center', w: 45, h: 3.25, holesToTop: 1.5 }), scroll: 330 },
+  { name: '21-soundbar-attachment-night', seed: withBar(jobDoc('simple'), { kind: 'tv', w: 45, h: 3.25, gap: 0.75 }), theme: 'dark' },
+  { name: '22-soundbar-form', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="bar"]').scrollIntoView()); } }
 ];
+// The same job with a soundbar, on the tab at index `on` (0 = the mantle job, 1 = the floor job).
+function withBar(d, bar, on = 0) {
+  Object.assign(d.tabs[on].bar, bar);
+  d.current = d.tabs[on].id;
+  return d;
+}
 
 (async () => {
   await new Promise(res => server.listen(0, '127.0.0.1', res));

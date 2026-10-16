@@ -1,4 +1,4 @@
-// Run: node --test tvmount/test/
+// Run: node --test tvmount/test/*.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const S = require('../store.js');
@@ -41,6 +41,7 @@ test('unversioned data is backed up then migrated', () => {
   assert.equal(doc.tabs[0].tv.src, 'measured');          // filled from the template
   assert.equal(doc.tabs[0].ref.mantle.edge, 'bottom');
   assert.deepEqual(doc.tabs[0].studs.list, []);
+  assert.equal(doc.tabs[0].bar.kind, 'none');           // tabs saved before the soundbar get one, off
 });
 
 test('fields a newer app wrote are kept, bad numbers dropped', () => {

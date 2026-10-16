@@ -40,47 +40,94 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.goto(base);
   await page.waitForSelector('#form [data-k="tv.w"]');
 
-  // keypad: whole number, then a fraction key
+  // keypad: whole inches, then numerator over denominator like Calculator
   await page.tap('[data-k="tv.w"]');
   check('keypad opens on a field', await page.isVisible('#kp'));
-  await keys('5', '7', '1/8');
+  await keys('5', '7', 'n1');
+  check('a numerator alone waits for its denominator', (await tab0()).tv.w === 57, (await tab0()).tv.w);
+  await keys('d8');
   check('57 + 1/8 stores 57.125', (await tab0()).tv.w === 57.125, (await tab0()).tv.w);
-  check('field shows 57 1/8"', (await page.textContent('[data-k="tv.w"] .fv')).replace(/ /g, ' ') === '57 1/8"');
-  await keys('next', '3', '2', '3/4');
+  check('field shows 57 1/8"', (await page.textContent('[data-k="tv.w"] .fv')).replace(/\u00a0/g, ' ') === '57 1/8"');
+  await keys('next', '3', '2', 'n3', 'd4');
   check('next moves to height, 32 3/4', (await tab0()).tv.h === 32.75);
-  // reopen a filled field: a fraction key swaps the fraction, a digit starts over
+  // reopen a filled field: a numerator key keeps the whole inches, a denominator key keeps the numerator
   await page.tap('[data-k="tv.h"]');
-  await keys('5/8');
-  check('fraction key on a filled field keeps the whole inches', (await tab0()).tv.h === 32.625);
-  await keys('3/4');
+  await keys('n5', 'd8');
+  check('numerator key on a filled field keeps the whole inches', (await tab0()).tv.h === 32.625);
+  await page.tap('[data-k="tv.h"]');
+  await keys('d1');
+  check('5/1 waits for the next digit', (await tab0()).tv.h === 32.625, (await tab0()).tv.h);
+  await keys('d6');
+  check('denominator key on a filled field keeps the numerator', (await tab0()).tv.h === 32.3125, (await tab0()).tv.h);
+  await page.tap('[data-k="tv.h"]');
+  await keys('n3', 'd4');
   await page.tap('[data-k="mount.holesToTop"]');
-  await keys('4', '3/8', 'x32');
-  check('+1/32 makes 4 13/32', (await tab0()).mount.holesToTop === 4.40625, (await tab0()).mount.holesToTop);
+  await keys('4', 'n1', 'n3', 'd3', 'd2');
+  check('13/32 typed digit by digit makes 4 13/32', (await tab0()).mount.holesToTop === 4.40625, (await tab0()).mount.holesToTop);
+  check('display stacks the fraction', await page.$eval('#kpVal', el => el.querySelector('.fr .nu').textContent === '13' && el.querySelector('.fr .de').textContent === '32'));
   await keys('sign');
   check('± makes it negative', (await tab0()).mount.holesToTop === -4.40625);
-  await keys('back');
-  check('delete drops the fraction', (await tab0()).mount.holesToTop === -4);
+  await keys('back', 'back', 'back', 'back');
+  check('delete takes digits off right to left', (await tab0()).mount.holesToTop === -4, (await tab0()).mount.holesToTop);
   await keys('clear');
   check('clear blanks the field', (await tab0()).mount.holesToTop === null);
   await keys('4', '.', '5');
   check('decimal entry 4.5', (await tab0()).mount.holesToTop === 4.5);
+  await page.tap('[data-k="center.a"]');
+  await keys('1', 'n3', 'd2');
+  check('3/2 waits while typing', (await tab0()).center.a === 1, (await tab0()).center.a);
+  await keys('done');
+  check('3/2 is saved on Done as 2 1/2', (await tab0()).center.a === 2.5, (await tab0()).center.a);
+  await page.tap('[data-k="center.a"]');
+  await page.keyboard.type('30 1/4');
+  check('typing 30 1/4 on a keyboard', (await tab0()).center.a === 30.25, (await tab0()).center.a);
+  await page.keyboard.press('Delete');
+  await page.keyboard.type('3/8');
+  check('typing 3/8 on a keyboard', (await tab0()).center.a === 0.375, (await tab0()).center.a);
+  await keys('clear');
   await page.tap('[data-k="ref.floor.value"]');
   await keys('4', '2', 'done');
   check('keypad closes on Done', !(await page.isVisible('#kp')));
-  check('hero shows 53 7/8" for center at 42', (await hero()).replace(/ /g, ' ') === '53 7/8"', await hero());
+  check('hero shows 53 7/8" for center at 42', (await hero()).replace(/\u00a0/g, ' ') === '53 7/8"', await hero());
+
+  // soundbar: off by default, on the wall with a bracket, then on a TV attachment
+  check('soundbar starts off', (await tab0()).bar.kind === 'none' && !(await page.$('[data-k="bar.h"]')));
+  await page.tap('[data-seg="bar.kind"] [data-v="wall"]');
+  await page.tap('[data-k="bar.w"]');
+  await keys('4', '5', 'next', '3', 'n1', 'd4', 'next', 'next', '1', 'n1', 'd2', 'done');
+  let bar = (await tab0()).bar;
+  check('soundbar fields fill in order', bar.w === 45 && bar.h === 3.25 && bar.gap === null && bar.holesToTop === 1.5, bar);
+  const barHero = await page.textContent('#res .hero.sb');
+  check('soundbar drill height has its own card', /Drill soundbar holes\s*22 1\/8"/.test(barHero.replace(/\u00a0/g, ' ')), barHero);
+  check('soundbar is drawn', await page.$('#sk rect.sbar') !== null);
+  await page.tap('[data-seg="bar.place"] [data-v="center"]');
+  check('centered hides the gap and asks for a console', !(await page.$('[data-k="bar.gap"]')) && !!(await page.$('[data-k="bar.below"]')));
+  await page.tap('[data-seg="bar.kind"] [data-v="tv"]');
+  check('TV attachment has no bracket holes', !(await page.$('[data-k="bar.holesToTop"]')) && (await page.$$('#sk line.drill')).length === 1 && !/Drill soundbar/.test(await page.textContent('#res')));
+  await page.tap('[data-seg="bar.kind"] [data-v="none"]');
+  check('none hides the soundbar again', !(await page.$('#sk rect.sbar')) && (await tab0()).bar.w === 45);
 
   // modes keep their data
   await page.tap('#menuBtn');
   await page.tap('.sheet [data-set="mode"] [data-v="pro"]');
   await page.tap('.backdrop', { position: { x: 20, y: 20 } });
   await page.tap('[data-k="mount.sag"]');
-  await keys('1/4', 'done');
+  await keys('n1', 'd4', 'done');
   check('pro sag 1/4 raises the holes to 54 1/8"', (await hero()).replace(/ /g, ' ') === '54 1/8"', await hero());
   await page.tap('#menuBtn');
   await page.tap('.sheet [data-set="mode"] [data-v="simple"]');
   await page.tap('.backdrop', { position: { x: 20, y: 20 } });
   check('simple ignores sag: back to 53 7/8"', (await hero()).replace(/ /g, ' ') === '53 7/8"');
   check('sag is still saved after switching', (await tab0()).mount.sag === 0.25);
+
+  // theme: no Aurora here, and a shared Aurora setting shows as Night
+  await page.tap('#menuBtn');
+  const themes = await page.$$eval('.sheet [data-theme]', b => b.map(x => x.dataset.theme));
+  check('theme choices are Auto, Day, Night', themes.join() === 'auto,light,dark', themes);
+  await page.tap('.backdrop', { position: { x: 20, y: 20 } });
+  await page.evaluate(() => { localStorage.setItem('theme', 'aurora'); App.applyTheme(); });
+  check('a shared Aurora setting shows Night', await page.evaluate(() => document.documentElement.dataset.mode === 'dark' && !document.querySelector('.field')));
+  await page.evaluate(() => { localStorage.removeItem('theme'); App.applyTheme(); });
 
   // copy as text
   const text = await page.evaluate(() => TVM.text());
