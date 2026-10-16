@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<!-- TV Mount icon: blue TV hung on a wall rail, on black. Render with docs/icons/render.cjs. -->
+<rect width="512" height="512" fill="#000"/>
+<g fill="none" stroke="#579DFF" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"><path d="M150 118h212M206 118v58M306 118v58"/><rect x="88" y="176" width="336" height="210" rx="28"/></g>
+</svg>

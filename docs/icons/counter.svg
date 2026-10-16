@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<!-- Counter icon: green tally glyph on black. Render with docs/icons/render.cjs. -->
+<rect width="512" height="512" fill="#000"/>
+<g fill="none" stroke="#4BCE97" stroke-width="34" stroke-linecap="round"><path d="M148 150v211M220 150v211M292 150v211M364 150v211M128 320 386 195"/></g>
+</svg>
