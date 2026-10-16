@@ -1,0 +1,308 @@
+// Run: node --test tvmount/test/
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const G = require('../geometry.js');
+
+const near = (a, b, msg, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${msg || ''} expected ${b}, got ${a}`);
+// a tab built from the defaults plus deep-merged overrides, e.g. tab(BASE, { tv: { w: 57 } })
+function merge(dst, src) {
+  for (const [k, v] of Object.entries(src || {})) {
+    if (v && typeof v === 'object' && !Array.isArray(v) && dst[k] && typeof dst[k] === 'object') merge(dst[k], v);
+    else dst[k] = Array.isArray(v) ? v.slice() : v;
+  }
+  return dst;
+}
+const tab = (...overs) => overs.reduce((t, o) => merge(t, o), G.newTab('Test'));
+const BASE = { tv: { w: 57.125, h: 32.75 }, mount: { holesToTop: 4.5 }, ref: { kind: 'floor', floor: { edge: 'center', value: 42 } } };
+
+test('parses fractions every way they get typed', () => {
+  for (const s of ['48 3/8', '48-3/8', '48.375', '48 - 3/8', '48  3/8"', '48 3/8 in', '48⅜']) near(G.parseInches(s), 48.375, s);
+  near(G.parseInches('3/8'), 0.375);
+  near(G.parseInches('-1 1/2'), -1.5);
+  near(G.parseInches('−1-1/2'), -1.5);
+  near(G.parseInches('4\''), 48);
+  near(G.parseInches('5\'-3 1/2"'), 63.5);
+  near(G.parseInches('5ft 3in'), 63);
+  near(G.parseInches('48.'), 48);
+  near(G.parseInches('.5'), 0.5);
+  near(G.parseInches('51/8'), 6.375);
+  assert.equal(G.parseInches(''), null);
+  assert.equal(G.parseInches('   '), null);
+  assert.ok(Number.isNaN(G.parseInches('abc')));
+  assert.ok(Number.isNaN(G.parseInches('1/0')));
+  assert.ok(Number.isNaN(G.parseInches('-')));
+});
+
+test('formats to the chosen precision like a tape reads', () => {
+  assert.equal(G.formatInches(48.375), '48 3/8"');
+  assert.equal(G.formatInches(48.4), '48 3/8"');
+  assert.equal(G.formatInches(47.99), '48"');
+  assert.equal(G.formatInches(0.03), '0"');
+  assert.equal(G.formatInches(-0.5), '−1/2"');
+  assert.equal(G.formatInches(-0.01), '0"');
+  assert.equal(G.formatInches(48.4375, { prec: 8 }), '48 1/2"');
+  assert.equal(G.formatInches(48.40625, { prec: 32 }), '48 13/32"');
+  assert.equal(G.formatInches(48.375, { dec: true }), '48.38"');
+  assert.equal(G.formatInches(48, { dec: true }), '48"');
+  assert.equal(G.formatInches(48.375, { unit: '' }), '48 3/8');
+  assert.equal(G.formatInches(NaN), '—');
+  assert.equal(G.formatExact(48.375), '48 3/8"');
+  assert.equal(G.formatExact(10 + 1 / 64), '10 1/64"');
+  assert.equal(G.formatExact(1 / 3), '0.333"');
+  assert.equal(G.fill('drill at {52.75}', x => G.formatInches(x)), 'drill at 52 3/4"');
+});
+
+test('standard size estimate is a 16:9 screen plus a typical bezel', () => {
+  const s = G.sizeEstimate(65);
+  near(s.w, 65 * 16 / Math.hypot(16, 9) + 0.5);
+  near(s.h, 65 * 9 / Math.hypot(16, 9) + 0.9);
+  near(s.w, 57.152, '', 1e-3);
+  near(s.h, 32.767, '', 1e-3);
+  assert.equal(G.sizeEstimate(0), null);
+  assert.ok(G.SIZES[0] === 43 && G.SIZES[G.SIZES.length - 1] === 98);
+});
+
+test('simple, floor, TV center at 42', () => {
+  const r = G.compute(tab(BASE), { mode: 'simple' });
+  assert.ok(r.ok);
+  near(r.m.top, 58.375);
+  near(r.m.center, 42);
+  near(r.m.bottom, 25.625);
+  near(r.m.hole, 53.875);
+  near(r.aff.hole, 53.875);
+  assert.deepEqual(r.missing, []);
+  assert.equal(r.rows[0].id, 'hole');
+  near(r.rows[0].v, 53.875);
+  assert.ok(r.sketch && r.sketch.items.length > 5);
+});
+
+test('floor, TV bottom at 36', () => {
+  const r = G.compute(tab(BASE, { ref: { floor: { edge: 'bottom', value: 36 } } }), { mode: 'simple' });
+  near(r.m.top, 68.75);
+  near(r.m.hole, 64.25);
+});
+
+test('floor, TV top at 70 needs no TV height for the holes', () => {
+  const r = G.compute(tab({ tv: { w: null, h: null }, mount: { holesToTop: 4.5 }, ref: { floor: { edge: 'top', value: 70 } } }), { mode: 'simple' });
+  near(r.m.hole, 65.5);
+  assert.equal(r.m.center, null);
+  assert.deepEqual(r.missing, []);
+});
+
+test('mantle, 4 inch gap', () => {
+  const r = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 4, h: 54 } } }), { mode: 'simple' });
+  near(r.m.bottom, 4);
+  near(r.m.top, 36.75);
+  near(r.m.hole, 32.25);
+  near(r.aff.hole, 86.25);
+  near(r.aff.center, 74.375);
+  assert.match(r.rows[0].alt, /above floor/);
+});
+
+test('mantle without its height still gives the marks above the mantle', () => {
+  const r = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 4 } } }), { mode: 'simple' });
+  near(r.m.hole, 32.25);
+  assert.equal(r.aff.hole, null);
+  assert.equal(r.floorKnown, false);
+});
+
+test('ceiling, 6 inch gap to TV top', () => {
+  const r = G.compute(tab(BASE, { ref: { kind: 'ceiling', ceiling: { edge: 'top', value: 6, h: 96 } } }), { mode: 'simple' });
+  near(r.m.top, 6);
+  near(r.m.hole, 10.5);
+  near(r.m.bottom, 38.75);
+  near(r.aff.hole, 85.5);
+  assert.equal(r.rows[0].sub, 'below ceiling');
+});
+
+test('standard size feeds the TV height', () => {
+  const r = G.compute(tab({ tv: { src: 'size', size: 65 }, mount: { holesToTop: 4.5 }, ref: { floor: { edge: 'center', value: 42 } } }), { mode: 'simple' });
+  assert.ok(r.tv.est);
+  near(r.m.top, 42 + G.sizeEstimate(65).h / 2);
+});
+
+test('missing inputs are listed, not guessed', () => {
+  const r = G.compute(G.newTab(), { mode: 'simple' });
+  assert.equal(r.ok, false);
+  assert.ok(r.missing.includes('mount.holesToTop'));
+  assert.ok(r.missing.includes('ref.floor.value'));
+  assert.ok(r.missing.includes('tv.h'));
+  assert.equal(r.sketch, null);
+});
+
+test('pro split chain with sag', () => {
+  const t = tab(BASE, { tv: { w: 57.125, h: 32.75, vesaTop: 7.5 }, mount: { holesToTop: 4.5, chain: 'split', hookDrop: 1.25, armDrop: 0.5, sag: 0.125 } });
+  const r = G.compute(t, { mode: 'pro' });
+  near(r.chain.measured, 5.75);
+  near(r.chain.hung, 5.625);
+  near(r.m.hole, 58.375 - 5.625);
+  // Simple mode ignores the chain and the sag and uses the one measurement
+  const s = G.compute(t, { mode: 'simple' });
+  near(s.chain.hung, 4.5);
+  near(s.m.hole, 53.875);
+});
+
+test('pro sag on a single measurement drills higher by the sag', () => {
+  const r = G.compute(tab(BASE, { mount: { holesToTop: 4.5, sag: 0.25 } }), { mode: 'pro' });
+  near(r.m.hole, 53.875 + 0.25);
+});
+
+test('finished floor offset: plan to finished floor, measure from today’s floor', () => {
+  const t = tab(BASE, { ref: { ff: 0.75 } });
+  const r = G.compute(t, { mode: 'pro' });
+  near(r.m.center, 42.75);
+  near(r.aff.center, 42);
+  near(r.m.hole, 54.625);
+  assert.match(r.rows[0].alt, /finished floor/);
+  near(G.compute(t, { mode: 'simple' }).m.center, 42);
+});
+
+test('mantle measured at both ends keeps the gap at the high end', () => {
+  const t = tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 4, h: 54, hR: 54.5, len: 60 } } });
+  const r = G.compute(t, { mode: 'pro' });
+  const slope = 0.5 / 60, rise = slope * 57.125 / 2;
+  near(r.ref.refNow, 54.25);
+  near(r.ref.rise, rise);
+  near(r.ref.gapR, 4);
+  near(r.ref.gapL, 4 + 2 * rise);
+  near(r.m.bottom, 4 + rise);
+  near(r.aff.bottom, 54.25 + 4 + rise);
+  near(r.m.hole, 4 + rise + 32.75 - 4.5);
+  // without a length, the ends are taken at the TV edges
+  const r2 = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 4, h: 54, hR: 54.5 } } }), { mode: 'pro' });
+  near(r2.ref.rise, 0.25);
+  near(r2.aff.bottom, 58.5);
+  // simple mode treats the mantle as level at the one height
+  near(G.compute(t, { mode: 'simple' }).aff.bottom, 58);
+});
+
+test('center tool', () => {
+  assert.deepEqual(G.centerTool({ mode: 'two', from: 'left', a: 30, b: 94 }), { mode: 'two', from: 'left', pos: 62, a: 30, b: 94, half: 32 });
+  assert.equal(G.centerTool({ mode: 'half', from: 'right', d: 150 }).pos, 75);
+  assert.equal(G.centerTool({ mode: 'two', a: 30 }), null);
+  near(G.centerTool({ mode: 'two', a: 30.125, b: 94.5 }).pos, 62.3125);
+});
+
+test('studs fill on 16 inch centers', () => {
+  assert.deepEqual(G.fillStuds(5.25, 16, -40, 40), [-26.75, -10.75, 5.25, 21.25, 37.25]);
+  assert.deepEqual(G.fillStuds(5.25, 0, -40, 40), []);
+});
+
+test('plate slide check', () => {
+  let s = G.slideCheck([-10.75, 5.25, 21.25], 0, 24, 3, 2);
+  assert.ok(s.ok); near(s.P, 0); near(s.left, 3); near(s.right, 3);
+  assert.deepEqual(s.hits, [-10.75, 5.25]);
+  s = G.slideCheck([-14, 2, 18], 0, 24, 3, 2);
+  assert.ok(s.ok); near(s.P, -2); near(s.used, 2); near(s.left, 5); near(s.right, 1);
+  s = G.slideCheck([-14, 2, 18], 0, 24, 1, 2);
+  assert.equal(s.ok, false); assert.equal(s.reason, 'slide'); near(s.short, 1);
+  s = G.slideCheck([0], 0, 24, 3, 2);
+  assert.equal(s.ok, false); assert.equal(s.reason, 'span');
+  // VESA off center moves the target for the plate
+  s = G.slideCheck([-8, 8], 1.4375, 24, 0, 2);
+  assert.ok(s.ok); near(s.P, 1.4375);
+});
+
+test('studs measured from the edge convert to the center line', () => {
+  const t = tab(BASE, { center: { mode: 'two', from: 'left', a: 30, b: 94 }, studs: { from: 'edge', list: [51.25, 67.25] }, mount: { holesToTop: 4.5, lagSpan: 24, slide: 2 } });
+  const r = G.compute(t, { mode: 'pro' });
+  assert.deepEqual(r.studs, [-10.75, 5.25]);
+  assert.ok(r.slide.ok);
+  assert.equal(r.drill.length, 2);
+  const right = G.compute(tab(BASE, { center: { mode: 'half', from: 'right', d: 124 }, studs: { from: 'edge', list: [51.25] } }), { mode: 'pro' });
+  assert.deepEqual(right.studs, [10.75]);
+  assert.deepEqual(G.compute(t, { mode: 'simple' }).studs, []);
+});
+
+test('VESA offset and drill points on two rows', () => {
+  const t = tab(BASE, { tv: { w: 57.125, h: 32.75, vesaLeft: 20, vesaRight: 17.125 }, mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1, rowGap: 8, lagSpan: 24, slide: 0 }, studs: { list: [-8, 8] } });
+  const r = G.compute(t, { mode: 'pro' });
+  near(r.vesa.x, 1.4375);
+  near(r.vesa.w, 20);
+  near(r.plateX, 1.4375);
+  assert.equal(r.drill.length, 4);
+  near(r.drill[1].y, 53.875 - 8);
+  near(r.plate.y1, 54.875);
+  near(r.plate.x0, 1.4375 - 13);
+});
+
+test('adjustment left after drilling', () => {
+  const t = tab(BASE, { mount: { holesToTop: 4.5, lagSpan: 24, slide: 3, adjUp: 0.5, adjDown: 1 }, studs: { list: [-14, 2, 18] } });
+  const r = G.compute(t, { mode: 'pro' });
+  assert.deepEqual(r.adjust, { up: 0.5, down: 1, left: 5, right: 1 });
+});
+
+test('recessed box zone below the plate', () => {
+  const t = tab(BASE, { mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1 }, box: { on: true, w: 8, h: 8 } });
+  const r = G.compute(t, { mode: 'pro' });
+  const below = r.box.zones.find(z => z.where === 'below');
+  near(below.y0, 27.625); near(below.y1, 42.875);
+  near(below.x0, -26.5625);
+  assert.ok(r.box.fits);
+  near(r.box.at.y1, 42.875); near(r.box.at.y0, 34.875); near(r.box.at.x, 0);
+  const one = G.compute(tab(BASE, { mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1 }, box: { on: true, w: 8, h: 8 }, studs: { list: [0] } }), { mode: 'pro' });
+  near(Math.abs(one.box.at.x), 4.75);
+  const big = G.compute(tab(BASE, { mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1 }, box: { on: true, w: 8, h: 30 } }), { mode: 'pro' });
+  assert.equal(big.box.fits, false);
+  assert.ok(big.warnings.some(w => /box/.test(w)));
+});
+
+test('viewing angle from seated eye height', () => {
+  const t = tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 4, h: 54 } }, view: { dist: 144 } });
+  const r = G.compute(t, { mode: 'pro' });
+  near(r.view.center, Math.atan(34.375 / 144) * 180 / Math.PI);
+  near(r.view.center, 13.426, '', 1e-3);
+  assert.equal(r.view.rating, 'good');
+  near(r.view.maxCenter, 40 + 144 * Math.tan(Math.PI / 12));
+  const high = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 4, h: 60 } }, view: { dist: 72, eye: 38 } }), { mode: 'pro' });
+  assert.equal(high.view.rating, 'bad');
+  assert.ok(high.warnings.some(w => /eye level/.test(w)));
+  const noFloor = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 4 } }, view: { dist: 144 } }), { mode: 'pro' });
+  assert.equal(noFloor.view.need, 'floor');
+});
+
+test('as built vs predicted', () => {
+  const r = G.compute(tab(BASE, { built: { top: 58.125, bottom: 25.375 } }), { mode: 'pro' });
+  near(r.built.dTop, -0.25); near(r.built.dBot, -0.25); near(r.built.avg, -0.25);
+  near(r.built.sag, 0.25);
+  near(r.built.hErr, 0);
+  const c = G.compute(tab(BASE, { ref: { kind: 'ceiling', ceiling: { edge: 'top', value: 6, h: 96 } }, built: { top: 6.25 } }), { mode: 'pro' });
+  near(c.built.dTop, -0.25);
+  assert.equal(G.compute(tab(BASE, { built: { top: 58 } }), { mode: 'simple' }).built, null);
+});
+
+test('warnings for impossible placements', () => {
+  const r = G.compute(tab(BASE, { ref: { kind: 'ceiling', ceiling: { edge: 'center', value: 10, h: 96 } } }), { mode: 'simple' });
+  assert.ok(r.warnings.some(w => /above the ceiling/.test(w)));
+  const m = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'center', value: 10, h: 54 } } }), { mode: 'simple' });
+  assert.ok(m.warnings.some(w => /below the mantle/.test(w)));
+  const h = G.compute(tab(BASE, { mount: { holesToTop: -1 } }), { mode: 'simple' });
+  assert.ok(h.warnings.some(w => /above the TV top/.test(w)));
+});
+
+test('sketch dims match the numbers you measure', () => {
+  const r = G.compute(tab(BASE, { ref: { ff: 0.75 } }), { mode: 'pro' });
+  const dims = r.sketch.items.filter(i => i.t === 'dim' && i.side === 'left');
+  const hole = dims.find(d => d.key === 'hole');
+  near(hole.v, r.m.hole);
+  const c = G.compute(tab(BASE, { ref: { kind: 'ceiling', ceiling: { edge: 'top', value: 6, h: 96 } } }), { mode: 'simple' });
+  near(c.sketch.items.find(d => d.t === 'dim' && d.key === 'hole').v, 10.5);
+});
+
+// Past jobs: add entries to jobs.json as
+// { "name": "...", "mode": "simple" | "pro", "tab": { ...overrides like BASE... }, "expect": { "hole": 53.875, "top": ..., "center": ..., "bottom": ... } }
+// expect values are what you measured from the reference (floor, mantle, or ceiling). Tolerance is 1/32".
+const jobsFile = path.join(__dirname, 'jobs.json');
+const jobs = fs.existsSync(jobsFile) ? JSON.parse(fs.readFileSync(jobsFile, 'utf8')) : [];
+for (const j of jobs) {
+  test('past job: ' + j.name, () => {
+    const r = G.compute(tab(j.tab), { mode: j.mode || 'simple' });
+    for (const [k, v] of Object.entries(j.expect)) {
+      const got = k in r.m ? r.m[k] : k.startsWith('aff.') ? r.aff[k.slice(4)] : undefined;
+      assert.ok(got != null, `${k} not computed`);
+      near(G.parseInches(v), got, `${j.name} ${k}`, 1 / 32);
+    }
+  });
+}
