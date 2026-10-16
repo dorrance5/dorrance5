@@ -16,11 +16,12 @@
 <title>TV Mount</title>
 <style>
 :root{
-  --tv:#1E2126;--tv-line:#000;--wood:#C7956A;--wood-line:#8F5F36;--stud:#946F00;--zone:#1F845A;--drill:#C9372C;--plate:#1D7AFC;--dimc:#4B4F57;--halo:#fff;--eye:#6E5DC6;--built:#6A9A23;--sb:#227D9B;--cl:#CD519D
+  --wall:rgba(0,0,0,.08);--tv:#1E2126;--tv-line:#000;--wood:#C7956A;--wood-line:#8F5F36;--stud:#946F00;--zone:#1F845A;--drill:#C9372C;--plate:#1D7AFC;--dimc:#4B4F57;--halo:#fff;--eye:#6E5DC6;--built:#6A9A23;--sb:#227D9B;--cl:#CD519D
 }
 :root[data-mode="dark"]{
-  --tv:#0D0E0F;--tv-line:rgba(230,231,233,.45);--wood:#7A5534;--wood-line:#C9A27E;--stud:#E2B203;--zone:#4BCE97;--drill:#F87168;--plate:#579DFF;--dimc:#B9BCC2;--halo:#1F2023;--eye:#9F8FEF;--built:#B3DF72;--sb:#6CC3E0;--cl:#E774BB
+  --wall:rgba(255,255,255,.08);--tv:#0D0E0F;--tv-line:rgba(230,231,233,.45);--wood:#7A5534;--wood-line:#C9A27E;--stud:#E2B203;--zone:#4BCE97;--drill:#F87168;--plate:#579DFF;--dimc:#B9BCC2;--halo:#1F2023;--eye:#9F8FEF;--built:#B3DF72;--sb:#6CC3E0;--cl:#E774BB
 }
+.tag{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--chip);padding:2px 7px;border-radius:7px}
 
 /* tabs: the shared parts are in shared/base.css */
 .tabs .add{width:40px;padding:0;font-size:20px}
@@ -51,13 +52,15 @@
 .sk .box{fill:none;stroke:var(--zone);stroke-width:2}
 .sk .built{fill:none;stroke:var(--built);stroke-width:1.5;stroke-dasharray:6 3}
 .sk .eye{stroke:var(--eye);stroke-width:1.5;stroke-dasharray:2 4}
+.sk .wall{stroke:var(--text);stroke-width:2}
+.sk .wallfill{fill:var(--wall)}
 .sk .edge{stroke:var(--cl);stroke-width:1.5}
 .sk .markline{stroke:var(--cl);stroke-width:1;stroke-dasharray:2 3}
 .sk .dim{stroke:var(--dimc);stroke-width:1}
 .sk .ext{stroke:var(--dimc);stroke-width:.6;opacity:.55}
 .sk .dl{fill:var(--dimc);font-weight:650}
-.sk .dl.hole{fill:var(--drill)}
-.sk .dl.in{fill:var(--orange)}.sk .dl.tv{fill:var(--purple)}.sk .dl.br{fill:var(--blue)}.sk .dl.sb{fill:var(--teal)}.sk .dl.cl{fill:var(--magenta)}
+.sk .dl.drl{fill:var(--drill)}
+.sk .dl.in{fill:var(--orange)}.sk .dl.tvd{fill:var(--purple)}.sk .dl.br{fill:var(--blue)}.sk .dl.sb{fill:var(--teal)}.sk .dl.cl{fill:var(--magenta)}
 .sk .cll{fill:var(--magenta);font-weight:600}
 .sk .ll{fill:var(--muted);font-weight:600}
 .sk .tl{fill:#fff;stroke:none;font-weight:600}

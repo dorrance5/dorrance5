@@ -128,6 +128,21 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   check('none hides the soundbar again', !(await page.$('#sk rect.sbar')) && (await tab0()).bar.w === 45);
   check('and TV bottom comes back', (await page.textContent('[data-seg="ref.floor.edge"] [data-v="bottom"]')) === 'TV bottom');
 
+  // room: folded at first, sketch only, drawn in screenshot mode
+  check('Room card starts folded', await page.$eval('[data-sec="room"]', el => el.classList.contains('shut')));
+  await page.tap('[data-fold="room"]');
+  await page.tap('[data-k="room.ceil"]');
+  await keys('9', '6', 'next', 'next', '6', '0', 'next', '4', '0', 'done');
+  const room = (await tab0()).room;
+  check('room fields fill in order', room.ceil === 96 && room.mantle === null && room.left === 60 && room.right === 40, room);
+  check('the phone sketch leaves the room out', !(await page.$('#sk line.wall')) && (await hero()).replace(/\u00a0/g, ' ') === '53 7/8"');
+  await page.tap('[data-shot]');
+  check('screenshot mode draws both walls and the ceiling', (await page.$$('#shotSk line.wall')).length === 2 && /Ceiling/.test(await page.textContent('#shotSk')));
+  await page.tap('#shotSk', { position: { x: 150, y: 400 } });
+  await page.waitForTimeout(400);
+  await page.tap('#shotX');
+  await page.tap('[data-fold="room"]');
+
   // modes keep their data
   await page.tap('#menuBtn');
   await page.tap('.sheet [data-set="mode"] [data-v="pro"]');
@@ -201,6 +216,16 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.tap('#sk', { position: { x: 100, y: 100 } });
   await page.waitForTimeout(100);
   check('double-tap fits it again', (await vb()) === v0, [v0, await vb()]);
+  const halos = await page.$$eval('#sk text.dl', ts => {
+    const want = getComputedStyle(document.documentElement).getPropertyValue('--halo').trim();
+    const probe = document.createElementNS('http://www.w3.org/2000/svg', 'text'); probe.style.stroke = want; document.getElementById('sk').appendChild(probe);
+    const ok = getComputedStyle(probe).stroke; probe.remove();
+    return ts.filter(t => getComputedStyle(t).stroke !== ok).map(t => t.textContent);
+  });
+  check('every dimension label has the background halo', halos.length === 0, halos);
+  const vbNow = (await vb()).split(' ').map(Number);
+  const labelsIn = await page.$$eval('#sk text', (ts, v) => ts.every(t => { const b = t.getBBox(); return b.y >= v[1] - 0.01 && b.y + b.height <= v[1] + v[3] + 0.01; }), vbNow);
+  check('no label is cut off at the top or bottom', labelsIn);
   const touchAction = await page.$eval('#sk', el => getComputedStyle(el).touchAction);
   check('sketch has touch-action: none', touchAction === 'none', touchAction);
 
