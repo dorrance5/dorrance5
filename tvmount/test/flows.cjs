@@ -1,0 +1,196 @@
+// Drives the app in WebKit at iPhone size: keypad entry, modes, tabs, pan and zoom,
+// backup restore, offline reload and an app update. Exits 1 on a failed check or console error.
+//   NODE_PATH=/path/to/node_modules node tvmount/test/flows.cjs
+const { webkit, devices } = require('playwright');
+const http = require('node:http');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const root = path.join(__dirname, '..', '..');
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png' };
+let swBump = null;   // when set, sw.js is served with this cache name, like a deploy would
+const server = http.createServer((req, res) => {
+  let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  if (p.endsWith('/')) p += 'index.html';
+  const f = path.join(root, p);
+  if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+  let body = fs.readFileSync(f);
+  if (swBump && p.endsWith('/tvmount/sw.js')) body = Buffer.from(body.toString().replace(/const CACHE = '[^']+'/, `const CACHE = '${swBump}'`));
+  res.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+  res.end(body);
+});
+
+const results = [];
+const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${info !== undefined && !ok ? ' — ' + JSON.stringify(info) : ''}`); };
+
+(async () => {
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}/tvmount/`;
+  const browser = await webkit.launch();
+  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('pageerror', e => errors.push(e.message));
+  const tab0 = () => page.evaluate(() => TVM.doc.tabs.find(t => t.id === TVM.doc.current));
+  const keys = async (...ks) => { for (const k of ks) await page.tap(`#kp [data-key="${k}"]`); };
+  const hero = () => page.textContent('#res .hero .v');
+
+  await page.goto(base);
+  await page.waitForSelector('#form [data-k="tv.w"]');
+
+  // keypad: whole number, then a fraction key
+  await page.tap('[data-k="tv.w"]');
+  check('keypad opens on a field', await page.isVisible('#kp'));
+  await keys('5', '7', '1/8');
+  check('57 + 1/8 stores 57.125', (await tab0()).tv.w === 57.125, (await tab0()).tv.w);
+  check('field shows 57 1/8"', (await page.textContent('[data-k="tv.w"] .fv')).replace(/ /g, ' ') === '57 1/8"');
+  await keys('next', '3', '2', '3/4');
+  check('next moves to height, 32 3/4', (await tab0()).tv.h === 32.75);
+  // reopen a filled field: a fraction key swaps the fraction, a digit starts over
+  await page.tap('[data-k="tv.h"]');
+  await keys('5/8');
+  check('fraction key on a filled field keeps the whole inches', (await tab0()).tv.h === 32.625);
+  await keys('3/4');
+  await page.tap('[data-k="mount.holesToTop"]');
+  await keys('4', '3/8', 'x32');
+  check('+1/32 makes 4 13/32', (await tab0()).mount.holesToTop === 4.40625, (await tab0()).mount.holesToTop);
+  await keys('sign');
+  check('± makes it negative', (await tab0()).mount.holesToTop === -4.40625);
+  await keys('back');
+  check('delete drops the fraction', (await tab0()).mount.holesToTop === -4);
+  await keys('clear');
+  check('clear blanks the field', (await tab0()).mount.holesToTop === null);
+  await keys('4', '.', '5');
+  check('decimal entry 4.5', (await tab0()).mount.holesToTop === 4.5);
+  await page.tap('[data-k="ref.floor.value"]');
+  await keys('4', '2', 'done');
+  check('keypad closes on Done', !(await page.isVisible('#kp')));
+  check('hero shows 53 7/8" for center at 42', (await hero()).replace(/ /g, ' ') === '53 7/8"', await hero());
+
+  // modes keep their data
+  await page.tap('#menuBtn');
+  await page.tap('.sheet [data-set="mode"] [data-v="pro"]');
+  await page.tap('.backdrop', { position: { x: 20, y: 20 } });
+  await page.tap('[data-k="mount.sag"]');
+  await keys('1/4', 'done');
+  check('pro sag 1/4 raises the holes to 54 1/8"', (await hero()).replace(/ /g, ' ') === '54 1/8"', await hero());
+  await page.tap('#menuBtn');
+  await page.tap('.sheet [data-set="mode"] [data-v="simple"]');
+  await page.tap('.backdrop', { position: { x: 20, y: 20 } });
+  check('simple ignores sag: back to 53 7/8"', (await hero()).replace(/ /g, ' ') === '53 7/8"');
+  check('sag is still saved after switching', (await tab0()).mount.sag === 0.25);
+
+  // copy as text
+  const text = await page.evaluate(() => TVM.text());
+  check('copy text has the drill height', text.includes('Drill top holes: 53 7/8" above floor'), text.split('\n').slice(0, 5));
+  check('copy text lists inputs', text.includes('Width: 57 1/8"'));
+
+  // tabs
+  await page.tap('#tabs .add');
+  await page.fill('#tabName', 'Garage');
+  await page.tap('.backdrop', { position: { x: 20, y: 20 } });
+  let names = await page.$$eval('#tabs [data-tab]:not(.add)', b => b.map(x => x.textContent));
+  check('new tab added and renamed', names.includes('Garage'), names);
+  check('new tab is empty', (await tab0()).tv.w === null);
+  await page.tap('#tabs [data-tab]:first-child');
+  check('switching back keeps the first tab', (await tab0()).tv.w === 57.125);
+
+  // persists across reload
+  await page.reload();
+  await page.waitForSelector('#res .hero');
+  check('data survives a reload', (await tab0()).tv.w === 57.125 && (await page.$$('#tabs [data-tab]:not(.add)')).length === 2);
+
+  // delete the Garage tab (two taps)
+  await page.tap('#tabs [data-tab]:nth-child(2)');
+  await page.tap('#tabs [data-tab]:nth-child(2)');
+  await page.tap('.sheet [data-act="del"]');
+  await page.tap('.sheet [data-act="del"]');
+  names = await page.$$eval('#tabs [data-tab]:not(.add)', b => b.map(x => x.textContent));
+  check('tab deleted', !names.includes('Garage'), names);
+
+  // pan, zoom, double-tap reset
+  const vb = () => page.getAttribute('#sk', 'viewBox');
+  const v0 = await vb();
+  const box = await page.locator('#sk').boundingBox();
+  await page.mouse.move(box.x + 150, box.y + 150);
+  await page.mouse.down(); await page.mouse.move(box.x + 210, box.y + 190, { steps: 4 }); await page.mouse.up();
+  const v1 = await vb();
+  check('drag pans the sketch', v1 !== v0 && v1.split(' ')[2] === v0.split(' ')[2], [v0, v1]);
+  // two fingers spreading apart (mobile WebKit has no mouse wheel)
+  await page.$eval('#sk', el => {
+    const b = el.getBoundingClientRect(), cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+    const fire = (type, id, dx) => el.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', isPrimary: id === 11, clientX: cx + dx, clientY: cy, bubbles: true }));
+    fire('pointerdown', 11, -30); fire('pointerdown', 12, 30);
+    for (let i = 1; i <= 6; i++) { fire('pointermove', 11, -30 - i * 10); fire('pointermove', 12, 30 + i * 10); }
+    fire('pointerup', 11, -90); fire('pointerup', 12, 90);
+  });
+  const v2 = await vb();
+  check('pinch zooms the sketch', +v2.split(' ')[2] < +v1.split(' ')[2] * 0.6, [v1, v2]);
+  await page.tap('#sk', { position: { x: 100, y: 100 } });
+  await page.waitForTimeout(80);
+  await page.tap('#sk', { position: { x: 100, y: 100 } });
+  await page.waitForTimeout(100);
+  check('double-tap fits it again', (await vb()) === v0, [v0, await vb()]);
+  const touchAction = await page.$eval('#sk', el => getComputedStyle(el).touchAction);
+  check('sketch has touch-action: none', touchAction === 'none', touchAction);
+
+  // screenshot mode hides the controls
+  await page.tap('#shotBtn');
+  check('screenshot mode covers the screen', await page.isVisible('.shot') && await page.$eval('.shot', el => { const r = el.getBoundingClientRect(); return r.width === innerWidth && r.height === innerHeight; }));
+  await page.waitForTimeout(2300);
+  check('its close button fades away', await page.$eval('#shotX', el => el.classList.contains('gone')));
+  await page.tap('#shotSk', { position: { x: 150, y: 400 } });
+  await page.waitForTimeout(500);
+  await page.tap('#shotX');
+  check('tap shows close, close exits', !(await page.isVisible('.shot')));
+
+  // restore a backup file
+  const backup = await page.evaluate(() => Store.exportText(Object.assign(Store.blank(), { tabs: [Object.assign(Store.newTab('Den'), {})] })));
+  const tmp = path.join(os.tmpdir(), 'tvmount-test-backup.json');
+  fs.writeFileSync(tmp, backup);
+  await page.setInputFiles('#importFile', tmp);
+  await page.waitForSelector('.sheet [data-act="merge"]');
+  await page.tap('.sheet [data-act="merge"]');
+  names = await page.$$eval('#tabs [data-tab]:not(.add)', b => b.map(x => x.textContent));
+  check('backup adds its tab', names.includes('Den') && names.length === 2, names);
+  fs.unlinkSync(tmp);
+
+  // offline, then an update
+  const swOk = await page.evaluate(async () => {
+    if (!('serviceWorker' in navigator)) return 'no serviceWorker';
+    const reg = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 8000))]);
+    return reg ? 'ready' : 'timeout';
+  });
+  check('service worker is ready', swOk === 'ready', swOk);
+  if (swOk === 'ready') {
+    await page.reload(); await page.waitForSelector('#res .hero');
+    await ctx.setOffline(true);
+    await page.reload();
+    const off = await page.waitForSelector('#res .hero', { timeout: 5000 }).then(() => true).catch(() => false);
+    check('loads with the network off', off && (await hero()).replace(/ /g, ' ') === '53 7/8"');
+    await ctx.setOffline(false);
+
+    swBump = 'tvmount-v999';
+    const updated = await page.evaluate(async () => {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const changed = new Promise(r => navigator.serviceWorker.addEventListener('controllerchange', () => r(true), { once: true }));
+      await reg.update();
+      return Promise.race([changed, new Promise(r => setTimeout(() => r(false), 8000))]);
+    });
+    check('new version takes over', updated);
+    await page.reload(); await page.waitForSelector('#res .hero');
+    const keysNow = await page.evaluate(() => caches.keys());
+    check('old cache removed, new one in place', keysNow.includes('tvmount-v999') && !keysNow.some(k => k.startsWith('tvmount-') && k !== 'tvmount-v999'), keysNow);
+    const names2 = await page.$$eval('#tabs [data-tab]:not(.add)', b => b.map(x => x.textContent));
+    check('saved tabs survive the update', (await tab0()).tv.w === 57.125 && names2.includes('Den'), names2);
+  }
+
+  check('no console errors', errors.length === 0, errors);
+  await browser.close();
+  server.close();
+  const failed = results.filter(r => !r.ok).length;
+  console.log(`\n${results.length - failed}/${results.length} checks passed`);
+  process.exit(failed ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(1); });

@@ -1,0 +1,849 @@
+/* TV Mount — the screen. geometry.js does the math and store.js keeps the data; this file
+   renders the inputs, the results and the sketch from one computed result. */
+(function () {
+  'use strict';
+  const { $, esc, buzz, sheet, closeSheet, toast, copy, themeSegHTML } = App;
+  const G = window.Geo, S = window.Store, isNum = G.isNum;
+  App.init();
+
+  /* ---------- state ---------- */
+  const loaded = S.load(localStorage);
+  let doc = loaded.doc;
+  let r = null;                                   // latest computed result
+  const UIKEY = 'tvmount.ui';                     // per-phone conveniences: which cards are folded
+  const ui = Object.assign({ shut: {} }, App.load(UIKEY, {}));
+  const saveUI = () => App.save(UIKEY, ui);
+
+  const get = (o, path) => path.split('.').reduce((a, k) => a == null ? undefined : a[k], o);
+  function set(o, path, v) { const ks = path.split('.'), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
+  const tab = () => doc.tabs.find(t => t.id === doc.current) || doc.tabs[0];
+  const pro = () => doc.settings.mode === 'pro';
+  const NB = s => s.replace(/ /g, '\u00a0');   // keep 33 1/8" on one line
+  const fmt = v => NB(G.formatInches(v, { prec: doc.settings.prec, dec: doc.settings.dec }));
+  const fmtIn = v => NB(G.formatExact(v, { dec: doc.settings.dec }));
+  const fill = s => G.fill(s, fmt);
+  function persist() { if (!S.save(localStorage, doc)) toast('Couldn’t save on this phone'); }
+  function update() { persist(); render(); }
+
+  /* ---------- field labels: [label, placeholder] ---------- */
+  const F = {
+    'tv.w': ['Width'], 'tv.h': ['Height'],
+    'tv.vesaTop': ['To TV top'], 'tv.vesaLeft': ['To left edge'], 'tv.vesaRight': ['To right edge'],
+    'mount.holesToTop': ['Top holes → TV top'],
+    'mount.hookDrop': ['Top holes → hook'], 'mount.armDrop': ['Arm hook → VESA'], 'mount.sag': ['Sag once hung', 0],
+    'mount.plateW': ['Plate width'], 'mount.plateH': ['Plate height'], 'mount.holeDown': ['Plate top → holes', 0], 'mount.rowGap': ['Hole rows apart'],
+    'mount.lagSpan': ['Lag span', 'plate width'], 'mount.slide': ['Slide each way', 0],
+    'mount.adjUp': ['Adjusts up'], 'mount.adjDown': ['Adjusts down'], 'mount.studsNeeded': ['Studs needed', 'auto'],
+    'ref.mantle.h': ['Mantle height'], 'ref.mantle.hR': ['Right end', 'same'], 'ref.mantle.len': ['Mantle length', 'TV width'],
+    'ref.ceiling.h': ['Ceiling height'], 'ref.ff': ['Finished floor adds', 0],
+    'center.a': ['First mark'], 'center.b': ['Second mark'], 'center.d': ['Whole distance'],
+    'box.w': ['Box width'], 'box.h': ['Box height'], 'box.margin': ['Keep in from edges', 2],
+    'view.eye': ['Seated eye height', 40], 'view.dist': ['Eyes to wall'],
+    'built.top': ['TV top'], 'built.bottom': ['TV bottom']
+  };
+  function label(path) {
+    const t = tab(), kind = t.ref.kind;
+    if (/^ref\.(floor|mantle|ceiling)\.value$/.test(path)) {
+      const e = G.EDGE_NAME[t.ref[kind].edge] || 'TV';
+      return kind === 'floor' ? e + ' height' : (kind === 'mantle' ? 'Mantle to ' : 'Ceiling to ') + e;
+    }
+    if (path === 'ref.mantle.h' && pro()) return 'Left end height';
+    if (/^studs\.list\./.test(path)) return tab().studs.from === 'edge' ? 'Stud from the ' + (t.center.from || 'left') + ' edge' : 'Stud from center (− is left)';
+    return (F[path] || [path])[0];
+  }
+
+  /* ---------- keypad ---------- */
+  const FR16 = ['1/16', '1/8', '3/16', '1/4', '5/16', '3/8', '7/16', '1/2', '9/16', '5/8', '11/16', '3/4', '13/16', '7/8', '15/16'];
+  $('#kpFr').innerHTML = FR16.map(f => `<button data-key="${f}">${f}</button>`).join('') + '<button data-key="x32" class="x32" aria-label="Add one thirty-second">+1/32</button>';
+  const kp = { path: null, w: '', f: null, neg: false, fresh: true };
+  const kpText = () => (kp.neg ? '−' : '') + [kp.w, kp.f].filter(Boolean).join(' ');
+
+  function loadKp(v) {
+    kp.w = ''; kp.f = null; kp.neg = false;
+    if (!isNum(v)) return;
+    kp.neg = v < 0;
+    const a = Math.abs(v), n64 = Math.round(a * 64);
+    if (Math.abs(a * 64 - n64) < 1e-7) {
+      const w = Math.floor(n64 / 64);
+      let num = n64 % 64, den = 64;
+      while (num && num % 2 === 0) { num /= 2; den /= 2; }
+      kp.w = w || !num ? String(w) : '';
+      kp.f = num ? num + '/' + den : null;
+    } else kp.w = String(+a.toFixed(4));
+  }
+
+  function openKeypad(path) {
+    const first = !kp.path;
+    kp.path = path; kp.fresh = true;
+    loadKp(get(tab(), path));
+    $('#kp').hidden = false;
+    renderForm(); syncKeypad();
+    if (first) $('#main').style.paddingBottom = ($('#kp').offsetHeight + 16) + 'px';
+    reveal(path);
+  }
+  function closeKeypad() {
+    if (!kp.path) return;
+    kp.path = null;
+    $('#kp').hidden = true;
+    $('#main').style.paddingBottom = '';
+    const t = tab();
+    if (t.studs.list.some(v => !isNum(v))) { t.studs.list = t.studs.list.filter(isNum); persist(); }
+    render();
+  }
+  function reveal(path) {
+    const el = document.querySelector(`#form [data-k="${path}"]`);
+    if (!el) return;
+    const main = $('#main'), rc = el.getBoundingClientRect(), mr = main.getBoundingClientRect();
+    const bottom = innerHeight - $('#kp').offsetHeight - 12;
+    if (rc.bottom > bottom) main.scrollBy({ top: rc.bottom - bottom, behavior: 'smooth' });
+    else if (rc.top < mr.top + 8) main.scrollBy({ top: rc.top - mr.top - 8, behavior: 'smooth' });
+  }
+  function syncKeypad() {
+    if (!kp.path) return;
+    const s = kpText();
+    $('#kpVal').textContent = s ? s + (doc.settings.dec || kp.w || kp.f ? '"' : '') : '—';
+    $('#kpVal').classList.toggle('ph', !s);
+    const live = r && r.ok ? 'Drill ' + fmt(r.m.hole) + ' ' + r.rows[0].sub : '';
+    $('#kpName').innerHTML = esc(label(kp.path)) + (live ? `<span class="live">${esc(live)}</span>` : '');
+    document.querySelectorAll('#kpFr [data-key]').forEach(b => b.classList.toggle('on', b.dataset.key === kp.f));
+  }
+  function key(k) {
+    if (k === 'done') { closeKeypad(); return; }
+    if (k === 'next' || k === 'prev') { stepField(k === 'next' ? 1 : -1); return; }
+    const fresh = kp.fresh;
+    kp.fresh = false;
+    const restart = () => { kp.w = ''; kp.f = null; if (fresh) kp.neg = false; };
+    if (/^\d$/.test(k)) {
+      if (fresh || kp.f) restart();
+      if (kp.w === '0') kp.w = '';
+      if (kp.w.replace('.', '').length < 6) kp.w += k;
+    } else if (k === '.') {
+      if (fresh || kp.f) restart();
+      if (!kp.w.includes('.')) kp.w = (kp.w || '0') + '.';
+    } else if (k === 'back') {
+      if (kp.f) kp.f = null; else kp.w = kp.w.slice(0, -1);
+    } else if (k === 'sign') kp.neg = !kp.neg;
+    else if (k === 'clear') { kp.w = ''; kp.f = null; kp.neg = false; }
+    else if (k === 'x32') {
+      const [n, d] = kp.f ? kp.f.split('/').map(Number) : [0, 1];
+      let w = parseInt(kp.w || '0', 10) || 0, n32 = Math.round(n * 32 / d) + 1;
+      if (n32 >= 32) { w += 1; n32 -= 32; }
+      let den = 32; while (n32 && n32 % 2 === 0) { n32 /= 2; den /= 2; }
+      kp.w = w ? String(w) : ''; kp.f = n32 ? n32 + '/' + den : null;
+      if (!kp.w && !kp.f) kp.w = '0';
+    } else if (k.includes('/')) {
+      if (kp.w.includes('.')) kp.w = kp.w.split('.')[0];
+      kp.f = kp.f === k ? null : k;
+    }
+    const v = G.parseInches(kpText());
+    if (v === null) set(tab(), kp.path, null);
+    else if (isNum(v)) set(tab(), kp.path, v);
+    else { syncKeypad(); return; }                 // half typed: leave the saved value alone
+    update();
+  }
+  function stepField(dir) {
+    const keys = [...document.querySelectorAll('#form [data-k]')].map(b => b.dataset.k);
+    const i = keys.indexOf(kp.path), next = keys[i + dir];
+    if (next) openKeypad(next); else if (dir > 0) closeKeypad();
+  }
+  $('#kp').addEventListener('click', e => { const b = e.target.closest('[data-key]'); if (b) { buzz(4); key(b.dataset.key); } });
+  document.addEventListener('keydown', e => {
+    if (!kp.path || e.metaKey || e.ctrlKey || document.querySelector('.backdrop')) return;
+    const m = { Backspace: 'back', Enter: 'next', Escape: 'done', Delete: 'clear', '-': 'sign', '.': '.' };
+    let k = /^\d$/.test(e.key) ? e.key : m[e.key];
+    if (e.key === 'Tab') k = e.shiftKey ? 'prev' : 'next';
+    if (k) { e.preventDefault(); key(k); }
+  });
+
+  /* ---------- form ---------- */
+  let formFields = [];
+  function fld(path, o) {
+    o = o || {};
+    const v = get(tab(), path), ph = o.ph !== undefined ? o.ph : (F[path] || [])[1];
+    const lab = o.label || label(path);
+    formFields.push([path, lab]);
+    const shown = isNum(v) ? fmtIn(v) : '';
+    const phs = ph == null ? '—' : typeof ph === 'number' ? fmt(ph) : ph;
+    return `<button class="fld${kp.path === path ? ' on' : ''}${o.wide ? ' wide' : ''}" data-k="${path}"><span class="fk">${esc(lab)}</span><span class="fv${shown ? '' : ' ph'}">${esc(shown || phs)}</span></button>`;
+  }
+  function seg(path, opts) {
+    const cur = String(get(tab(), path));
+    return `<div class="seg" data-seg="${path}">${opts.map(([v, l]) => `<button data-v="${v}" class="${cur === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  }
+  const CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  function card(id, title, body, isPro) {
+    return `<section class="card sec${ui.shut[id] ? ' shut' : ''}" data-sec="${id}"><button class="sec-h" data-fold="${id}"><span>${title}</span>${isPro ? '<span class="badge">Pro</span>' : ''}${CHEV}</button><div class="sec-b">${body}</div></section>`;
+  }
+  const hint = s => `<p class="hint">${s}</p>`;
+  function libButtons(kind) {
+    const t = tab(), model = kind === 'tv' ? t.tv.model : t.mount.model, n = doc.lib[kind === 'tv' ? 'tvs' : 'mounts'].length;
+    return `<div class="row"><button class="btn" data-lib="${kind}">${model ? esc(model) : kind === 'tv' ? 'Saved TVs' : 'Saved mounts'}${n ? ` <span class="cnt">${n}</span>` : ''}</button><button class="btn" data-libsave="${kind}">Save ${kind === 'tv' ? 'TV' : 'mount'}</button></div>`;
+  }
+  const studName = (s, from) => from === 'edge' ? fmtIn(s) : (s < 0 ? 'L ' : s > 0 ? 'R ' : '') + fmtIn(Math.abs(s));
+
+  function renderForm() {
+    formFields = [];
+    const t = tab(), P = pro(), kind = t.ref.kind;
+    let h = '', b;
+
+    // TV
+    b = seg('tv.src', [['measured', 'Measured'], ['size', 'Standard size']]);
+    if (t.tv.src === 'size') {
+      b += `<div class="chips sizes">${G.SIZES.map(s => `<button class="chip${t.tv.size === s ? ' on' : ''}" data-size="${s}">${s}</button>`).join('')}</div>`;
+      const est = G.sizeEstimate(t.tv.size);
+      b += hint(est ? `About ${fmt(est.w)} wide × ${fmt(est.h)} tall. An estimate: measure the real TV when you can.` : 'Pick the class size, 43″ to 98″.');
+    } else b += `<div class="grid2">${fld('tv.w')}${fld('tv.h')}</div>`;
+    if (P) {
+      b += `<div class="label">VESA holes</div><div class="grid3">${fld('tv.vesaTop')}${fld('tv.vesaLeft')}${fld('tv.vesaRight')}</div>`;
+      b += hint('Left and right as you face the screen. From the back of the TV they swap.') + libButtons('tv');
+    }
+    h += card('tv', 'TV', b);
+
+    // bracket
+    b = '';
+    if (P) b += seg('mount.chain', [['measured', 'One measurement'], ['split', 'Split chain']]);
+    if (!P || t.mount.chain !== 'split') {
+      b += `<div class="grid2">${fld('mount.holesToTop', { wide: !P })}${P ? fld('mount.sag') : ''}</div>`;
+      b += hint('Arms on the TV, plate hung on the arms: measure from the top row of plate holes to the top of the TV. Use ± if the holes sit above it.');
+    } else {
+      b += `<div class="grid2">${fld('mount.hookDrop')}${fld('mount.armDrop')}${fld('tv.vesaTop', { label: 'VESA → TV top' })}${fld('mount.sag')}</div>`;
+      const c = r.chain;
+      b += `<div class="chain">${c.measured != null
+        ? `${fmt(c.vesaTop)} VESA − ${fmt(c.hookDrop)} hook − ${fmt(c.armDrop)} arm${c.sag ? ' − ' + fmt(c.sag) + ' sag' : ''} = <b>${fmt(c.hung)}</b> top holes to TV top`
+        : 'Plate top holes down to the hook, the arm’s hook down to its top VESA hole, then the TV’s top VESA holes up to its top edge.'}</div>`;
+    }
+    if (P) {
+      b += `<div class="label">Plate</div><div class="grid2">${fld('mount.plateW')}${fld('mount.plateH')}${fld('mount.holeDown')}${fld('mount.rowGap')}${fld('mount.lagSpan')}${fld('mount.slide')}${fld('mount.adjUp')}${fld('mount.adjDown')}${fld('mount.studsNeeded')}</div>`;
+      b += libButtons('mount');
+    }
+    h += card('bracket', 'Bracket', b);
+
+    // placement
+    const k = t.ref[kind];
+    b = seg('ref.kind', [['floor', 'Floor'], ['mantle', 'Mantle'], ['ceiling', 'Ceiling']]);
+    b += `<div class="label">Set the</div>` + seg('ref.' + kind + '.edge', [['top', 'TV top'], ['center', 'TV center'], ['bottom', 'TV bottom']]);
+    b += `<div class="grid2">${fld('ref.' + kind + '.value')}`;
+    if (kind === 'mantle') b += fld('ref.mantle.h') + (P ? fld('ref.mantle.hR') + fld('ref.mantle.len') : '');
+    if (kind === 'ceiling') b += fld('ref.ceiling.h');
+    if (P) b += fld('ref.ff');
+    b += '</div>';
+    if (kind === 'mantle') b += hint(P ? 'Measure the mantle height from the floor at both ends. The gap holds at the high end; the TV is taken as centered on the mantle.' : 'Mantle height is optional; add it to get heights from the floor too.');
+    if (kind === 'ceiling') b += hint('Ceiling height is optional; add it to get heights from the floor too.');
+    if (P && t.ref.ff) b += hint('Plan to the finished floor; marks are given from the floor as it is today.');
+    h += card('place', 'Placement', b);
+
+    // center line
+    const ct = r.center;
+    b = seg('center.mode', [['two', 'Two marks'], ['half', 'Half a distance']]) + seg('center.from', [['left', 'From left'], ['right', 'From right']]);
+    b += t.center.mode === 'half' ? `<div class="grid2">${fld('center.d', { wide: true })}</div>` : `<div class="grid2">${fld('center.a')}${fld('center.b')}</div>`;
+    b += ct ? `<div class="res">Center line <b>${fmt(ct.pos)}</b> from the ${ct.from} edge${ct.mode === 'two' ? `, ${fmt(ct.half)} to each mark` : ''}</div>`
+      : hint(t.center.mode === 'half' ? 'One distance, like the wall or the mantle; the center is half of it.' : 'Two marks measured from the same edge, like both sides of a fireplace.');
+    h += card('center', 'Center line', b);
+
+    if (P) {
+      // studs
+      b = seg('studs.from', [['center', 'From center line'], ['edge', 'From the edge']]);
+      b += `<div class="studs">${t.studs.list.map((s, i) => `<span class="studchip${kp.path === 'studs.list.' + i ? ' on' : ''}"><button class="sv" data-k="studs.list.${i}">${isNum(s) ? esc(studName(s, t.studs.from)) : '…'}</button><button class="sx" data-delstud="${i}" aria-label="Remove stud">×</button></span>`).join('')}<button class="chip" data-addstud>+ Stud</button></div>`;
+      t.studs.list.forEach((s, i) => formFields.push(['studs.list.' + i, 'Stud']));
+      b += `<div class="row"><button class="btn" data-fillstuds>Fill every 16″</button><button class="btn" data-clearstuds>Clear</button></div>`;
+      b += hint(t.studs.from === 'edge' ? 'Stud centers from the same edge as the center line.' : 'Stud centers from the center line. Left is negative: tap ± on the keypad.');
+      h += card('studs', 'Studs', b, true);
+
+      // box
+      b = seg('box.on', [[false, 'No box'], [true, 'Recessed box']]);
+      if (t.box.on) b += `<div class="grid3">${fld('box.w')}${fld('box.h')}${fld('box.margin', { label: 'Keep in' })}</div>` + hint('Finds room behind the TV, clear of the plate and between studs, for a recessed power and low-voltage box.');
+      h += card('box', 'Rough-in box', b, true);
+
+      // viewing
+      b = `<div class="grid2">${fld('view.eye')}${fld('view.dist')}</div>` + hint('Up to 15° above seated eye level is comfortable; past 30° strains necks.');
+      h += card('view', 'Viewing angle', b, true);
+
+      // as built
+      b = `<div class="grid2">${fld('built.top', { label: 'TV top, measured' })}${fld('built.bottom', { label: 'TV bottom, measured' })}</div>`;
+      b += hint('After hanging, measure from the ' + (kind === 'floor' ? 'floor' : kind) + ' like the marks were given.');
+      const lm = r.built && t.mount.model && doc.lib.mounts.find(m => m.model.trim().toLowerCase() === t.mount.model.trim().toLowerCase());
+      if (lm && Math.abs(r.built.avg) >= 1 / 64) b += `<div class="row"><button class="btn" data-savesag>Save sag ${esc(fmt(r.built.sag))} to ${esc(lm.model)}</button></div>`;
+      h += card('built', 'As built', b, true);
+    }
+    $('#form').innerHTML = h;
+  }
+
+  $('#form').addEventListener('click', e => {
+    const t = tab();
+    const fold = e.target.closest('[data-fold]');
+    if (fold) { const id = fold.dataset.fold; ui.shut[id] = !ui.shut[id]; saveUI(); fold.parentElement.classList.toggle('shut', ui.shut[id]); return; }
+    const f = e.target.closest('[data-k]');
+    if (f) { buzz(4); openKeypad(f.dataset.k); return; }
+    const sb = e.target.closest('[data-seg] button');
+    if (sb) {
+      const path = sb.parentElement.dataset.seg;
+      let v = sb.dataset.v;
+      if (path === 'box.on') v = v === 'true';
+      if (path === 'studs.from' && v !== t.studs.from) convertStuds(t, v);
+      set(t, path, v); buzz(6); update(); return;
+    }
+    const sz = e.target.closest('[data-size]');
+    if (sz) { t.tv.size = +sz.dataset.size; buzz(6); update(); return; }
+    if (e.target.closest('[data-addstud]')) { t.studs.list.push(null); openKeypad('studs.list.' + (t.studs.list.length - 1)); return; }
+    const del = e.target.closest('[data-delstud]');
+    if (del) { const i = +del.dataset.delstud; if (kp.path && kp.path.startsWith('studs.list.')) closeKeypad(); t.studs.list.splice(i, 1); update(); return; }
+    if (e.target.closest('[data-fillstuds]')) { fillStuds(); return; }
+    if (e.target.closest('[data-clearstuds]')) { if (kp.path && kp.path.startsWith('studs.list.')) closeKeypad(); t.studs.list = []; update(); return; }
+    const lib = e.target.closest('[data-lib]');
+    if (lib) { closeKeypad(); libSheet(lib.dataset.lib); return; }
+    const ls = e.target.closest('[data-libsave]');
+    if (ls) { closeKeypad(); libSaveSheet(ls.dataset.libsave); return; }
+    if (e.target.closest('[data-savesag]')) {
+      const m = doc.lib.mounts.find(x => x.model.trim().toLowerCase() === t.mount.model.trim().toLowerCase());
+      if (m && r.built) { m.sag = Math.round(r.built.sag * 64) / 64; persist(); toast('Sag ' + fmt(m.sag) + ' saved to ' + m.model); render(); }
+    }
+  });
+
+  // switching how studs are measured keeps them in the same place on the wall
+  function convertStuds(t, to) {
+    const c = G.centerTool(t.center);
+    if (!c) return;
+    const dir = c.from === 'right' ? -1 : 1;
+    t.studs.list = t.studs.list.map(s => !isNum(s) ? s : to === 'edge' ? c.pos + dir * s : dir * (s - c.pos));
+  }
+  function fillStuds() {
+    const t = tab(), list = t.studs.list.filter(isNum);
+    if (!list.length) { toast('Add one stud first'); return; }
+    const reach = (r.tv.w || 60) / 2 + 16;
+    let out;
+    if (t.studs.from === 'edge') {
+      if (!r.center) { toast('Fill in the center line first'); return; }
+      const c = r.center.pos, known = list.reduce((a, s) => Math.abs(s - c) < Math.abs(a - c) ? s : a);
+      out = G.fillStuds(known, 16, c - reach, c + reach).filter(s => s >= 0);
+    } else {
+      const known = list.reduce((a, s) => Math.abs(s) < Math.abs(a) ? s : a);
+      out = G.fillStuds(known, 16, -reach, reach);
+    }
+    closeKeypad();
+    t.studs.list = out; buzz(8); update();
+  }
+
+  /* ---------- results ---------- */
+  function needText() {
+    const t = tab();
+    const lower = s => /^TV/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1);
+    const names = r.missing.map(k => /^ref\./.test(k) ? lower(label('ref.' + t.ref.kind + '.value')) : (G.FIELD_NAME[k] || k));
+    return names.length ? 'Fill in ' + names.join(', ') : '';
+  }
+  function factHTML(x) {
+    const v = x.s != null ? fill(x.s) : x.v != null ? fmt(x.v) : '—';
+    return `<div class="li${x.cls ? ' ' + x.cls : ''}"><div class="k">${esc(x.k)}</div><div class="v">${esc(v)}</div>${x.sub ? `<div class="s">${esc(fill(x.sub))}</div>` : ''}${x.alt ? `<div class="a">${esc(fill(x.alt))}</div>` : ''}</div>`;
+  }
+  function renderResults() {
+    const by = id => r.rows.find(x => x.id === id), hero = by('hole');
+    let h = r.ok
+      ? `<div class="hero"><div class="k">Drill top holes</div><div class="v">${fmt(hero.v)}</div><div class="s">${esc(hero.sub)}${hero.alt ? ' · ' + esc(fill(hero.alt)) : ''}</div></div>`
+      : `<div class="hero empty"><div class="k">Drill top holes</div><div class="v">—</div><div class="s">${esc(needText())}</div></div>`;
+    const tri = ['top', 'center', 'bottom'].map(by);
+    if (tri.some(x => x.v != null)) h += `<div class="tri">${tri.map(x => `<div class="fact"><div class="k">${x.k}</div><div class="v">${x.v != null ? fmt(x.v) : '—'}</div><div class="s">${esc(x.alt ? fill(x.alt) : x.sub)}</div></div>`).join('')}</div>`;
+    const rest = r.rows.filter(x => !['hole', 'top', 'center', 'bottom'].includes(x.id));
+    if (rest.length) h += `<div class="card list">${rest.map(factHTML).join('')}</div>`;
+    if (r.warnings.length) h += `<ul class="warns">${r.warnings.map(w => `<li>${esc(fill(w))}</li>`).join('')}</ul>`;
+    $('#res').innerHTML = h;
+  }
+
+  /* ---------- sketch ---------- */
+  const VE = ' vector-effect="non-scaling-stroke"';
+  const N = v => Math.round(v * 1000) / 1000;
+  const EXAMPLE = (() => { const t = G.newTab('Example'); t.tv.src = 'size'; t.tv.size = 65; t.mount.holesToTop = 4.5; t.ref.floor.value = 42; return t; })();
+
+  // Lay the sketch out at label size f (wall inches). Returns svg markup and its viewBox.
+  function sketchSVG(sk, f, example, hid) {
+    const items = sk.items, tv = sk.tv;
+    const B = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    const grow = (x, y) => { B.x0 = Math.min(B.x0, x); B.x1 = Math.max(B.x1, x); B.y0 = Math.min(B.y0, y); B.y1 = Math.max(B.y1, y); };
+    for (const it of items) {
+      if (it.t === 'rect') { grow(it.x0, it.y0); grow(it.x1, it.y1); }
+      else if (it.t === 'poly') it.pts.forEach(p => grow(p[0], p[1]));
+      else if (it.t === 'line') {
+        if (it.hspan) { grow(it.x0, it.y0); grow(it.x1, it.y0); }
+        else if (it.vspan) { if (!it.far) grow(it.x0, tv.y0); }
+        else { grow(it.x0, it.y0); grow(it.x1, it.y1); }
+      } else if (it.t === 'dot' || it.t === 'mark') grow(it.x, it.y);
+    }
+    if (items.some(i => i.t === 'label' && i.below)) grow(tv.x0, tv.y0 - f * 2);
+    if (items.some(i => i.t === 'label' && i.cls === 'mantle')) grow(0, -2.5 - f * 1.8);
+    // stud and edge names sit just inside the bottom of the drawing (above the floor when there is one)
+        const studRow = B.y0 + f * 0.8, edgeRow = B.y0 + f * 0.8;
+
+    // dimension tiers: shortest nearest the drawing; dims that don't overlap share a tier
+    const pad = f * 1.5, gap = f * 2.3, tiers = {}, placed = [];
+    for (const s of ['left', 'right', 'top', 'bottom']) {
+      const list = items.filter(i => i.t === 'dim' && i.side === s)
+        .map(d => ({ d, lo: Math.min(d.a, d.b), hi: Math.max(d.a, d.b) }))
+        .sort((p, q) => (p.hi - p.lo) - (q.hi - q.lo));
+      const rows = [];
+      for (const p of list) {
+        let k = 0;
+        while (rows[k] && rows[k].some(q => p.lo < q.hi - 1e-6 && q.lo < p.hi - 1e-6)) k++;
+        (rows[k] = rows[k] || []).push(p); p.k = k; placed.push(p);
+      }
+      tiers[s] = rows.length;
+    }
+    const reach = n => n ? pad + (n - 1) * gap + f * 0.9 : 0;
+    const E = { x0: B.x0 - reach(tiers.left), x1: B.x1 + reach(tiers.right), y0: B.y0 - reach(tiers.bottom), y1: B.y1 + reach(tiers.top) };
+
+    const back = [], mid = [], front = [], text = [];
+    const L = (cls, x0, y0, x1, y1) => `<line class="${cls}" x1="${N(x0)}" y1="${N(-y0)}" x2="${N(x1)}" y2="${N(-y1)}"${VE}/>`;
+    const T = (cls, x, y, s, o) => {
+      o = o || {};
+      const fs = o.fs || f;
+      return `<text class="${cls}" x="${N(x)}" y="${N(-y)}" font-size="${N(fs)}" stroke-width="${N(fs * 0.34)}" text-anchor="${o.anchor || 'middle'}" dominant-baseline="central"${o.rot ? ` transform="rotate(-90 ${N(x)} ${N(-y)})"` : ''}>${esc(s)}</text>`;
+    };
+    const textW = (s, fs) => String(s).length * 0.56 * (fs || f);
+    const val = s => example ? s.replace(/\{[^}]*\}/g, '…') : fill(s);
+
+    for (const it of items) {
+      if (it.t === 'line') {
+        let { x0, x1, y0, y1 } = it;
+        if (it.hspan) { x0 = E.x0; x1 = E.x1; }
+        if (it.vspan) {
+          if (it.x0 < E.x0 - 1e-6 || it.x0 > E.x1 + 1e-6) continue;
+          y0 = it.cls === 'edge' || it.cls === 'markline' ? E.y0 : B.y0; y1 = B.y1;
+        }
+        const ln = L(it.cls, x0, y0, x1, y1);
+        (['stud', 'drill', 'center'].includes(it.cls) ? front : back).push(ln);
+        if (it.text) {
+          const s = val(it.text);
+          if (it.hspan) {
+            const below = it.cls === 'ceiling';
+            const tx = it.cls === 'eye' ? B.x1 : E.x1;
+            text.push(T(it.cls === 'eye' ? 'el' : 'll', tx, y0 + (below ? -f * 0.8 : f * 0.8), s, { anchor: 'end', fs: f * 0.9 }));
+          } else if (it.cls === 'stud') text.push(T('stl', it.x0, studRow + textW(s, f * 0.85) / 2 - f * 0.4, s, { fs: f * 0.85, rot: true }));
+          else text.push(T('ll', it.x0, edgeRow, s, { fs: f * 0.85 }));
+        }
+      } else if (it.t === 'poly') {
+        back.push(`<polygon class="${it.cls}" points="${it.pts.map(p => N(p[0]) + ',' + N(-p[1])).join(' ')}"${VE}/>`);
+      } else if (it.t === 'rect') {
+        const w = it.x1 - it.x0, hh = it.y1 - it.y0;
+        const el = `<rect class="${it.cls}" x="${N(it.x0)}" y="${N(-it.y1)}" width="${N(w)}" height="${N(hh)}"${it.cls === 'tv' ? ` rx="${N(Math.min(0.6, hh / 20))}"` : ''}${it.cls === 'zone' ? ` fill="url(#${hid})"` : ''}${VE}/>`;
+        if (it.cls === 'tv') { mid.push(el); mid.push(`<rect class="scr" x="${N(it.x0 + 0.4)}" y="${N(-it.y1 + 0.4)}" width="${N(Math.max(0, w - 0.8))}" height="${N(Math.max(0, hh - 1.2))}"${VE}/>`); }
+        else if (it.cls === 'zone') mid.push(el);
+        else front.push(el);
+        if (it.text) text.push(T('zl', (it.x0 + it.x1) / 2, (it.y0 + it.y1) / 2, it.text, { fs: f * 0.85 }));
+        if (it.cls === 'built') text.push(T('bl', it.x1 - f * 0.4, it.y0 + f * 0.5, 'as built', { fs: f * 0.75, anchor: 'end' }));
+      } else if (it.t === 'dot') {
+        front.push(`<circle class="${it.cls}" cx="${N(it.x)}" cy="${N(-it.y)}" r="${N(f * 0.32)}"${VE}/>`);
+      } else if (it.t === 'mark') {
+        const m = f * 0.45;
+        front.push(L(it.cls, it.x - m, it.y, it.x + m, it.y), L(it.cls, it.x, it.y - m, it.x, it.y + m));
+      } else if (it.t === 'label') {
+        if (it.cls === 'tvname') {
+          // bottom-left inside the TV, clear of the plate, holes and center mark
+          let fs1 = f * 0.95, fs2 = f * 0.8;
+          const x = tv.x0 + f * 0.6, th = tv.y1 - tv.y0;
+          // shrink to fit left of the box, plate or "as built" where they share a line's height
+          const fit = (s, fs, base) => {
+            const lo = base - fs * 0.25, hi = base + fs;
+            let room = tv.x1 - f * 0.6 - x;
+            for (const o of items) {
+              if (o.t !== 'rect' || o.x1 <= x) continue;
+              if ((o.cls === 'box' || o.cls === 'plate') && o.y0 < hi && o.y1 > lo) room = Math.min(room, o.x0 - f * 0.5 - x);
+              const by = o.y0 + f * 0.5;
+              if (o.cls === 'built' && by < hi && by + f * 0.75 > lo) room = Math.min(room, o.x1 - f * 0.9 - textW('as built', f * 0.75) - x);
+            }
+            return room / (textW(s, fs) * 1.12);   // model numbers are mostly capitals and digits, wider than average
+          };
+          const k = Math.max(0.6, Math.min(1, fit(val(it.lines[0]), fs1, tv.y0 + f * 0.6 + fs2 * 1.25), fit(val(it.lines[1]), fs2, tv.y0 + f * 0.6 + fs2 * 0.1)));
+          fs1 *= k; fs2 *= k;
+          if (th > (fs1 + fs2) * 2.2) {
+            text.push(T('tl', x, tv.y0 + f * 0.6 + fs2 * 1.25, val(it.lines[0]), { fs: fs1, anchor: 'start' }));
+            text.push(T('tl sub', x, tv.y0 + f * 0.6 + fs2 * 0.1, val(it.lines[1]), { fs: fs2, anchor: 'start' }));
+          } else text.push(T('tl', x, tv.y0 + th * 0.3, val(it.lines[0]), { fs: Math.min(fs1, th * 0.5), anchor: 'start' }));
+        } else if (it.cls === 'mantle') {
+          const mx = Math.min(...items.filter(i => i.t === 'poly' && i.cls === 'mantle').flatMap(i => i.pts.map(p => p[0])));
+          text.push(T('ll', isFinite(mx) ? mx : it.x, -2.5 - f * 0.8, it.lines[0], { fs: f * 0.85, anchor: isFinite(mx) ? 'start' : 'middle' }));
+        }
+        else if (it.cls === 'gap') text.push(T('gl', it.x, it.y - f * 0.9, val(it.lines[0]), { anchor: it.anchor, fs: f * 0.85 }));
+        else text.push(T('ll', it.x, it.y, val(it.lines.join(' ')), { anchor: it.anchor }));
+      }
+    }
+
+    // dimensions
+    const dims = [], t = f * 0.38;
+    const tick = (x, y) => L('dim', x - t, y - t, x + t, y + t);
+    for (const p of placed) {
+      const d = p.d, off = pad + p.k * gap;
+      const name = d.name, value = example ? '' : fmt(d.v);
+      const full = example ? name : name + ' ' + value;
+      if (d.side === 'left' || d.side === 'right') {
+        const sgn = d.side === 'left' ? -1 : 1;
+        const X = d.side === 'left' ? B.x0 - off : B.x1 + off;
+        const xe = d.side === 'left' ? tv.x0 : tv.x1;
+        for (const yy of [d.a, d.b]) dims.push(`<line class="ext" x1="${N(xe + sgn * f * 0.25)}" y1="${N(-yy)}" x2="${N(X + sgn * f * 0.45)}" y2="${N(-yy)}"${VE}/>`);
+        dims.push(L('dim', X, d.a, X, d.b), tick(X, d.a), tick(X, d.b));
+        const room = p.hi - p.lo - f * 0.6;
+        let s = full, cy = (p.lo + p.hi) / 2, fs = f;
+        if (textW(s) > room) s = example ? name : value;
+        if (textW(s) > room) { if (textW(s) * 0.6 <= room) fs = f * room / textW(s); else cy = p.hi + textW(s) / 2 + f * 0.5; }
+        text.push(T('dl' + (d.key === 'hole' ? ' hole' : ''), X, cy, s, { rot: true, fs }));
+      } else {
+        const Y = d.side === 'top' ? B.y1 + off : B.y0 - off;
+        let a = d.a, b = d.b;
+        const lo = E.x0 + f * 0.4, hi = E.x1 - f * 0.4;
+        const clipA = a < lo || a > hi, clipB = b < lo || b > hi;
+        a = Math.max(lo, Math.min(hi, a)); b = Math.max(lo, Math.min(hi, b));
+        if (d.side === 'top') for (const xx of [a, b]) dims.push(`<line class="ext" x1="${N(xx)}" y1="${N(-(tv.y1 + f * 0.25))}" x2="${N(xx)}" y2="${N(-(Y + f * 0.45))}"${VE}/>`);
+        dims.push(L('dim', a, Y, b, Y));
+        for (const [xx, clip, other] of [[a, clipA, b], [b, clipB, a]]) {
+          if (!clip) { dims.push(tick(xx, Y)); continue; }
+          const dir = Math.sign(other - xx) || 1;   // arrow pointing off the drawing
+          dims.push(L('dim', xx, Y, xx + dir * t * 1.6, Y + t), L('dim', xx, Y, xx + dir * t * 1.6, Y - t));
+        }
+        const room = Math.abs(b - a) - f * 0.6;
+        let s = full, fs = f;
+        if (textW(s) > room) s = example ? name : value;
+        if (textW(s) > room && textW(s) * 0.6 <= room) fs = f * room / textW(s);
+        text.push(T('dl', (a + b) / 2, Y, s, { fs }));
+      }
+    }
+
+    const m = f * 1.2;
+    const vb = { x: E.x0 - m, y: -(E.y1 + m), w: E.x1 - E.x0 + 2 * m, h: E.y1 - E.y0 + 2 * m };
+    const defs = `<defs><pattern id="${hid}" patternUnits="userSpaceOnUse" width="1.6" height="1.6" patternTransform="rotate(45)"><line class="hl" x1="0" y1="0" x2="0" y2="1.6"/></pattern></defs>`;
+    return { html: defs + back.join('') + mid.join('') + front.join('') + dims.join('') + text.join(''), vb };
+  }
+
+  // Pan, pinch and double-tap reset on an <svg> by moving its viewBox.
+  function zoomer(svg, onTap) {
+    const z = { base: null, k: 1, ox: 0, oy: 0 };
+    const pts = new Map();
+    let moved = 0, downAt = 0, lastTap = null, tapTimer = null;
+    const view = () => { const b = z.base, w = b.w / z.k, h = b.h / z.k; return { x: b.x + b.w / 2 + z.ox - w / 2, y: b.y + b.h / 2 + z.oy - h / 2, w, h }; };
+    const apply = () => { if (!z.base) return; const v = view(); svg.setAttribute('viewBox', `${N(v.x)} ${N(v.y)} ${N(v.w)} ${N(v.h)}`); };
+    const unit = () => view().w / (svg.clientWidth || 1);
+    function zoomAt(px, py, f) {
+      const v = view(), u = v.w / (svg.clientWidth || 1);
+      const P = { x: v.x + px * u, y: v.y + py * u };
+      z.k = Math.max(0.6, Math.min(20, z.k * f));
+      const w = z.base.w / z.k, h = z.base.h / z.k, u2 = w / (svg.clientWidth || 1);
+      z.ox = P.x - px * u2 + w / 2 - (z.base.x + z.base.w / 2);
+      z.oy = P.y - py * u2 + h / 2 - (z.base.y + z.base.h / 2);
+      apply();
+    }
+    const pos = e => { const b = svg.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
+    svg.addEventListener('pointerdown', e => {
+      try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+      pts.set(e.pointerId, pos(e));
+      if (pts.size === 1) { moved = 0; downAt = e.timeStamp; }
+    });
+    svg.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId) || !z.base) return;
+      const p = pos(e), prev = pts.get(e.pointerId);
+      if (pts.size === 1) {
+        const u = unit();
+        z.ox -= (p.x - prev.x) * u; z.oy -= (p.y - prev.y) * u;
+        moved += Math.hypot(p.x - prev.x, p.y - prev.y);
+        pts.set(e.pointerId, p); apply();
+      } else if (pts.size === 2) {
+        const other = [...pts.entries()].find(([id]) => id !== e.pointerId)[1];
+        const d0 = Math.hypot(prev.x - other.x, prev.y - other.y), d1 = Math.hypot(p.x - other.x, p.y - other.y);
+        const m0 = { x: (prev.x + other.x) / 2, y: (prev.y + other.y) / 2 }, m1 = { x: (p.x + other.x) / 2, y: (p.y + other.y) / 2 };
+        const u = unit();
+        z.ox -= (m1.x - m0.x) * u; z.oy -= (m1.y - m0.y) * u;
+        if (d0 > 2) zoomAt(m1.x, m1.y, d1 / d0); else apply();
+        moved += 99;
+        pts.set(e.pointerId, p);
+      }
+    });
+    const up = e => {
+      if (!pts.has(e.pointerId)) return;
+      const p = pts.get(e.pointerId);
+      pts.delete(e.pointerId);
+      if (pts.size || e.type === 'pointercancel') return;
+      if (moved < 8 && e.timeStamp - downAt < 350) {
+        if (lastTap && e.timeStamp - lastTap.t < 330 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 40) {
+          clearTimeout(tapTimer); lastTap = null; reset(); buzz(6);
+        } else {
+          lastTap = { t: e.timeStamp, x: p.x, y: p.y };
+          if (onTap) { clearTimeout(tapTimer); tapTimer = setTimeout(onTap, 340); }
+        }
+      }
+    };
+    svg.addEventListener('pointerup', up);
+    svg.addEventListener('pointercancel', up);
+    svg.addEventListener('wheel', e => { if (!z.base) return; e.preventDefault(); const p = pos(e); zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0022)); }, { passive: false });
+    svg.addEventListener('gesturestart', e => e.preventDefault());
+    function reset() { z.k = 1; z.ox = 0; z.oy = 0; apply(); }
+    function setBase(b) { z.base = b; apply(); }
+    return { setBase, reset, z };
+  }
+
+  // Fit to the box's shape: grow the short side of the viewBox to match the element.
+  function fitAspect(vb, cw, ch) {
+    const a = cw / ch;
+    if (vb.w / vb.h > a) { const h = vb.w / a; return { x: vb.x, y: vb.y - (h - vb.h) / 2, w: vb.w, h }; }
+    const w = vb.h * a; return { x: vb.x - (w - vb.w) / 2, y: vb.y, w, h: vb.h };
+  }
+
+  function drawInto(svg, zm, sk, o) {
+    const cw = svg.clientWidth || 360;
+    const aspectH = vb => Math.max(220, Math.min(Math.min(470, innerHeight * 0.56), cw * vb.h / vb.w));
+    let f = o.px * (sk.tv.x1 - sk.tv.x0) * 1.9 / cw, out;
+    for (let i = 0; i < 3; i++) {
+      out = sketchSVG(sk, f, o.example, o.hid);
+      if (o.autoHeight) svg.style.height = Math.round(aspectH(out.vb)) + 'px';
+      const ch = svg.clientHeight || 300;
+      f = o.px / Math.min(cw / out.vb.w, ch / out.vb.h);
+    }
+    out = sketchSVG(sk, f, o.example, o.hid);
+    svg.innerHTML = out.html;
+    zm.setBase(fitAspect(out.vb, cw, svg.clientHeight || 300));
+  }
+
+  const zMain = zoomer($('#sk'));
+  let lastTabId = null;
+  function renderSketch() {
+    const example = !r.sketch;
+    const sk = example ? G.compute(EXAMPLE, { mode: 'simple' }).sketch : r.sketch;
+    $('#skTag').textContent = example ? 'Example · fill in the TV and placement' : 'Pinch to zoom · double-tap to fit';
+    if (lastTabId !== doc.current) { zMain.reset(); lastTabId = doc.current; }
+    drawInto($('#sk'), zMain, sk, { px: 11.5, example, hid: 'hatchA', autoHeight: true });
+  }
+  $('#fitBtn').onclick = () => { zMain.reset(); buzz(6); };
+
+  /* ---------- screenshot mode ---------- */
+  let shot = null;
+  function openShot() {
+    closeKeypad(); closeSheet();
+    const el = document.createElement('div');
+    el.className = 'shot';
+    el.innerHTML = '<div class="cap" id="shotCap"></div><svg class="sk" id="shotSk" role="img" aria-label="Wall sketch"></svg><button class="x" id="shotX" aria-label="Close screenshot mode">✕</button>';
+    document.body.appendChild(el);
+    const x = el.querySelector('#shotX');
+    let hideT;
+    const peek = () => { x.classList.remove('gone'); clearTimeout(hideT); hideT = setTimeout(() => x.classList.add('gone'), 1800); };
+    shot = { el, zm: zoomer(el.querySelector('#shotSk'), peek) };
+    x.onclick = closeShot;
+    peek();
+    renderShot();
+  }
+  function closeShot() { if (!shot) return; shot.el.remove(); shot = null; }
+  function renderShot() {
+    if (!shot) return;
+    const t = tab(), example = !r.sketch;
+    const hero = r.rows[0];
+    const edges = ['top', 'center', 'bottom'].filter(k => r.m[k] != null).map(k => k + ' ' + fmt(r.m[k])).join(' · ');
+    $('#shotCap').innerHTML = `<b>${esc(t.name)}</b><span>${r.ok ? 'Drill top holes ' + esc(fmt(hero.v)) + ' ' + esc(hero.sub) : 'Example'}</span>${r.ok && edges ? `<span class="e">TV ${esc(edges)}</span>` : ''}`;
+    drawInto(shot.el.querySelector('#shotSk'), shot.zm, example ? G.compute(EXAMPLE, { mode: 'simple' }).sketch : r.sketch, { px: Math.max(13, Math.min(22, Math.min(innerWidth, innerHeight) / 29)), example, hid: 'hatchB' });
+  }
+  $('#shotBtn').onclick = openShot;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && shot) closeShot(); });
+
+  /* ---------- tabs ---------- */
+  function renderTabs() {
+    const el = $('#tabs'), sl = el.scrollLeft;
+    el.innerHTML = doc.tabs.map(t => `<button data-tab="${t.id}" class="${t.id === doc.current ? 'on' : ''}">${esc(t.name)}</button>`).join('')
+      + '<button class="add" data-tab="+" aria-label="Add a TV location">+</button>';
+    el.scrollLeft = sl;
+  }
+  $('#tabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]');
+    if (!b) return;
+    closeKeypad();
+    const id = b.dataset.tab;
+    if (id === '+') { S.addTab(doc); buzz(8); update(); scrollTabIntoView(); tabSheet(true); return; }
+    if (id === doc.current) { tabSheet(); return; }
+    doc.current = id; buzz(6); update(); scrollTabIntoView();
+  });
+  function scrollTabIntoView() { const on = $('#tabs .on'); if (on) on.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }
+
+  function tabSheet(isNew) {
+    const t = tab();
+    const el = sheet(`<h2>${isNew ? 'New TV location' : 'TV location'}</h2>
+      <input class="input" id="tabName" value="${esc(t.name)}" maxlength="40" autocomplete="off" enterkeyhint="done" aria-label="Name">
+      <div class="stack">
+        <button class="btn" data-act="copy">Copy as text</button>
+        <button class="btn" data-act="dup">Duplicate</button>
+        <button class="danger" data-act="del">Delete</button>
+      </div>`);
+    const inp = el.querySelector('#tabName');
+    const rename = () => { const v = inp.value.trim(); if (v && v !== t.name) { t.name = v; persist(); renderTabs(); } };
+    inp.addEventListener('input', rename);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { rename(); closeSheet(); } });
+    if (isNew) setTimeout(() => { inp.focus(); inp.select(); }, 60);
+    let armed = false;
+    el.addEventListener('click', async e => {
+      const a = e.target.closest('[data-act]')?.dataset.act;
+      if (a === 'copy') { rename(); toast(await copy(tabText()) ? 'Copied' : 'Couldn’t copy'); }
+      if (a === 'dup') { rename(); S.duplicateTab(doc, t.id); update(); closeSheet(); scrollTabIntoView(); toast('Duplicated'); }
+      if (a === 'del') {
+        if (!armed) { armed = true; e.target.textContent = 'Tap again to delete ' + t.name; return; }
+        S.deleteTab(doc, t.id); update(); closeSheet(); toast('Deleted');
+      }
+    });
+  }
+
+  /* ---------- copy as text ---------- */
+  function tabText() {
+    const t = tab();
+    const out = ['TV Mount · ' + t.name, (pro() ? 'Pro' : 'Simple') + ' mode · ' + (doc.settings.dec ? 'decimal inches' : 'rounded to 1/' + doc.settings.prec + '"'), ''];
+    if (!r.ok) out.push('Not placed yet. ' + needText() + '.');
+    for (const x of r.rows) {
+      const v = x.s != null ? fill(x.s) : x.v != null ? fmt(x.v) : null;
+      if (v == null) continue;
+      out.push(x.k + ': ' + v + (x.sub ? ' ' + fill(x.sub) : '') + (x.alt ? ' (' + fill(x.alt) + ')' : ''));
+    }
+    if (r.warnings.length) { out.push(''); r.warnings.forEach(w => out.push('! ' + fill(w))); }
+    const kind = t.ref.kind, k = t.ref[kind];
+    out.push('', 'Inputs', 'Reference: ' + kind + ', ' + (G.EDGE_NAME[k.edge] || '').toLowerCase());
+    if (t.tv.src === 'size' && t.tv.size) out.push('TV size: ' + t.tv.size + '″ class (estimate)');
+    if (pro() && t.tv.model) out.push('TV model: ' + t.tv.model);
+    if (pro() && t.mount.model) out.push('Mount model: ' + t.mount.model);
+    for (const [path, lab] of formFields) {
+      const v = get(t, path);
+      if (isNum(v)) out.push(lab + ': ' + fmtIn(v));
+    }
+    return out.join('\n').replace(/\u00a0/g, ' ');
+  }
+
+  /* ---------- menu, saved items, backup ---------- */
+  function menuSheet() {
+    closeKeypad();
+    const s = doc.settings;
+    const segS = (key, opts) => `<div class="seg" data-set="${key}">${opts.map(([v, l]) => `<button data-v="${v}" class="${String(s[key]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    const el = sheet(`<h2>TV Mount</h2>
+      <div class="label">Mode</div>${segS('mode', [['simple', 'Simple'], ['pro', 'Pro']])}
+      ${themeSegHTML()}
+      <div class="label">Round to</div>${segS('prec', [[8, '1/8'], [16, '1/16'], [32, '1/32']])}
+      <div class="label">Show inches as</div>${segS('dec', [[false, 'Fractions'], [true, 'Decimals']])}
+      <div class="stack">
+        <button class="btn" data-act="shot">Screenshot mode</button>
+        <button class="btn" data-act="copy">Copy this tab as text</button>
+        <button class="btn" data-act="lib">Saved TVs and mounts</button>
+        <button class="btn" data-act="export">Back up to a file</button>
+        <button class="btn" data-act="import">Restore from a backup</button>
+      </div>
+      <p class="hint">Simple mode uses defaults for the pro values. Switching never loses what you entered.</p>`);
+    el.addEventListener('click', async e => {
+      const b = e.target.closest('[data-set] button');
+      if (b) {
+        const key = b.parentElement.dataset.set;
+        s[key] = key === 'prec' ? +b.dataset.v : key === 'dec' ? b.dataset.v === 'true' : b.dataset.v;
+        b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+        buzz(6); update(); return;
+      }
+      const a = e.target.closest('[data-act]')?.dataset.act;
+      if (a === 'shot') openShot();
+      if (a === 'copy') toast(await copy(tabText()) ? 'Copied' : 'Couldn’t copy');
+      if (a === 'lib') libSheet('all');
+      if (a === 'export') exportBackup();
+      if (a === 'import') $('#importFile').click();
+    });
+  }
+  $('#menuBtn').onclick = menuSheet;
+
+  function itemSummary(kind, x) {
+    if (kind === 'tv') return [x.w != null && x.h != null ? fmt(x.w) + ' × ' + fmt(x.h) : null, x.vesaTop != null ? 'VESA to top ' + fmt(x.vesaTop) : null].filter(Boolean).join(' · ');
+    return [x.holesToTop != null ? 'holes to top ' + fmt(x.holesToTop) : null, x.hookDrop != null ? 'hook ' + fmt(x.hookDrop) : null, x.armDrop != null ? 'arm ' + fmt(x.armDrop) : null, x.sag ? 'sag ' + fmt(x.sag) : null, x.slide != null ? 'slide ' + fmt(x.slide) : null].filter(Boolean).join(' · ');
+  }
+  function libSheet(kind) {
+    const kinds = kind === 'all' ? ['tv', 'mount'] : [kind];
+    const listFor = k => doc.lib[k === 'tv' ? 'tvs' : 'mounts'];
+    const html = () => kinds.map(k => {
+      const list = listFor(k);
+      return `<div class="label">${k === 'tv' ? 'TVs' : 'Mounts'}</div>` + (list.length
+        ? `<div class="libl">${list.map(x => `<div class="libi"><button class="use" data-use="${k}:${x.id}"><b>${esc(x.model || 'No model number')}</b><span>${esc(itemSummary(k, x))}</span></button><button class="del" data-del="${k}:${x.id}" aria-label="Delete">✕</button></div>`).join('')}</div>`
+        : `<p class="hint">None saved yet. Fill in a ${k === 'tv' ? 'TV' : 'mount'} in Pro mode and tap Save.</p>`);
+    }).join('');
+    const el = sheet(`<h2>${kind === 'tv' ? 'Saved TVs' : kind === 'mount' ? 'Saved mounts' : 'Saved TVs and mounts'}</h2><div id="libBody">${html()}</div><p class="hint">Tap one to use it in “${esc(tab().name)}”.</p>`);
+    const armed = new Set();
+    el.addEventListener('click', e => {
+      const u = e.target.closest('[data-use]'), d = e.target.closest('[data-del]');
+      if (u) {
+        const [k, id] = u.dataset.use.split(':'), x = listFor(k).find(i => i.id === id);
+        if (!x) return;
+        if (k === 'tv') S.applyTV(tab(), x); else S.applyMount(tab(), x);
+        if (!pro()) doc.settings.mode = 'pro';
+        update(); closeSheet(); toast((x.model || 'Saved item') + ' applied');
+      }
+      if (d) {
+        if (!armed.has(d.dataset.del)) { armed.add(d.dataset.del); d.textContent = 'Delete?'; d.style.width = 'auto'; d.style.padding = '0 10px'; return; }
+        const [k, id] = d.dataset.del.split(':'), list = listFor(k);
+        list.splice(list.findIndex(i => i.id === id), 1);
+        persist(); render(); el.querySelector('#libBody').innerHTML = html();
+      }
+    });
+  }
+  function libSaveSheet(kind) {
+    const t = tab(), cur = kind === 'tv' ? t.tv.model : t.mount.model;
+    const el = sheet(`<h2>Save ${kind === 'tv' ? 'TV' : 'mount'}</h2>
+      <input class="input" id="modelIn" value="${esc(cur || '')}" placeholder="Model number" maxlength="60" autocomplete="off" autocapitalize="characters" enterkeyhint="done">
+      <p class="hint">${kind === 'tv' ? 'Saves the measured width, height and VESA offsets.' : 'Saves the bracket chain, sag and plate values.'} An existing entry with the same model number is updated.</p>
+      <div class="stack"><button class="primary" data-act="save">Save</button></div>`);
+    const inp = el.querySelector('#modelIn');
+    setTimeout(() => inp.focus(), 60);
+    const save = () => {
+      const model = inp.value.trim();
+      if (!model) { toast('Add the model number'); return; }
+      if (kind === 'tv') { t.tv.model = model; S.upsert(doc.lib.tvs, S.tvFromTab(t)); }
+      else { t.mount.model = model; S.upsert(doc.lib.mounts, S.mountFromTab(t)); }
+      update(); closeSheet(); toast(model + ' saved');
+    };
+    el.addEventListener('click', e => { if (e.target.closest('[data-act="save"]')) save(); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
+  }
+
+  async function exportBackup() {
+    const text = S.exportText(doc), name = 'tvmount-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    try {
+      const file = new File([text], name, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'TV Mount backup' }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    toast('Backup saved');
+  }
+  $('#importFile').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    let inc;
+    try { inc = S.parseImport(await file.text()); } catch (err) { toast(err.message); return; }
+    const n = (x, w) => x + ' ' + w + (x === 1 ? '' : 's');
+    const el = sheet(`<h2>Restore backup</h2>
+      <p class="hint" style="font-size:16px">${esc(file.name)} has ${n(inc.tabs.length, 'tab')}, ${n(inc.lib.tvs.length, 'saved TV')} and ${n(inc.lib.mounts.length, 'saved mount')}.</p>
+      <div class="stack"><button class="primary" data-act="merge">Add to what’s here</button><button class="danger" data-act="replace">Replace everything</button></div>
+      <p class="hint">Adding keeps your tabs; ones with the same id are updated from the backup.</p>`);
+    let armed = false;
+    el.addEventListener('click', ev => {
+      const a = ev.target.closest('[data-act]')?.dataset.act;
+      if (a === 'merge') { doc = S.mergeDocs(doc, inc); update(); closeSheet(); toast('Backup added'); }
+      if (a === 'replace') {
+        if (!armed) { armed = true; ev.target.textContent = 'Tap again to replace everything'; return; }
+        try { localStorage.setItem('tvmount.backup.before-restore', JSON.stringify(doc)); } catch (_) {}
+        doc = S.replaceDoc(doc, inc); update(); closeSheet(); toast('Backup restored');
+      }
+    });
+  });
+
+  /* ---------- render ---------- */
+  function render() {
+    r = G.compute(tab(), { mode: doc.settings.mode });
+    renderTabs();
+    renderResults();
+    renderForm();
+    renderSketch();
+    syncKeypad();
+    if (shot) renderShot();
+    $('h1').innerHTML = 'TV Mount' + (pro() ? ' <span style="font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--blue);background:var(--blue-bg);padding:2px 7px;border-radius:7px;vertical-align:3px">PRO</span>' : '');
+  }
+
+  let rt;
+  addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { renderSketch(); if (shot) renderShot(); }, 120); });
+  addEventListener('storage', e => { if (e.key === S.KEY && e.newValue) { doc = S.load(localStorage).doc; render(); } });
+
+  render();
+  if (loaded.error) toast(loaded.error);
+  else if (loaded.from != null) toast('Saved data updated');
+  if ('caches' in window) caches.keys().then(k => { const v = k.find(x => x.startsWith('tvmount-')); $('#ver').textContent = 'Saved on this device' + (v ? ' · ' + v : ''); }).catch(() => {});
+  else $('#ver').textContent = 'Saved on this device';
+  window.TVM = { get doc() { return doc; }, get r() { return r; }, render, text: () => tabText() };   // for checks from the console
+})();
