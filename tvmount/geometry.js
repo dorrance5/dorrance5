@@ -122,7 +122,7 @@
   }
 
   // Defaults that stand in for pro values in Simple mode, or when a pro field is blank.
-  const DEFAULTS = { sag: 0, ff: 0, slide: 0, holeDown: 0, boxMargin: 2, eye: 40, studWidth: 1.5, barGap: 2, barGapTV: 0 };
+  const DEFAULTS = { sag: 0, ff: 0, slide: 0, holeDown: 0, boxMargin: 2, eye: 40, studWidth: 1.5, barGap: 2 };
 
   // With a soundbar under the TV, the bottom edge you measure to is the soundbar's bottom.
   function edgeOf(edge, kind, sb) {
@@ -160,11 +160,11 @@
       eye: p(vw.eye, DEFAULTS.eye), dist: p(vw.dist),
       built: pro ? { top: n(b.top), bottom: n(b.bottom) } : null,
       room: { ceil: n(rm.ceil), mantle: n(rm.mantle), left: n(rm.left), right: n(rm.right) },
-      // soundbar: kind wall = its own bracket, tv = an attachment that hangs it from the TV mount
+      // soundbar: kind wall = its own bracket, tv = an attachment that holds it flush under the TV
       bar: sb.kind === 'wall' || sb.kind === 'tv' ? {
         kind: sb.kind, w: n(sb.w), h: n(sb.h),
         place: sb.kind === 'wall' && sb.place === 'center' ? 'center' : 'gap',
-        gap: isNum(sb.gap) ? sb.gap : sb.kind === 'wall' ? DEFAULTS.barGap : DEFAULTS.barGapTV,
+        gap: sb.kind === 'tv' ? 0 : isNum(sb.gap) ? sb.gap : DEFAULTS.barGap,
         below: n(sb.below), holesToTop: sb.kind === 'wall' ? n(sb.holesToTop) : null
       } : null
     };
@@ -545,8 +545,8 @@
         const altFor = k => b.aff[k] == null ? '' : ffNow ? T(b.aff[k]) + ' above finished floor' : ref.kind !== 'floor' ? T(b.aff[k]) + ' above floor' : '';
         if (b.hole != null) rows.push({ id: 'barhole', k: 'Drill soundbar holes', v: b.m.hole, sub, alt: [altFor('hole'), 'on the center line'].filter(Boolean).join(', ') });
         const how = b.place === 'center' ? 'centered between the TV and the ' + (b.under.what === 'floor' ? 'floor' : b.under.what + ' top') + ', ' + T(b.gap) + ' each side'
-          : (Math.abs(b.gap) < EPS ? 'right under the TV' : T(b.gap) + ' below the TV') + (b.clear != null && b.clear >= -EPS ? ', ' + T(b.clear) + ' over the ' + (b.under.what === 'floor' ? 'floor' : b.under.what) : '');
-        rows.push({ id: 'bar', k: title, s: 'top ' + T(b.m.top) + ' · bottom ' + T(b.m.bottom), sub: sub + (b.kind === 'tv' ? ', hangs from the TV mount' : ''), alt: how, cls: 'wide' + (b.clear != null && b.clear < -EPS ? ' warn' : '') });
+          : (b.kind === 'tv' ? 'flush under the TV' : Math.abs(b.gap) < EPS ? 'right under the TV' : T(b.gap) + ' below the TV') + (b.clear != null && b.clear >= -EPS ? ', ' + T(b.clear) + ' over the ' + (b.under.what === 'floor' ? 'floor' : b.under.what) : '');
+        rows.push({ id: 'bar', k: title, s: 'top ' + T(b.m.top) + ' · bottom ' + T(b.m.bottom), sub, alt: how, cls: 'wide' + (b.clear != null && b.clear < -EPS ? ' warn' : '') });
       }
     }
     if (r.center) {

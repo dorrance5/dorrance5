@@ -125,6 +125,9 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   check('centered hides the gap and asks for a console', !(await page.$('[data-k="bar.gap"]')) && !!(await page.$('[data-k="bar.below"]')));
   await page.tap('[data-seg="bar.kind"] [data-v="tv"]');
   check('TV attachment has no bracket holes', !(await page.$('[data-k="bar.holesToTop"]')) && (await page.$$('#sk line.drill')).length === 1 && !/Drill soundbar/.test(await page.textContent('#res')));
+  check('TV attachment has no gap field and no note', !(await page.$('[data-k="bar.gap"]')) && !(await page.$('[data-sec="bar"] .hint')));
+  const flush = await page.evaluate(() => { const tv = document.querySelector('#sk rect.tv'), sb = document.querySelector('#sk rect.sbar'); return +sb.getAttribute('y') - (+tv.getAttribute('y') + +tv.getAttribute('height')); });
+  check('the attached soundbar sits flush under the TV', Math.abs(flush) < 1e-3, flush);
   await page.tap('[data-seg="bar.kind"] [data-v="none"]');
   check('none hides the soundbar again', !(await page.$('#sk rect.sbar')) && (await tab0()).bar.w === 45);
   check('and TV bottom comes back', (await page.textContent('[data-seg="ref.floor.edge"] [data-v="bottom"]')) === 'TV bottom');

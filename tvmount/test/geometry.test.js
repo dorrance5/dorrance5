@@ -346,13 +346,15 @@ test('soundbar centered between the TV and what is under it', () => {
 });
 
 test('with a soundbar, the bottom you measure to is the soundbar bottom', () => {
-  // mantle to bar bottom 2, a 3 1/4 bar hung 1/2 under the TV: TV bottom at 5 3/4
+  // mantle to bar bottom 2, a 3 1/4 bar flush under the TV: TV bottom at 5 1/4
+  // (an attachment has no gap, even when one was saved for a wall bar)
   const r = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 2 } }, bar: { kind: 'tv', h: 3.25, gap: 0.5, holesToTop: 2 } }), { mode: 'simple' });
   assert.equal(r.ref.edge, 'bar');
+  near(r.bar.gap, 0);
   near(r.bar.m.bottom, 2);
   near(r.bar.m.top, 5.25);
-  near(r.m.bottom, 5.75);
-  near(r.m.hole, 34);
+  near(r.m.bottom, 5.25);
+  near(r.m.hole, 33.5);
   near(r.bar.clear, 2);
   near(r.sketch.items.find(d => d.t === 'dim' && d.key === 'barbottom').v, 2);
   assert.equal(r.bar.hole, null);           // bracket holes only count on the wall
