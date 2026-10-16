@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Converter">
-<meta name="theme-color" content="#F2F2F7">
+<meta name="theme-color" content="#F4F4F5">
 <meta name="description" content="Unit converter for length, weight, temperature, volume, area and speed, with inch fractions and feet-inches. Works offline.">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -15,30 +15,21 @@
 <link rel="stylesheet" href="../shared/base.css">
 <title>Converter</title>
 <style>
-.cats{display:flex;gap:8px;overflow-x:auto;padding:2px 0 14px;scrollbar-width:none;margin:0 -12px;padding-left:12px;padding-right:12px}
-.cats::-webkit-scrollbar{display:none}
-.cats .chip{flex:none}
-.row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
-.row .input{font-size:28px;height:66px;font-variant-numeric:tabular-nums;border-radius:16px}
-.row select{height:66px;border-radius:16px;border:.5px solid var(--chip-line);background:var(--chip);padding:0 36px 0 14px;font-size:17px;font-weight:700;appearance:none;-webkit-appearance:none;min-width:118px;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:20px}
-.swap{position:relative;height:1px;background:var(--line);margin:26px 0}
-.swap button{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:50%;background:var(--tile);border:.5px solid var(--tile-line);box-shadow:var(--tile-shadow);display:grid;place-items:center;color:var(--blue);transition:transform .15s}
-.swap button:active{transform:translate(-50%,-50%) rotate(180deg) scale(.94)}
+.conv{display:grid;grid-template-columns:1fr 48px 1fr;gap:8px;margin-top:8px}
+.amt .fv{font-size:28px}
+.swap{min-height:58px;border-radius:14px;background:var(--hbg);border:.5px solid var(--hl);color:var(--hc);display:grid;place-items:center;transition:transform .15s}
+.swap:active{transform:scale(.92)}
 .swap svg{width:22px;height:22px}
-.k{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px 4px}
-.out{font-size:clamp(34px,10vw,50px);font-weight:500;color:var(--blue);letter-spacing:-.02em;text-align:right;font-variant-numeric:tabular-nums;padding:8px 14px;min-height:66px;display:flex;align-items:center;justify-content:flex-end;word-break:break-all}
-.out.copy{cursor:pointer}
-.sub{text-align:right;color:var(--muted);font-size:15px;padding:0 14px 6px;font-variant-numeric:tabular-nums}
-.table{margin-top:16px}
-.table{padding:4px 0}
-.tr{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
-.tr:last-child{border-bottom:0}
-.tr .u{font-weight:600}
-.tr .u small{color:var(--muted);font-weight:600;margin-left:6px;font-size:13px}
-.tr .v{font-size:18px;text-align:right}
-.tr.sel .v{color:var(--blue);font-weight:600}
-.hint{color:var(--muted);font-size:13px;padding:6px 14px 0}
+.hero{cursor:pointer;margin-bottom:10px}
+.hero .v{overflow-wrap:anywhere}
+.hero .v .u{font-size:22px;font-weight:600;margin-left:6px;letter-spacing:0}
+.units{padding:2px 16px}
+.ur{display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:100%;padding:11px 0;border-bottom:1px solid var(--line);text-align:left;font-variant-numeric:tabular-nums}
+.ur:last-child{border-bottom:0}
+.ur .u{font-size:16px;font-weight:650;white-space:nowrap}
+.ur .u small{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-left:8px}
+.ur .v{font-size:18px;font-weight:550;text-align:right;overflow-wrap:anywhere}
+.ur.on .u,.ur.on .v{color:var(--blue)}
 </style>
 </head>
 <body>
@@ -49,18 +40,23 @@
   <button class="round" id="setBtn" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
 </header>
 
+<nav class="tabs" id="cats" aria-label="What to convert"></nav>
+
 <main>
-  <div class="cats" id="cats"></div>
-  <div class="card" style="padding:14px 10px 10px">
-    <div class="k">From</div>
-    <div class="row"><input class="input" id="val" type="text" inputmode="decimal" autocomplete="off" placeholder="0"><select id="from"></select></div>
-    <div class="hint" id="hint"></div>
-    <div class="swap"><button id="swap" aria-label="Swap units"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4"/></svg></button></div>
-    <div class="k">To</div>
-    <div class="row"><div class="out copy" id="out" title="Tap to copy">0</div><select id="to"></select></div>
-    <div class="sub" id="sub"></div>
-  </div>
-  <div class="card table" id="table"></div>
+  <section class="card sec" id="card">
+    <div class="sec-h"><span class="ic" id="catIc"></span><span id="catName"></span></div>
+    <div class="sec-b">
+      <label class="fld amt"><span class="fk">Amount</span><input class="fv" id="val" type="text" inputmode="decimal" autocomplete="off" placeholder="0"></label>
+      <div class="conv">
+        <label class="fld"><span class="fk">From</span><select class="fv" id="from"></select></label>
+        <button class="swap" id="swap" aria-label="Swap units"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4"/></svg></button>
+        <label class="fld"><span class="fk">To</span><select class="fv" id="to"></select></label>
+      </div>
+      <p class="hint" id="hint"></p>
+    </div>
+  </section>
+  <div class="hero" id="outCard" title="Tap to copy"><div class="k" id="outName"></div><div class="v"><span id="out">0</span><span class="u" id="outUnit"></span></div><div class="s" id="sub"></div></div>
+  <div class="card units" id="table"></div>
 </main>
 
 <script src="../shared/base.js"></script>
@@ -91,6 +87,17 @@ const NAMES = { mm: 'millimetres', cm: 'centimetres', m: 'metres', km: 'kilometr
   'm/s': 'metres per second', 'km/h': 'km per hour', mph: 'miles per hour', kn: 'knots', 'ft/s': 'feet per second',
   KB: 'kilobytes', MB: 'megabytes', GB: 'gigabytes', TB: 'terabytes', KiB: 'kibibytes', MiB: 'mebibytes', GiB: 'gibibytes', TiB: 'tebibytes' };
 const DEFAULT = { Length: ['in', 'mm'], Weight: ['lb', 'kg'], Temperature: ['°F', '°C'], Volume: ['cup', 'ml'], Area: ['ft²', 'm²'], Speed: ['mph', 'km/h'], Data: ['GB', 'GiB'] };
+
+// Each kind of unit has its own color and icon, like the cards in TV Mount.
+const LOOK = {
+  Length: ['orange', '<rect x="2" y="8" width="20" height="8" rx="1.5"/><path d="M6 8v3M10 8v4M14 8v3M18 8v4"/>'],
+  Weight: ['purple', '<circle cx="12" cy="6" r="2.5"/><path d="M6.5 9.5h11l2 10.5h-15z"/>'],
+  Temperature: ['magenta', '<path d="M14 14.8V4.5a2 2 0 0 0-4 0v10.3a4 4 0 1 0 4 0z"/><path d="M12 10v7"/>'],
+  Volume: ['teal', '<path d="M6 3h12l-1.6 17.1a1 1 0 0 1-1 .9H8.6a1 1 0 0 1-1-.9z"/><path d="M6.6 9h10.8"/>'],
+  Area: ['green', '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/>'],
+  Speed: ['yellow', '<path d="M4 18a8 8 0 1 1 16 0"/><path d="m12 18 4-6"/>'],
+  Data: ['lime', '<ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>']
+};
 
 const KEY = 'converter-v1';
 const S = Object.assign({ cat: 'Length', pick: {}, val: '1', prec: 16 }, load(KEY, {}));
@@ -158,7 +165,12 @@ function fmtFtIn(inches) {
 
 /* ---- ui ---- */
 function paintCats() {
-  $('#cats').innerHTML = Object.keys(CATS).map(c => `<button class="chip${S.cat === c ? ' on' : ''}" data-cat="${c}">${c}</button>`).join('');
+  $('#cats').innerHTML = Object.keys(CATS).map(c => `<button class="${S.cat === c ? 'on' : ''}" data-cat="${c}">${c}</button>`).join('');
+  const [hue, glyph] = LOOK[S.cat];
+  $('#card').className = 'card sec hue-' + hue;
+  $('#catIc').className = 'ic ' + hue;
+  $('#catIc').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg>`;
+  $('#catName').textContent = S.cat;
 }
 function paintUnits() {
   const [f, t] = S.pick[S.cat] || DEFAULT[S.cat];
@@ -170,17 +182,20 @@ function convert() {
   S.pick[cat] = [from, to]; S.val = raw; persist();
   const v = from === 'ft in' ? parseFtIn(raw) : parseFrac(raw);
   $('#hint').textContent = from === 'ft in' ? 'Type 5\' 3 1/2", 5 ft 3.5 in, 5-3, or inches' : (cat === 'Length' ? 'Fractions work: 3 1/2' : '');
-  if (isNaN(v)) { $('#out').textContent = '–'; $('#sub').textContent = ''; $('#table').innerHTML = ''; return; }
+  $('#outName').textContent = 'In ' + (NAMES[to] || to);
+  $('#outUnit').textContent = to === 'ft in' ? '' : to;
+  if (isNaN(v)) { $('#out').textContent = '–'; $('#sub').textContent = raw.trim() ? 'Numbers only' : 'Type an amount'; $('#table').innerHTML = ''; $('#table').hidden = true; return; }
   const b = toBase(v, from, cat), r = fromBase(b, to, cat);
   $('#out').textContent = to === 'ft in' ? fmtFtIn(r) : fmt(r);
   let sub = '';
   if (to === 'in') sub = '≈ ' + frac(r, S.prec) + ' in (to 1/' + S.prec + ')';
   if (to === 'ft in') sub = fmt(r) + ' in · ' + fmt(r / 12) + ' ft';
   if (cat === 'Temperature' && to === '°C') sub = r <= 0 ? 'Freezing' : r >= 100 ? 'Boiling' : '';
-  $('#sub').textContent = sub;
+  $('#sub').textContent = sub || 'Tap to copy';
+  $('#table').hidden = false;
   $('#table').innerHTML = Object.keys(CATS[cat].units).filter(u => u !== from).map(u => {
     const x = fromBase(b, u, cat);
-    return `<button class="tr${u === to ? ' sel' : ''}" data-u="${esc(u)}" style="width:100%;text-align:left"><span class="u">${esc(u)}<small>${esc(NAMES[u] || '')}</small></span><span class="v">${u === 'ft in' ? fmtFtIn(x) : fmt(x)}</span></button>`;
+    return `<button class="ur${u === to ? ' on' : ''}" data-u="${esc(u)}"><span class="u">${esc(u)}<small>${esc(NAMES[u] || '')}</small></span><span class="v">${u === 'ft in' ? fmtFtIn(x) : fmt(x)}</span></button>`;
   }).join('');
 }
 
@@ -199,11 +214,11 @@ $('#swap').onclick = () => {
   convert();
 };
 $('#table').addEventListener('click', e => { const b = e.target.closest('[data-u]'); if (b) { $('#to').value = b.dataset.u; buzz(6); convert(); } });
-$('#out').onclick = async () => { const t = $('#out').textContent; if (t !== '–') toast(await copy(t) ? 'Copied ' + t : "Couldn't copy"); };
+$('#outCard').onclick = async () => { const t = $('#out').textContent; if (t !== '–') toast(await copy(t) ? 'Copied ' + t : "Couldn't copy"); };
 $('#setBtn').onclick = () => {
   const el = sheet(`<h2>Settings</h2>${themeSegHTML()}
     <div class="label">Round inches to</div>
-    <div class="seg">${[8, 16, 32, 64].map(p => `<button data-prec="${p}" class="${S.prec === p ? 'on' : ''}">1/${p}</button>`).join('')}</div>`);
+    <div class="seg">${[16, 8, 32, 64].map(p => `<button data-prec="${p}" class="${S.prec === p ? 'on' : ''}">1/${p}</button>`).join('')}</div>`);
   el.addEventListener('click', e => {
     const b = e.target.closest('[data-prec]'); if (!b) return;
     S.prec = +b.dataset.prec; persist(); el.querySelectorAll('[data-prec]').forEach(x => x.classList.toggle('on', x === b)); convert();
