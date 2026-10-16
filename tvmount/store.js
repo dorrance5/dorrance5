@@ -42,9 +42,14 @@
   }
 
   function newTab(name) { return Object.assign({ id: 't' + uid() }, Geo.newTab(name)); }
-  // Fills fields a saved tab lacks. New tabs start on a standard size and half a distance;
-  // a saved tab without those fields came from before, when the defaults were measured and two marks.
-  const SAVED_TAB = Object.assign(Geo.newTab(), { tv: Object.assign(Geo.newTab().tv, { src: 'measured' }), center: Object.assign(Geo.newTab().center, { mode: 'two' }) });
+  // Fills fields a saved tab lacks. New tabs start on a standard size, half a distance and the
+  // TV bottom; a saved tab without those fields came from before, when the defaults were measured,
+  // two marks, and the TV center on the floor and TV top under the ceiling.
+  const SAVED_TAB = (() => {
+    const t = Geo.newTab();
+    t.tv.src = 'measured'; t.center.mode = 'two'; t.ref.floor.edge = 'center'; t.ref.ceiling.edge = 'top';
+    return t;
+  })();
   function blank() {
     const t = newTab('Living room');
     return { version: VERSION, settings: Object.assign({}, SETTINGS), tabs: [t], current: t.id, lib: { tvs: [], mounts: [] } };

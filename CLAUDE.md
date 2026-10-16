@@ -17,6 +17,10 @@ This is a static site of small phone apps. GitHub Pages deploys `main` with `.gi
 - Calculator and Counter have their own styles and scripts.
 - All apps share one theme setting, the `theme` key in localStorage.
 
+## Choices
+
+- In every row of choice buttons, put the default option on the left.
+
 ## Offline cache
 
 - When you change a file that an app uses, increase `CACHE` in the `sw.js` of that app. Example: `tvmount-v6` becomes `tvmount-v7`.

@@ -191,6 +191,7 @@
     const phs = ph == null ? '—' : typeof ph === 'number' ? fmt(ph) : ph;
     return `<button class="fld${kp.path === path ? ' on' : ''}${o.wide ? ' wide' : ''}" data-k="${path}"><span class="fk">${esc(lab)}</span><span class="fv${shown ? '' : ' ph'}">${esc(shown || phs)}</span></button>`;
   }
+  // Every choice lists its default first, on the left.
   function seg(path, opts) {
     const cur = String(get(tab(), path));
     return `<div class="seg" data-seg="${path}">${opts.map(([v, l]) => `<button data-v="${v}" class="${cur === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
@@ -226,7 +227,7 @@
     let h = '', b;
 
     // TV
-    b = seg('tv.src', [['measured', 'Measured'], ['size', 'Standard size']]);
+    b = seg('tv.src', [['size', 'Standard size'], ['measured', 'Measured']]);
     if (t.tv.src === 'size') {
       b += `<div class="chips sizes">${G.SIZES.map(s => `<button class="chip${t.tv.size === s ? ' on' : ''}" data-size="${s}">${s}</button>`).join('')}</div>`;
       const est = G.sizeEstimate(t.tv.size);
@@ -263,7 +264,7 @@
     // placement
     const k = t.ref[kind];
     b = seg('ref.kind', [['floor', 'Floor'], ['mantle', 'Mantle'], ['ceiling', 'Ceiling']]);
-    b += `<div class="label">Set the</div>` + seg('ref.' + kind + '.edge', [['top', 'TV top'], ['center', 'TV center'], ['bottom', t.bar.kind === 'none' ? 'TV bottom' : 'Bar bottom']]);
+    b += `<div class="label">Set the</div>` + seg('ref.' + kind + '.edge', [['bottom', t.bar.kind === 'none' ? 'TV bottom' : 'Bar bottom'], ['center', 'TV center'], ['top', 'TV top']]);
     b += `<div class="grid2">${fld('ref.' + kind + '.value')}`;
     if (kind === 'mantle') b += fld('ref.mantle.h') + (P ? fld('ref.mantle.hR') + fld('ref.mantle.len') : '');
     if (kind === 'ceiling') b += fld('ref.ceiling.h');
@@ -276,7 +277,7 @@
 
     // center line
     const ct = r.center;
-    b = seg('center.mode', [['two', 'Two marks'], ['half', 'Half a distance']]) + seg('center.from', [['left', 'From left'], ['right', 'From right']]);
+    b = seg('center.mode', [['half', 'Half a distance'], ['two', 'Two marks']]) + seg('center.from', [['left', 'From left'], ['right', 'From right']]);
     b += t.center.mode === 'half' ? `<div class="grid2">${fld('center.d', { wide: true })}</div>` : `<div class="grid2">${fld('center.a')}${fld('center.b')}</div>`;
     b += ct ? `<div class="res">Center line <b>${fmt(ct.pos)}</b> from the ${ct.from} edge${ct.mode === 'two' ? `, ${fmt(ct.half)} to each mark` : ''}</div>`
       : hint(t.center.mode === 'half' ? 'One distance, like the wall or the mantle; the center is half of it.' : 'Two marks measured from the same edge, like both sides of a fireplace.');
@@ -413,7 +414,7 @@
   /* ---------- sketch ---------- */
   const VE = ' vector-effect="non-scaling-stroke"';
   const N = v => Math.round(v * 1000) / 1000;
-  const EXAMPLE = (() => { const t = G.newTab('Example'); t.tv.src = 'size'; t.tv.size = 65; t.mount.holesToTop = 4.5; t.ref.floor.value = 42; return t; })();
+  const EXAMPLE = (() => { const t = G.newTab('Example'); t.tv.src = 'size'; t.tv.size = 65; t.mount.holesToTop = 4.5; t.ref.floor.value = 30; return t; })();
 
   // Lay the sketch out at label size f (wall inches). Returns svg markup and its viewBox.
   function sketchSVG(sk, f, example, hid) {
