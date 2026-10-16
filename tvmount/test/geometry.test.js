@@ -15,7 +15,7 @@ function merge(dst, src) {
   return dst;
 }
 const tab = (...overs) => overs.reduce((t, o) => merge(t, o), G.newTab('Test'));
-const BASE = { tv: { w: 57.125, h: 32.75 }, mount: { holesToTop: 4.5 }, ref: { kind: 'floor', floor: { edge: 'center', value: 42 } } };
+const BASE = { tv: { src: 'measured', w: 57.125, h: 32.75 }, mount: { holesToTop: 4.5 }, ref: { kind: 'floor', floor: { edge: 'center', value: 42 } } };
 
 test('parses fractions every way they get typed', () => {
   for (const s of ['48 3/8', '48-3/8', '48.375', '48 - 3/8', '48  3/8"', '48 3/8 in', '48⅜']) near(G.parseInches(s), 48.375, s);
@@ -85,7 +85,7 @@ test('floor, TV bottom at 36', () => {
 });
 
 test('floor, TV top at 70 needs no TV height for the holes', () => {
-  const r = G.compute(tab({ tv: { w: null, h: null }, mount: { holesToTop: 4.5 }, ref: { floor: { edge: 'top', value: 70 } } }), { mode: 'simple' });
+  const r = G.compute(tab({ tv: { src: 'measured', w: null, h: null }, mount: { holesToTop: 4.5 }, ref: { floor: { edge: 'top', value: 70 } } }), { mode: 'simple' });
   near(r.m.hole, 65.5);
   assert.equal(r.m.center, null);
   assert.deepEqual(r.missing, []);
@@ -128,8 +128,26 @@ test('missing inputs are listed, not guessed', () => {
   assert.equal(r.ok, false);
   assert.ok(r.missing.includes('mount.holesToTop'));
   assert.ok(r.missing.includes('ref.floor.value'));
-  assert.ok(r.missing.includes('tv.h'));
+  assert.ok(r.missing.includes('tv.size'));            // new tabs start on a standard size
   assert.equal(r.sketch, null);
+  const t = G.newTab();
+  assert.equal(t.tv.src, 'size');
+  assert.equal(t.center.mode, 'half');
+  assert.equal(t.mount.holesFrom, 'top');
+});
+
+test('top holes measured down to the TV bottom', () => {
+  // 32 3/4 tall, holes 28 1/4 above the bottom: the same 4 1/2 to the top as BASE
+  const r = G.compute(tab(BASE, { mount: { holesFrom: 'bottom', holesToTop: 99, holesToBottom: 28.25 } }), { mode: 'simple' });
+  near(r.chain.hung, 4.5);
+  near(r.m.hole, 53.875);
+  near(r.sketch.items.find(d => d.t === 'dim' && d.key === 'chain').v, 28.25);
+  assert.match(G.fill(r.rows.find(x => x.id === 'chain').alt, G.formatInches), /height 32 3\/4" − 28 1\/4" to bottom/);
+  const sag = G.compute(tab(BASE, { mount: { holesFrom: 'bottom', holesToBottom: 28.25, sag: 0.25 } }), { mode: 'pro' });
+  near(sag.m.hole, 54.125);
+  const noH = G.compute(tab(BASE, { tv: { h: null }, mount: { holesFrom: 'bottom', holesToBottom: 28.25 }, ref: { floor: { edge: 'top', value: 70 } } }), { mode: 'simple' });
+  assert.ok(noH.missing.includes('tv.h'));
+  assert.ok(G.compute(tab(BASE, { mount: { holesFrom: 'bottom' } }), { mode: 'simple' }).missing.includes('mount.holesToBottom'));
 });
 
 test('pro split chain with sag', () => {

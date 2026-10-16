@@ -23,7 +23,7 @@
   const SETTINGS = { mode: 'simple', prec: 16, dec: false };
   const TV_ITEM = { model: '', w: null, h: null, vesaTop: null, vesaLeft: null, vesaRight: null };
   const MOUNT_ITEM = {
-    model: '', holesToTop: null, hookDrop: null, armDrop: null, sag: null, plateW: null, plateH: null,
+    model: '', holesFrom: 'top', holesToTop: null, holesToBottom: null, hookDrop: null, armDrop: null, sag: null, plateW: null, plateH: null,
     holeDown: null, rowGap: null, lagSpan: null, slide: null, adjUp: null, adjDown: null, studsNeeded: null
   };
 
@@ -42,6 +42,9 @@
   }
 
   function newTab(name) { return Object.assign({ id: 't' + uid() }, Geo.newTab(name)); }
+  // Fills fields a saved tab lacks. New tabs start on a standard size and half a distance;
+  // a saved tab without those fields came from before, when the defaults were measured and two marks.
+  const SAVED_TAB = Object.assign(Geo.newTab(), { tv: Object.assign(Geo.newTab().tv, { src: 'measured' }), center: Object.assign(Geo.newTab().center, { mode: 'two' }) });
   function blank() {
     const t = newTab('Living room');
     return { version: VERSION, settings: Object.assign({}, SETTINGS), tabs: [t], current: t.id, lib: { tvs: [], mounts: [] } };
@@ -64,7 +67,7 @@
     doc.settings = conform(SETTINGS, d.settings);
     if (![8, 16, 32].includes(doc.settings.prec)) doc.settings.prec = 16;
     if (!['simple', 'pro'].includes(doc.settings.mode)) doc.settings.mode = 'simple';
-    doc.tabs = items(d.tabs, Geo.newTab(), 't').map(t => {
+    doc.tabs = items(d.tabs, SAVED_TAB, 't').map(t => {
       if (!t.name.trim()) t.name = 'TV';
       return t;
     });
@@ -164,7 +167,7 @@
   }
   function applyMount(tab, item) {
     for (const k of Object.keys(MOUNT_ITEM)) tab.mount[k] = item[k] === undefined ? MOUNT_ITEM[k] : item[k];
-    if (isNum(item.hookDrop) && isNum(item.armDrop) && !isNum(item.holesToTop)) tab.mount.chain = 'split';
+    if (isNum(item.hookDrop) && isNum(item.armDrop) && !isNum(item.holesToTop) && !isNum(item.holesToBottom)) tab.mount.chain = 'split';
   }
   // Save by model number: an existing entry with the same model (any case) is updated.
   function upsert(list, item) {

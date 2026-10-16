@@ -29,7 +29,7 @@
   const F = {
     'tv.w': ['Width'], 'tv.h': ['Height'],
     'tv.vesaTop': ['To TV top'], 'tv.vesaLeft': ['To left edge'], 'tv.vesaRight': ['To right edge'],
-    'mount.holesToTop': ['Top holes → TV top'],
+    'mount.holesToTop': ['Top holes → TV top'], 'mount.holesToBottom': ['Top holes → TV bottom'],
     'mount.hookDrop': ['Top holes → hook'], 'mount.armDrop': ['Arm hook → VESA'], 'mount.sag': ['Sag once hung', 0],
     'mount.plateW': ['Plate width'], 'mount.plateH': ['Plate height'], 'mount.holeDown': ['Plate top → holes', 0], 'mount.rowGap': ['Hole rows apart'],
     'mount.lagSpan': ['Lag span', 'plate width'], 'mount.slide': ['Slide each way', 0],
@@ -241,8 +241,11 @@
     b = '';
     if (P) b += seg('mount.chain', [['measured', 'One measurement'], ['split', 'Split chain']]);
     if (!P || t.mount.chain !== 'split') {
-      b += `<div class="grid2">${fld('mount.holesToTop', { wide: !P })}${P ? fld('mount.sag') : ''}</div>`;
-      b += hint('Arms on the TV, plate hung on the arms: measure from the top row of plate holes to the top of the TV. Use ± if the holes sit above it.');
+      const toBottom = t.mount.holesFrom === 'bottom';
+      b += seg('mount.holesFrom', [['top', 'To TV top'], ['bottom', 'To TV bottom']]);
+      b += `<div class="grid2">${fld(toBottom ? 'mount.holesToBottom' : 'mount.holesToTop', { wide: !P })}${P ? fld('mount.sag') : ''}</div>`;
+      b += hint(toBottom ? 'Arms on the TV, plate hung on the arms: measure from the top row of plate holes down to the bottom of the TV.'
+        : 'Arms on the TV, plate hung on the arms: measure from the top row of plate holes to the top of the TV. Use ± if the holes sit above it.');
     } else {
       b += `<div class="grid2">${fld('mount.hookDrop')}${fld('mount.armDrop')}${fld('tv.vesaTop', { label: 'VESA → TV top' })}${fld('mount.sag')}</div>`;
       const c = r.chain;
@@ -802,7 +805,7 @@
 
   function itemSummary(kind, x) {
     if (kind === 'tv') return [x.w != null && x.h != null ? fmt(x.w) + ' × ' + fmt(x.h) : null, x.vesaTop != null ? 'VESA to top ' + fmt(x.vesaTop) : null].filter(Boolean).join(' · ');
-    return [x.holesToTop != null ? 'holes to top ' + fmt(x.holesToTop) : null, x.hookDrop != null ? 'hook ' + fmt(x.hookDrop) : null, x.armDrop != null ? 'arm ' + fmt(x.armDrop) : null, x.sag ? 'sag ' + fmt(x.sag) : null, x.slide != null ? 'slide ' + fmt(x.slide) : null].filter(Boolean).join(' · ');
+    return [x.holesToTop != null ? 'holes to top ' + fmt(x.holesToTop) : null, x.holesToBottom != null ? 'holes to bottom ' + fmt(x.holesToBottom) : null, x.hookDrop != null ? 'hook ' + fmt(x.hookDrop) : null, x.armDrop != null ? 'arm ' + fmt(x.armDrop) : null, x.sag ? 'sag ' + fmt(x.sag) : null, x.slide != null ? 'slide ' + fmt(x.slide) : null].filter(Boolean).join(' · ');
   }
   function libSheet(kind) {
     const kinds = kind === 'all' ? ['tv', 'mount'] : [kind];

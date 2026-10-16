@@ -38,7 +38,11 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   const hero = () => page.textContent('#res .hero .v');
 
   await page.goto(base);
-  await page.waitForSelector('#form [data-k="tv.w"]');
+  await page.waitForSelector('#form [data-seg="tv.src"]');
+
+  // new tabs start on a standard size and half a distance
+  check('standard size and half a distance by default', !!(await page.$('[data-size="65"]')) && !!(await page.$('[data-k="center.d"]')));
+  await page.tap('[data-seg="tv.src"] [data-v="measured"]');
 
   // keypad: whole inches, then numerator over denominator like Calculator
   await page.tap('[data-k="tv.w"]');
@@ -73,22 +77,30 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   check('clear blanks the field', (await tab0()).mount.holesToTop === null);
   await keys('4', '.', '5');
   check('decimal entry 4.5', (await tab0()).mount.holesToTop === 4.5);
-  await page.tap('[data-k="center.a"]');
+  await page.tap('[data-k="center.d"]');
   await keys('1', 'n3', 'd2');
-  check('3/2 waits while typing', (await tab0()).center.a === 1, (await tab0()).center.a);
+  check('3/2 waits while typing', (await tab0()).center.d === 1, (await tab0()).center.d);
   await keys('done');
-  check('3/2 is saved on Done as 2 1/2', (await tab0()).center.a === 2.5, (await tab0()).center.a);
-  await page.tap('[data-k="center.a"]');
+  check('3/2 is saved on Done as 2 1/2', (await tab0()).center.d === 2.5, (await tab0()).center.d);
+  await page.tap('[data-k="center.d"]');
   await page.keyboard.type('30 1/4');
-  check('typing 30 1/4 on a keyboard', (await tab0()).center.a === 30.25, (await tab0()).center.a);
+  check('typing 30 1/4 on a keyboard', (await tab0()).center.d === 30.25, (await tab0()).center.d);
   await page.keyboard.press('Delete');
   await page.keyboard.type('3/8');
-  check('typing 3/8 on a keyboard', (await tab0()).center.a === 0.375, (await tab0()).center.a);
+  check('typing 3/8 on a keyboard', (await tab0()).center.d === 0.375, (await tab0()).center.d);
   await keys('clear');
   await page.tap('[data-k="ref.floor.value"]');
   await keys('4', '2', 'done');
   check('keypad closes on Done', !(await page.isVisible('#kp')));
   check('hero shows 53 7/8" for center at 42', (await hero()).replace(/\u00a0/g, ' ') === '53 7/8"', await hero());
+
+  // the bracket measured down to the TV bottom lands the holes in the same place
+  await page.tap('[data-seg="mount.holesFrom"] [data-v="bottom"]');
+  await page.tap('[data-k="mount.holesToBottom"]');
+  await keys('2', '8', 'n1', 'd4', 'done');
+  check('top holes 28 1/4 to TV bottom also gives 53 7/8"', (await hero()).replace(/\u00a0/g, ' ') === '53 7/8"', await hero());
+  await page.tap('[data-seg="mount.holesFrom"] [data-v="top"]');
+  check('back to TV top keeps both numbers', (await tab0()).mount.holesToTop === 4.5 && (await tab0()).mount.holesToBottom === 28.25);
 
   // soundbar: off by default, on the wall with a bracket, then on a TV attachment
   check('soundbar starts off', (await tab0()).bar.kind === 'none' && !(await page.$('[data-k="bar.h"]')));
