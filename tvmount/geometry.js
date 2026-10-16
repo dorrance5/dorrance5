@@ -83,7 +83,7 @@
 
   /* ---------- TV sizes ---------- */
 
-  const SIZES = [43, 48, 50, 55, 58, 60, 65, 70, 75, 77, 83, 85, 86, 98];
+  const SIZES = [43, 50, 55, 65, 75, 77, 83, 85, 98];
   const BEZEL = { w: 0.5, h: 0.9 };   // typical overall size beyond a 16:9 screen
   function sizeEstimate(diag) {
     if (!isNum(diag) || diag <= 0) return null;

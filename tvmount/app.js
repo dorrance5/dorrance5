@@ -426,7 +426,9 @@
       } else if (it.t === 'dot' || it.t === 'mark') grow(it.x, it.y);
     }
     if (items.some(i => i.t === 'label' && i.below)) grow(tv.x0, tv.y0 - f * 2);
-    if (items.some(i => i.t === 'label' && i.cls === 'mantle')) grow(0, -2.5 - f * 1.8);
+    // the mantle's name sits under it; edge and mark names, when there are any, get a row below that
+    const named = items.some(i => i.t === 'line' && i.vspan && i.text && i.cls !== 'stud');
+    if (items.some(i => i.t === 'label' && i.cls === 'mantle')) grow(0, -2.5 - f * (named ? 3.1 : 1.8));
     // stud and edge names sit just inside the bottom of the drawing (above the floor when there is one)
         const studRow = B.y0 + f * 0.8, edgeRow = B.y0 + f * 0.8;
 
