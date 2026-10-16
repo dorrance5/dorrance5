@@ -116,7 +116,8 @@
       box: { on: false, w: null, h: null, margin: null },
       view: { eye: null, dist: null },
       built: { top: null, bottom: null },
-      bar: { kind: 'none', w: null, h: null, place: 'gap', gap: null, below: null, holesToTop: null }
+      bar: { kind: 'none', w: null, h: null, place: 'gap', gap: null, below: null, holesToTop: null },
+      room: { ceil: null, mantle: null, left: null, right: null }   // sketch only: heights from the floor, walls from the center line
     };
   }
 
@@ -134,7 +135,7 @@
     const pro = mode === 'pro';
     const t = tab || {}, tv = t.tv || {}, m = t.mount || {}, rf = t.ref || {};
     const kind = KINDS.includes(rf.kind) ? rf.kind : 'floor';
-    const k = rf[kind] || {}, c = t.center || {}, st = t.studs || {}, bx = t.box || {}, vw = t.view || {}, b = t.built || {}, sb = t.bar || {};
+    const k = rf[kind] || {}, c = t.center || {}, st = t.studs || {}, bx = t.box || {}, vw = t.view || {}, b = t.built || {}, sb = t.bar || {}, rm = t.room || {};
     const n = v => isNum(v) ? v : null;
     const p = (v, d) => pro && isNum(v) ? v : (d === undefined ? null : d);
     return {
@@ -158,6 +159,7 @@
       box: pro && bx.on ? { w: n(bx.w), h: n(bx.h), margin: isNum(bx.margin) ? bx.margin : DEFAULTS.boxMargin } : null,
       eye: p(vw.eye, DEFAULTS.eye), dist: p(vw.dist),
       built: pro ? { top: n(b.top), bottom: n(b.bottom) } : null,
+      room: { ceil: n(rm.ceil), mantle: n(rm.mantle), left: n(rm.left), right: n(rm.right) },
       // soundbar: kind wall = its own bracket, tv = an attachment that hangs it from the TV mount
       bar: sb.kind === 'wall' || sb.kind === 'tv' ? {
         kind: sb.kind, w: n(sb.w), h: n(sb.h),
@@ -625,11 +627,33 @@
       const sp = ref.span || W + 8, s = ref.slope || 0;
       const th = 2.5;
       add({ t: 'poly', cls: 'mantle', pts: [[-sp / 2, -s * sp / 2], [sp / 2, s * sp / 2], [sp / 2, s * sp / 2 - th], [-sp / 2, -s * sp / 2 - th]] });
-      add({ t: 'label', cls: 'mantle', x: 0, y: -th / 2, lines: ['Mantle'], anchor: 'middle', inside: true });
+      add({ t: 'label', cls: 'mantle', x: 0, y: -th / 2, top: 0, lines: ['Mantle'], anchor: 'middle', inside: true });
     }
     if (ref.kind !== 'floor' && ref.refNow != null) {
       add({ t: 'line', cls: 'floor', x0, x1, y0: -ref.refNow, y1: -ref.refNow, hspan: true, text: 'Floor' });
       if (Math.abs(ref.ff) > EPS) add({ t: 'line', cls: 'ffloor', x0, x1, y0: -ref.refNow + ref.ff, y1: -ref.refNow + ref.ff, hspan: true, text: 'Finished floor' });
+    }
+
+    // The room around the TV. Sketch only: these items carry room: true, and only screenshot mode
+    // draws them. Heights are measured from the floor as it is today; walls from the center line.
+    const room = e.room, fromFloor = h => ref.refNow == null || !isNum(h) ? null : h - ref.refNow;
+    const cy = ref.kind !== 'ceiling' ? fromFloor(room.ceil) : null;
+    if (cy != null) {
+      add({ t: 'line', cls: 'ceiling', x0, x1, y0: cy, y1: cy, hspan: true, text: 'Ceiling', room: true });
+      add({ t: 'dim', side: 'right', a: -ref.refNow, b: cy, v: room.ceil, name: 'ceiling', key: 'room', room: true });
+    }
+    const my = ref.kind !== 'mantle' ? fromFloor(room.mantle) : null;
+    if (my != null) {
+      const sp = W + 8, th = 2.5;
+      add({ t: 'poly', cls: 'mantle', pts: [[-sp / 2, my], [sp / 2, my], [sp / 2, my - th], [-sp / 2, my - th]], room: true });
+      add({ t: 'label', cls: 'mantle', x: 0, y: my - th / 2, top: my, lines: ['Mantle'], anchor: 'middle', inside: true, room: true });
+      add({ t: 'dim', side: 'right', a: -ref.refNow, b: my, v: room.mantle, name: 'mantle', key: 'room', room: true });
+    }
+    for (const [d, dir] of [[room.left, -1], [room.right, 1]]) {
+      if (!isNum(d) || d <= 0) continue;
+      add({ t: 'line', cls: 'wall', x0: dir * d, x1: dir * d, y0: y.bottom, y1: y.top, vspan: true, side: dir, room: true });
+      // the gap to the wall, drawn between the wall and the TV side a quarter of the way down the TV, clear of its name
+      if (d > W / 2 + EPS) add({ t: 'dim', side: 'inline', a: dir * d, b: dir * W / 2, at: y.top - tv.h / 4, v: d - W / 2, name: 'wall', key: 'wall', room: true });
     }
 
     // eye line from the viewing check
