@@ -604,7 +604,7 @@
 
   /* ---------- the sketch: shapes and dimensions in wall inches ---------- */
   // Items: rect {x0,y0,x1,y1}, poly {pts}, line {x0,y0,x1,y1, hspan|vspan, text}, dot {x,y},
-  // mark {x,y}, label {x,y,lines,anchor}, dim {side, a, b, at, v, name}. The app lays out
+  // mark {x,y}, label {x,y,lines,anchor}, dim {side, a, b, at, v, name, input: the number you set}. The app lays out
   // dimension tiers, extends spanning lines, and fills {inch} tokens.
 
   function sketchFor(r) {
@@ -685,14 +685,14 @@
     // dimensions: from the line you measure from on the left, TV-local on the right
     const from = ref.kind === 'floor' ? -ref.ff : 0;
     const keys = [['bottom', 'bottom'], ['center', 'center'], ['hole', 'holes'], ['top', 'top']];
-    for (const [k, nm] of keys) if (y[k] != null && Math.abs(y[k] - from) > EPS) add({ t: 'dim', side: 'left', a: from, b: y[k], v: Math.abs(y[k] - from), name: nm, key: k });
+    for (const [k, nm] of keys) if (y[k] != null && Math.abs(y[k] - from) > EPS) add({ t: 'dim', side: 'left', a: from, b: y[k], v: Math.abs(y[k] - from), name: nm, key: k, input: k === ref.edge });
     if (r.chain.from === 'bottom' && y.hole != null) add({ t: 'dim', side: 'right', a: y.bottom, b: y.hole, v: Math.abs(y.hole - y.bottom), name: 'holes to bottom', key: 'chain' });
     else if (r.chain.hung != null && Math.abs(r.chain.hung) > EPS) add({ t: 'dim', side: 'right', a: y.hole, b: y.top, v: Math.abs(r.chain.hung), name: 'holes to top', key: 'chain' });
     if (r.bar && r.bar.top != null) {
       const b = r.bar;
       if (b.kind === 'wall') add({ t: 'dim', side: 'left', a: from, b: b.hole != null ? b.hole : b.top, v: Math.abs((b.hole != null ? b.hole : b.top) - from), name: b.hole != null ? 'bar holes' : 'bar top', key: b.hole != null ? 'barhole' : 'bartop' });
       if (b.gap > EPS) add({ t: 'dim', side: 'right', a: b.top, b: y.bottom, v: b.gap, name: 'gap', key: 'bargap' });
-      if (ref.edge === 'bar' && Math.abs(b.bottom - from) > EPS) add({ t: 'dim', side: 'left', a: from, b: b.bottom, v: Math.abs(b.bottom - from), name: 'bar bottom', key: 'barbottom' });
+      if (ref.edge === 'bar' && Math.abs(b.bottom - from) > EPS) add({ t: 'dim', side: 'left', a: from, b: b.bottom, v: Math.abs(b.bottom - from), name: 'bar bottom', key: 'barbottom', input: true });
     }
     add({ t: 'dim', side: 'right', a: y.bottom, b: y.top, v: tv.h, name: 'height' });
     if (ref.kind !== 'floor' && ref.refNow != null) add({ t: 'dim', side: 'right', a: -ref.refNow, b: 0, v: ref.refNow, name: ref.kind === 'mantle' ? 'mantle' : 'ceiling', ref: true });
