@@ -17,6 +17,10 @@ This is a static site of small phone apps. GitHub Pages deploys `main` with `.gi
 - Calculator and Counter have their own styles and scripts.
 - All apps share one theme setting, the `theme` key in localStorage.
 
+## Design
+
+- TV Mount is the model for how every app looks. `docs/design-handoff.md` tells how to restyle the other apps.
+
 ## Choices
 
 - In every row of choice buttons, put the default option on the left.
