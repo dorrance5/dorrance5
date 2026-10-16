@@ -69,6 +69,9 @@ const scenes = [
   { name: '23-screenshot-room', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[1].room, { ceil: 108, mantle: 38, left: 52, right: 70 }); d.current = d.tabs[1].id; return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
   { name: '24-screenshot-room-mantle', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[0].room, { ceil: 110, left: 60, right: 66 }); return d; })(), theme: 'dark', act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
   { name: '25-room-card', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[1].room, { ceil: 108, mantle: 38, left: 52, right: 70 }); d.current = d.tabs[1].id; return d; })(), act: async p => { await p.click('[data-fold="room"]'); await p.evaluate(() => document.querySelector('[data-sec="room"]').scrollIntoView()); } },
+  { name: '26-screenshot-installer', seed: (() => { const d = jobDoc('pro'); d.settings.shot = 'crew'; return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
+  { name: '27-client-soundbar-room', seed: (() => { const d = withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1); Object.assign(d.tabs[1].room, { ceil: 108, left: 52, right: 70 }); return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(400); } },
+  { name: '28-client-sideways', landscape: true, seed: (() => { const d = jobDoc('pro'); Object.assign(d.tabs[0].room, { ceil: 110, left: 60, right: 66 }); return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
   { name: '22-soundbar-form', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="bar"]').scrollIntoView()); } }
 ];
 // The same job with a soundbar, on the tab at index `on` (0 = the mantle job, 1 = the floor job).
@@ -84,7 +87,7 @@ function withBar(d, bar, on = 0) {
   const browser = await webkit.launch();
   const problems = [];
   for (const sc of scenes) {
-    const ctx = await browser.newContext({ ...devices['iPhone 13'], deviceScaleFactor: 2 });
+    const ctx = await browser.newContext({ ...devices['iPhone 13'], deviceScaleFactor: 2, ...(sc.landscape ? { viewport: { width: 844, height: 390 } } : {}) });
     await ctx.addInitScript(([seed, theme]) => {
       if (sessionStorage.getItem('seeded')) return;
       sessionStorage.setItem('seeded', '1');

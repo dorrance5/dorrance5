@@ -394,6 +394,36 @@ test('room items are sketch only, placed from the floor and the center line', ()
   assert.equal(m.sketch.items.filter(i => i.cls === 'wall').length, 2);
 });
 
+test('the client sketch leaves out holes, studs and layout marks', () => {
+  const job = tab(BASE, {
+    mount: { plateW: 26.5, plateH: 10.75 }, studs: { list: [-8, 8] }, box: { on: true, w: 7.5, h: 7.5 },
+    center: { mode: 'two', from: 'left', a: 30, b: 90 }, built: { top: 60 },
+    bar: { kind: 'wall', w: 45, h: 3.25, gap: 2, holesToTop: 1.5 }
+  });
+  const r = G.compute(job, { mode: 'pro' });
+  const client = r.sketch.items.filter(i => !i.crew), crew = r.sketch.items.filter(i => !i.client);
+  const has = (list, f) => list.some(f);
+  for (const cls of ['drill', 'stud', 'edge', 'markline', 'center']) assert.ok(!has(client, i => i.t === 'line' && i.cls === cls), cls);
+  for (const cls of ['plate', 'box', 'zone', 'built']) assert.ok(!has(client, i => i.t === 'rect' && i.cls === cls), cls);
+  assert.ok(!has(client, i => i.t === 'dot' || i.t === 'mark'));
+  assert.ok(!has(client, i => i.t === 'dim' && ['hole', 'chain', 'barhole', 'bartop'].includes(i.key)));
+  assert.ok(!has(client, i => i.t === 'dim' && i.side === 'bottom'));
+  for (const k of ['bottom', 'center', 'top']) assert.ok(has(client, i => i.t === 'dim' && i.key === k), k);
+  for (const f of [i => i.cls === 'tv', i => i.cls === 'sbar', i => i.key === 'bargap', i => i.name === 'height', i => i.name === 'width']) assert.ok(has(client, f));
+  // the installer still sees everything
+  for (const cls of ['drill', 'stud', 'edge', 'center']) assert.ok(has(crew, i => i.t === 'line' && i.cls === cls), cls);
+  assert.ok(has(crew, i => i.t === 'dim' && i.key === 'hole') && has(crew, i => i.t === 'dot'));
+  // a finished floor: the client reads heights above it, the installer reads the tape from the floor today
+  const ff = G.compute(tab(BASE, { ref: { ff: 0.75 } }), { mode: 'pro' }).sketch.items;
+  near(ff.find(i => !i.crew && i.t === 'dim' && i.key === 'center').v, 42);
+  near(ff.find(i => !i.client && i.t === 'dim' && i.key === 'center').v, 42.75);
+  assert.ok(!ff.some(i => !i.crew && i.name === 'finish'));
+  // a standard size: the client sees the size, not "estimate"
+  const sz = G.compute(tab(BASE, { tv: { src: 'size', size: 65 } }), { mode: 'simple' }).sketch.items.filter(i => i.cls === 'tvname');
+  assert.deepEqual(sz.filter(i => !i.crew).map(i => i.lines[0]), ['65″ TV']);
+  assert.deepEqual(sz.filter(i => !i.client).map(i => i.lines[0]), ['65″ class (estimate)']);
+});
+
 // Past jobs: add entries to jobs.json as
 // { "name": "...", "mode": "simple" | "pro", "tab": { ...overrides like BASE... }, "expect": { "hole": 53.875, "top": ..., "center": ..., "bottom": ... } }
 // expect values are what you measured from the reference (floor, mantle, or ceiling). Tolerance is 1/32".

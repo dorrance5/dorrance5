@@ -616,6 +616,9 @@
     const W = tv.w || tv.h * 16 / 9, x0 = -W / 2, x1 = W / 2;
     const it = [];
     const add = o => it.push(o);
+    // Who sees an item: crew: true is for the installer only (holes, studs, layout marks);
+    // client: true is for the client screenshot only. Items with neither show in both.
+    const crew = o => add(Object.assign(o, { crew: true }));
 
     // reference lines and mantle
     if (ref.kind === 'floor') {
@@ -663,69 +666,82 @@
 
     // studs and center-tool marks
     const reach = W / 2 + 18;
-    for (const s of r.studs) if (Math.abs(s) <= reach) add({ t: 'line', cls: 'stud', x0: s, x1: s, y0: y.bottom, y1: y.top, vspan: true, text: (s < 0 ? 'L ' : s > 0 ? 'R ' : '') + T(Math.abs(s)) });
+    for (const s of r.studs) if (Math.abs(s) <= reach) crew({ t: 'line', cls: 'stud', x0: s, x1: s, y0: y.bottom, y1: y.top, vspan: true, text: (s < 0 ? 'L ' : s > 0 ? 'R ' : '') + T(Math.abs(s)) });
     if (r.center) {
       const c = r.center, dir = c.from === 'left' ? -1 : 1, xe = dir * c.pos;
       const far = Math.abs(xe) > Math.max(W, 48);
-      add({ t: 'line', cls: 'edge', x0: xe, x1: xe, y0: y.bottom, y1: y.top, vspan: true, far, text: (c.from === 'left' ? 'Left' : 'Right') + ' edge' });
+      crew({ t: 'line', cls: 'edge', x0: xe, x1: xe, y0: y.bottom, y1: y.top, vspan: true, far, text: (c.from === 'left' ? 'Left' : 'Right') + ' edge' });
       if (c.mode === 'two') {
         for (const [nm, v] of [['A', c.a], ['B', c.b]]) {
           const xm = xe - dir * v;
-          add({ t: 'line', cls: 'markline', x0: xm, x1: xm, y0: y.bottom, y1: y.top, vspan: true, far: Math.abs(xm) > Math.max(W, 48), text: nm });
-          add({ t: 'dim', side: 'bottom', a: xe, b: xm, v: Math.abs(v), name: nm, far: far || Math.abs(xm) > Math.max(W, 48) });
+          crew({ t: 'line', cls: 'markline', x0: xm, x1: xm, y0: y.bottom, y1: y.top, vspan: true, far: Math.abs(xm) > Math.max(W, 48), text: nm });
+          crew({ t: 'dim', side: 'bottom', a: xe, b: xm, v: Math.abs(v), name: nm, far: far || Math.abs(xm) > Math.max(W, 48) });
         }
       } else {
         const xo = xe - dir * c.d;
-        add({ t: 'line', cls: 'edge', x0: xo, x1: xo, y0: y.bottom, y1: y.top, vspan: true, far: Math.abs(xo) > Math.max(W, 48), text: 'Other end' });
-        add({ t: 'dim', side: 'bottom', a: xe, b: xo, v: c.d, name: 'total', far: true });
+        crew({ t: 'line', cls: 'edge', x0: xo, x1: xo, y0: y.bottom, y1: y.top, vspan: true, far: Math.abs(xo) > Math.max(W, 48), text: 'Other end' });
+        crew({ t: 'dim', side: 'bottom', a: xe, b: xo, v: c.d, name: 'total', far: true });
       }
-      add({ t: 'dim', side: 'bottom', a: xe, b: 0, v: c.pos, name: 'center', far });
+      crew({ t: 'dim', side: 'bottom', a: xe, b: 0, v: c.pos, name: 'center', far });
     }
 
     // the TV, the plate, holes
-    add({ t: 'line', cls: 'center', x0: 0, x1: 0, y0: y.bottom - 2, y1: y.top + 2, vspan: true });
+    crew({ t: 'line', cls: 'center', x0: 0, x1: 0, y0: y.bottom - 2, y1: y.top + 2, vspan: true });
     if (r.box) {
-      for (const z of r.box.zones) add({ t: 'rect', cls: 'zone', x0: z.x0, x1: z.x1, y0: z.y0, y1: z.y1 });
+      for (const z of r.box.zones) crew({ t: 'rect', cls: 'zone', x0: z.x0, x1: z.x1, y0: z.y0, y1: z.y1 });
     }
     add({ t: 'rect', cls: 'tv', x0, x1, y0: y.bottom, y1: y.top });
-    if (r.box && r.box.at) add({ t: 'rect', cls: 'box', x0: r.box.at.x0, x1: r.box.at.x1, y0: r.box.at.y0, y1: r.box.at.y1, text: 'Box' });
-    if (r.plate) add({ t: 'rect', cls: 'plate', x0: r.plate.x0, x1: r.plate.x1, y0: r.plate.y0, y1: r.plate.y1 });
-    for (const hy of r.holeRows) add({ t: 'line', cls: 'drill', x0: x0 - 1.5, x1: x1 + 1.5, y0: hy, y1: hy });
+    if (r.box && r.box.at) crew({ t: 'rect', cls: 'box', x0: r.box.at.x0, x1: r.box.at.x1, y0: r.box.at.y0, y1: r.box.at.y1, text: 'Box' });
+    if (r.plate) crew({ t: 'rect', cls: 'plate', x0: r.plate.x0, x1: r.plate.x1, y0: r.plate.y0, y1: r.plate.y1 });
+    for (const hy of r.holeRows) crew({ t: 'line', cls: 'drill', x0: x0 - 1.5, x1: x1 + 1.5, y0: hy, y1: hy });
     const sb = r.bar && r.bar.top != null && r.bar.w ? r.bar : null;
     if (sb) {
       add({ t: 'rect', cls: 'sbar', x0: -sb.w / 2, x1: sb.w / 2, y0: sb.bottom, y1: sb.top, text: 'Soundbar' });
-      if (sb.hole != null) add({ t: 'line', cls: 'drill', x0: -sb.w / 2 - 1.5, x1: sb.w / 2 + 1.5, y0: sb.hole, y1: sb.hole });
+      if (sb.hole != null) crew({ t: 'line', cls: 'drill', x0: -sb.w / 2 - 1.5, x1: sb.w / 2 + 1.5, y0: sb.hole, y1: sb.hole });
     }
-    for (const d of r.drill) add({ t: 'dot', cls: 'hole', x: d.x, y: d.y });
-    add({ t: 'mark', cls: 'cmark', x: 0, y: y.center });
+    for (const d of r.drill) crew({ t: 'dot', cls: 'hole', x: d.x, y: d.y });
+    crew({ t: 'mark', cls: 'cmark', x: 0, y: y.center });
 
     const name = tv.est ? tv.size + '″ class (estimate)' : (tv.model || 'TV');
-    add({ t: 'label', cls: 'tvname', x: 0, y: y.center, lines: [name], anchor: 'middle', inside: true, avoid: y.hole });
+    const label = { t: 'label', cls: 'tvname', x: 0, y: y.center, lines: [name], anchor: 'middle', inside: true, avoid: y.hole };
+    if (!tv.est) add(label);
+    else { add(Object.assign({}, label, { lines: [tv.size + '″ TV'], client: true })); crew(label); }
 
     if (r.built && r.built.top != null) {
       const bt = r.built.top, bb = r.built.bottom != null ? r.built.bottom : bt - tv.h;
-      add({ t: 'rect', cls: 'built', x0, x1, y0: bb, y1: bt });
+      crew({ t: 'rect', cls: 'built', x0, x1, y0: bb, y1: bt });
     }
 
     // dimensions: from the line you measure from on the left, TV-local on the right
     const from = ref.kind === 'floor' ? -ref.ff : 0;
     const keys = [['bottom', 'bottom'], ['center', 'center'], ['hole', 'holes'], ['top', 'top']];
-    for (const [k, nm] of keys) if (y[k] != null && Math.abs(y[k] - from) > EPS) add({ t: 'dim', side: 'left', a: from, b: y[k], v: Math.abs(y[k] - from), name: nm, key: k, input: k === ref.edge });
-    if (r.chain.from === 'bottom' && y.hole != null) add({ t: 'dim', side: 'right', a: y.bottom, b: y.hole, v: Math.abs(y.hole - y.bottom), name: 'holes to bottom', key: 'chain' });
-    else if (r.chain.hung != null && Math.abs(r.chain.hung) > EPS) add({ t: 'dim', side: 'right', a: y.hole, b: y.top, v: Math.abs(r.chain.hung), name: 'holes to top', key: 'chain' });
+    // the client reads heights above the finished floor; the installer reads the tape from the floor as it is now
+    const ffNow = Math.abs(from) > EPS;
+    for (const [k, nm] of keys) {
+      if (y[k] == null) continue;
+      const d = { t: 'dim', side: 'left', b: y[k], name: nm, key: k, input: k === ref.edge };
+      if (Math.abs(y[k] - from) > EPS) (k === 'hole' || ffNow ? crew : add)(Object.assign({ a: from, v: Math.abs(y[k] - from) }, d));
+      if (k !== 'hole' && ffNow && Math.abs(y[k]) > EPS) add(Object.assign({ a: 0, v: Math.abs(y[k]), client: true }, d));
+    }
+    if (r.chain.from === 'bottom' && y.hole != null) crew({ t: 'dim', side: 'right', a: y.bottom, b: y.hole, v: Math.abs(y.hole - y.bottom), name: 'holes to bottom', key: 'chain' });
+    else if (r.chain.hung != null && Math.abs(r.chain.hung) > EPS) crew({ t: 'dim', side: 'right', a: y.hole, b: y.top, v: Math.abs(r.chain.hung), name: 'holes to top', key: 'chain' });
     if (r.bar && r.bar.top != null) {
       const b = r.bar;
-      if (b.kind === 'wall') add({ t: 'dim', side: 'left', a: from, b: b.hole != null ? b.hole : b.top, v: Math.abs((b.hole != null ? b.hole : b.top) - from), name: b.hole != null ? 'bar holes' : 'bar top', key: b.hole != null ? 'barhole' : 'bartop' });
+      if (b.kind === 'wall') crew({ t: 'dim', side: 'left', a: from, b: b.hole != null ? b.hole : b.top, v: Math.abs((b.hole != null ? b.hole : b.top) - from), name: b.hole != null ? 'bar holes' : 'bar top', key: b.hole != null ? 'barhole' : 'bartop' });
       if (b.gap > EPS) add({ t: 'dim', side: 'right', a: b.top, b: y.bottom, v: b.gap, name: 'gap', key: 'bargap' });
-      if (ref.edge === 'bar' && Math.abs(b.bottom - from) > EPS) add({ t: 'dim', side: 'left', a: from, b: b.bottom, v: Math.abs(b.bottom - from), name: 'bar bottom', key: 'barbottom', input: true });
+      if (ref.edge === 'bar') {
+        const d = { t: 'dim', side: 'left', b: b.bottom, name: 'bar bottom', key: 'barbottom', input: true };
+        if (Math.abs(b.bottom - from) > EPS) (ffNow ? crew : add)(Object.assign({ a: from, v: Math.abs(b.bottom - from) }, d));
+        if (ffNow && Math.abs(b.bottom) > EPS) add(Object.assign({ a: 0, v: Math.abs(b.bottom), client: true }, d));
+      }
     }
     add({ t: 'dim', side: 'right', a: y.bottom, b: y.top, v: tv.h, name: 'height', key: 'tv' });
     if (ref.kind !== 'floor' && ref.refNow != null) add({ t: 'dim', side: 'right', a: -ref.refNow, b: 0, v: ref.refNow, name: ref.kind === 'mantle' ? 'mantle' : 'ceiling', ref: true });
-    if (ref.kind === 'floor' && Math.abs(ref.ff) > EPS) add({ t: 'dim', side: 'right', a: -ref.ff, b: 0, v: Math.abs(ref.ff), name: 'finish' });
+    if (ref.kind === 'floor' && Math.abs(ref.ff) > EPS) crew({ t: 'dim', side: 'right', a: -ref.ff, b: 0, v: Math.abs(ref.ff), name: 'finish' });
     if (tv.w) add({ t: 'dim', side: 'top', a: x0, b: x1, v: tv.w, name: 'width', key: 'tv' });
     if (ref.kind === 'mantle' && ref.gapL != null && Math.abs(ref.slope) > EPS && !r.bar) {
-      add({ t: 'label', cls: 'gap', x: x0 + 1, y: y.bottom, lines: ['gap ' + T(ref.gapL)], anchor: 'start', below: true });
-      add({ t: 'label', cls: 'gap', x: x1 - 1, y: y.bottom, lines: ['gap ' + T(ref.gapR)], anchor: 'end', below: true });
+      crew({ t: 'label', cls: 'gap', x: x0 + 1, y: y.bottom, lines: ['gap ' + T(ref.gapL)], anchor: 'start', below: true });
+      crew({ t: 'label', cls: 'gap', x: x1 - 1, y: y.bottom, lines: ['gap ' + T(ref.gapR)], anchor: 'end', below: true });
     }
 
     return { items: it, tv: { x0, x1, y0: y.bottom, y1: y.top } };
