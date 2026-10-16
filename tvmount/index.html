@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="TV Mount">
-<meta name="theme-color" content="#F2F2F7">
+<meta name="theme-color" content="#F4F5F7">
 <meta name="description" content="Plan where to drill so a wall-mounted TV lands at the planned height. Dimensioned sketch, studs, viewing angle. Works offline.">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -15,9 +15,32 @@
 <link rel="stylesheet" href="../shared/base.css">
 <title>TV Mount</title>
 <style>
-:root{--tv:#1C1E24;--tv-line:#000;--wood:#B07D52;--wood-line:#7A5230;--stud:#B9853F;--zone:#1F9D55;--drill:#D02A2A;--plate:#0A57D0;--dimc:#2E333D;--halo:#fff;--eye:#7A4BD8;--built:#E07A00}
-:root[data-mode="dark"]{--tv:#24272E;--tv-line:rgba(255,255,255,.6);--wood:#7E5534;--wood-line:#C99466;--stud:#D9A35F;--zone:#5BD48A;--drill:#FF6B6B;--plate:#8FB8FF;--dimc:#D8DBE1;--halo:#151517;--eye:#B79CFF;--built:#FFB060}
-:root[data-mode="aurora"]{--tv:#141022;--tv-line:rgba(255,255,255,.7);--wood:#8A5E3B;--wood-line:#E0AE80;--stud:#FFD08A;--zone:#9AF0BE;--drill:#FF9C9C;--plate:#BFD6FF;--dimc:#fff;--halo:#2B2442;--eye:#D6C4FF;--built:#FFC27A}
+:root{
+  --bg:#F4F5F7;--text:#172B4D;--muted:#626F86;--line:rgba(9,30,66,.12);--track:rgba(9,30,66,.05);
+  --surface:#fff;--sheet:rgba(255,255,255,.97);
+  --tile:#fff;--tile-line:rgba(9,30,66,.12);--tile-shadow:0 1px 1px rgba(9,30,66,.12),0 0 1px rgba(9,30,66,.2);
+  --chip:rgba(9,30,66,.06);--chip-line:rgba(9,30,66,.14);
+  --sel:#E9F2FF;--sel-line:#0C66E4;--sel-text:#0C66E4;
+  --primary:#0C66E4;--primary-line:#0055CC;--primary-text:#fff;
+  --danger:#FFECEB;--danger-line:rgba(201,55,44,.35);--danger-text:#AE2E24;
+  --blue:#0C66E4;--blue-bg:#E9F2FF;--green:#1F845A;--red:#C9372C;
+  --teal:#227D9B;--teal-bg:#E7F9FF;--purple:#6E5DC6;--purple-bg:#F3F0FF;
+  --tv:#1D2125;--tv-line:#091E42;--wood:#C7956A;--wood-line:#8F5F36;--stud:#E56910;--zone:#1F845A;--drill:#C9372C;--plate:#1D7AFC;--dimc:#44546F;--halo:#fff;--eye:#6E5DC6;--built:#AE4787;--sb:#227D9B
+}
+:root[data-mode="dark"]{
+  --bg:#161A1D;--text:#DEE4EA;--muted:#9FADBC;--line:rgba(166,197,226,.16);--track:rgba(161,189,217,.08);
+  --surface:#1D2125;--sheet:rgba(34,39,43,.97);
+  --tile:#22272B;--tile-line:rgba(166,197,226,.14);--tile-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+  --chip:rgba(161,189,217,.08);--chip-line:rgba(166,197,226,.18);
+  --sel:#1C2B41;--sel-line:#579DFF;--sel-text:#85B8FF;
+  --primary:#579DFF;--primary-line:#85B8FF;--primary-text:#161A1D;
+  --danger:rgba(248,113,104,.16);--danger-line:rgba(248,113,104,.45);--danger-text:#FD9891;
+  --blue:#85B8FF;--blue-bg:#1C2B41;--green:#7EE2B8;--red:#FD9891;
+  --teal:#6CC3E0;--teal-bg:#1A2E36;--purple:#B8ACF6;--purple-bg:#2B273F;
+  --tv:#101214;--tv-line:rgba(222,228,234,.45);--wood:#7A5534;--wood-line:#C9A27E;--stud:#FEA362;--zone:#4BCE97;--drill:#F87168;--plate:#579DFF;--dimc:#B6C2CF;--halo:#22272B;--eye:#9F8FEF;--built:#E774BB;--sb:#6CC3E0
+}
+.pro{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--purple);background:var(--purple-bg);padding:2px 7px;border-radius:7px}
+h1 .pro{font-size:12px;vertical-align:3px}
 
 /* tabs */
 .tabs{display:flex;gap:6px;overflow-x:auto;padding:0 12px 10px;scrollbar-width:none;position:relative;z-index:2;flex:none}
@@ -36,6 +59,7 @@
 .sk-bar svg{width:15px;height:15px}
 .sk text{font-family:var(--ui);font-variant-numeric:tabular-nums;paint-order:stroke;stroke:var(--halo);stroke-linejoin:round}
 .sk .tv{fill:var(--tv);stroke:var(--tv-line);stroke-width:2}
+.sk .sbar{fill:var(--tv);stroke:var(--sb);stroke-width:2}
 .sk .scr{fill:none;stroke:rgba(255,255,255,.08);stroke-width:1}
 .sk .plate{fill:var(--plate);fill-opacity:.22;stroke:var(--plate);stroke-width:1.5}
 .sk .drill{stroke:var(--drill);stroke-width:2;stroke-dasharray:7 4}
@@ -66,13 +90,17 @@
 .sk .el{fill:var(--eye);font-weight:650}
 .sk .zl{fill:var(--zone);font-weight:700}
 .sk .bl{fill:var(--built);stroke:none;font-weight:700}
+.sk .sbl{fill:#fff;stroke:none;font-weight:650;opacity:.85}
 
 /* results */
-.hero{background:var(--blue-bg);border-radius:18px;padding:12px 16px 14px;margin-bottom:8px}
+.hero{background:linear-gradient(135deg,var(--blue-bg),var(--purple-bg));border-radius:18px;padding:12px 16px 14px;margin-bottom:8px}
 .hero .k{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--blue)}
 .hero .v{font-size:40px;font-weight:600;color:var(--blue);letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1;margin-top:2px}
 .hero .s{font-size:14px;color:var(--blue);opacity:.85;margin-top:2px}
 .hero.empty .v{opacity:.5}
+.hero.sb{background:linear-gradient(135deg,var(--teal-bg),var(--blue-bg));padding:10px 16px 12px}
+.hero.sb .k,.hero.sb .v,.hero.sb .s{color:var(--teal)}
+.hero.sb .v{font-size:30px}
 .tri{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
 .tri .fact{padding:10px 10px}
 .tri .v{font-size:18px;white-space:nowrap;letter-spacing:-.02em}
@@ -99,12 +127,10 @@
 .warns{margin:8px 2px 0;padding:0;list-style:none}
 .warns li{color:var(--red);font-size:14px;font-weight:600;padding:3px 0 3px 22px;position:relative;line-height:1.35}
 .warns li::before{content:"!";position:absolute;left:4px;top:4px;width:14px;height:14px;border-radius:7px;background:var(--red);color:var(--bg);font-size:11px;font-weight:800;text-align:center;line-height:14px}
-[data-mode="aurora"] .fact{-webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%)}
 
 /* form */
 .sec{padding:0;overflow:hidden}
 .sec-h{display:flex;align-items:center;gap:8px;width:100%;padding:14px 16px;font-size:17px;font-weight:650;text-align:left}
-.sec-h .badge{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--blue);background:var(--blue-bg);padding:2px 7px;border-radius:7px}
 .sec-h .chev{margin-left:auto;width:18px;height:18px;transition:transform .15s;opacity:.5}
 .sec.shut .chev{transform:rotate(-90deg)}
 .sec-b{padding:0 16px 16px}
@@ -146,24 +172,34 @@
 .sheet .input{margin-bottom:10px}
 .sheet .stack{margin-top:14px}
 
-/* keypad */
-.kp{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border-top:.5px solid var(--line);padding:8px 8px calc(env(safe-area-inset-bottom,0px) + 8px);box-shadow:0 -10px 30px rgba(0,0,0,.14);animation:up .16s ease-out}
+/* keypad: whole inches on the left, numerator over denominator on the right, like Calculator */
+.kp{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border-top:.5px solid var(--line);padding:8px 8px calc(env(safe-area-inset-bottom,0px) + 8px);box-shadow:0 -10px 30px rgba(9,30,66,.14);animation:up .16s ease-out}
 .kp-in{max-width:560px;margin:0 auto}
 .kp-top{display:flex;align-items:center;gap:10px;padding:0 4px 8px;min-height:40px}
 .kp-name{font-size:13px;font-weight:700;color:var(--muted);line-height:1.2;flex:1;min-width:0}
 .kp-name .live{display:block;color:var(--blue);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.kp-val{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;max-width:58%;overflow:hidden;text-overflow:ellipsis}
+.kp-val{display:flex;align-items:center;justify-content:flex-end;font-size:30px;font-weight:550;font-variant-numeric:tabular-nums;white-space:nowrap;max-width:58%;overflow:hidden;height:34px}
 .kp-val.ph{color:var(--muted);opacity:.6}
-.kp-keys{display:flex;gap:8px}
-.kp-num{flex:3;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.kp-fr{flex:4;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.kp button{height:46px;border-radius:12px;background:var(--tile);border:.5px solid var(--tile-line);box-shadow:var(--tile-shadow);font-size:22px;font-weight:550;font-variant-numeric:tabular-nums;padding:0}
-.kp button:active{filter:brightness(.88)}
-.kp .kp-fr button{font-size:15px;font-weight:650;background:var(--chip);box-shadow:none}
-.kp .kp-fr button.on{background:var(--sel);border-color:var(--sel-line);color:var(--sel-text)}
-.kp .kp-fr button.x32{font-size:13px;color:var(--muted)}
+.kp-val .fr{display:flex;flex-direction:column;align-items:center;font-size:.48em;line-height:1;margin:0 .1em 0 .14em;font-weight:650}
+.kp-val .fr .de{border-top:1.5px solid currentColor;padding-top:1px;margin-top:1px}
+.kp-val .fr .lit.nu{color:var(--teal)}
+.kp-val .fr .lit.de{color:var(--purple)}
+.kp-keys{display:grid;grid-template-columns:3fr 5fr;gap:10px;height:202px}
+.kp-whole{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(4,1fr);gap:6px;min-height:0}
+.kp-frac{display:flex;flex-direction:column;gap:6px;min-height:0}
+.kp-sub{flex:1;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:1fr 1fr;gap:5px;min-height:0}
+.kp-div{flex:none;height:5px;border-radius:2.5px;background:linear-gradient(90deg,var(--teal),var(--purple))}
+.kp button{height:46px;border-radius:13px;background:var(--tile);border:.5px solid var(--tile-line);box-shadow:var(--tile-shadow);font-size:24px;font-weight:450;font-variant-numeric:tabular-nums;padding:0;transition:transform .08s}
+.kp button:active{transform:scale(.94);filter:brightness(.92)}
+.kp-keys button{height:auto;min-height:0;min-width:0}
+.kp .kp-sub button{font-size:21px;font-weight:550;border-radius:11px}
+.kp .nu button{color:var(--teal)}
+.kp .de button{color:var(--purple)}
+.kp .kp-whole .sym{font-size:22px;color:var(--muted)}
 .kp-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1.5fr;gap:6px;margin-top:6px}
-.kp-bar button{font-size:16px;font-weight:600;background:var(--chip);box-shadow:none}
+.kp-bar button{font-size:16px;font-weight:600;background:var(--chip);border-color:var(--chip-line);box-shadow:none}
+.kp-bar .clr{background:var(--danger);border-color:var(--danger-line);color:var(--danger-text)}
+.kp-bar .nav{background:var(--blue-bg);color:var(--blue)}
 .kp-bar .done{background:var(--primary);border-color:var(--primary-line);color:var(--primary-text)}
 .kp-bar svg{width:20px;height:20px;vertical-align:middle}
 
@@ -176,8 +212,6 @@
 .shot .sk{flex:1;height:auto;min-height:0}
 .shot .x{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;width:40px;height:40px;border-radius:20px;background:var(--chip);border:.5px solid var(--chip-line);font-size:18px;transition:opacity .4s}
 .shot .x.gone{opacity:0;pointer-events:none}
-[data-mode="aurora"] .shot{background:transparent}
-[data-mode="aurora"] .kp{background:var(--sheet)}
 </style>
 </head>
 <body>
@@ -204,20 +238,24 @@
   <div class="kp-in">
     <div class="kp-top"><div class="kp-name" id="kpName"></div><div class="kp-val" id="kpVal"></div></div>
     <div class="kp-keys">
-      <div class="kp-num">
+      <div class="kp-whole" role="group" aria-label="Whole inches">
         <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
         <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
         <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
-        <button data-key=".">.</button><button data-key="0">0</button>
-        <button data-key="back" aria-label="Delete"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11v12H9l-6-6z"/><path d="m12.5 9.5 5 5m0-5-5 5"/></svg></button>
+        <button data-key="." class="sym" aria-label="Decimal point">.</button><button data-key="0">0</button>
+        <button data-key="back" class="sym" aria-label="Delete"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11v12H9l-6-6z"/><path d="m12.5 9.5 5 5m0-5-5 5"/></svg></button>
       </div>
-      <div class="kp-fr" id="kpFr"></div>
+      <div class="kp-frac">
+        <div class="kp-sub nu" id="kpNu" role="group" aria-label="Numerator"></div>
+        <div class="kp-div"></div>
+        <div class="kp-sub de" id="kpDe" role="group" aria-label="Denominator"></div>
+      </div>
     </div>
     <div class="kp-bar">
       <button data-key="sign" aria-label="Plus or minus">±</button>
-      <button data-key="clear">Clear</button>
-      <button data-key="prev" aria-label="Previous field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg></button>
-      <button data-key="next" aria-label="Next field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button data-key="clear" class="clr">Clear</button>
+      <button data-key="prev" class="nav" aria-label="Previous field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg></button>
+      <button data-key="next" class="nav" aria-label="Next field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
       <button data-key="done" class="done">Done</button>
     </div>
   </div>

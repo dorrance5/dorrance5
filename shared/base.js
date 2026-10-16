@@ -12,10 +12,13 @@ window.App = (function () {
   function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
 
   /* ---- theme: one setting shared by every app, key "theme" = auto | light | dark | aurora ---- */
+  /* An app can leave Aurora out (App.init({ aurora: false })); it then shows Night for that setting. */
   const darkMQ = matchMedia('(prefers-color-scheme: dark)');
+  let aurora = true;
   function themePref() { try { return localStorage.getItem('theme') || 'auto'; } catch (e) { return 'auto'; } }
+  const shown = t => t === 'aurora' && !aurora ? 'dark' : t;
   function applyTheme() {
-    const t = themePref();
+    const t = shown(themePref());
     const mode = t === 'auto' ? (darkMQ.matches ? 'dark' : 'light') : t;
     const r = document.documentElement;
     if (mode === 'light') delete r.dataset.mode; else r.dataset.mode = mode;
@@ -29,8 +32,8 @@ window.App = (function () {
 
   const THEMES = [['auto','Auto'],['light','Day'],['dark','Night'],['aurora','Aurora']];
   function themeSegHTML() {
-    const t = themePref();
-    return `<div class="label">Theme</div><div class="seg">${THEMES.map(([k, l]) =>
+    const t = shown(themePref());
+    return `<div class="label">Theme</div><div class="seg">${THEMES.filter(([k]) => aurora || k !== 'aurora').map(([k, l]) =>
       `<button data-theme="${k}" class="${t === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   }
 
@@ -77,7 +80,7 @@ window.App = (function () {
 
   function sw() { if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {}); }
 
-  function init() { backdrop(); applyTheme(); sw(); }
+  function init(o) { if (o && o.aurora === false) aurora = false; if (aurora) backdrop(); applyTheme(); sw(); }
 
   return { $, esc, uid, buzz, load, save, applyTheme, setTheme, themeSegHTML, sheet, closeSheet, toast, copy, init };
 })();
