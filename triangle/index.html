@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Triangle">
-<meta name="theme-color" content="#F2F2F7">
+<meta name="theme-color" content="#F4F4F5">
 <meta name="description" content="Triangle solver: enter any three values (at least one side) and get the rest, with a scale drawing, area and heights. Works offline.">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -15,41 +15,28 @@
 <link rel="stylesheet" href="../shared/base.css">
 <title>Triangle</title>
 <style>
-.draw{padding:10px;margin-bottom:12px}
+.draw{padding:10px;margin-bottom:10px}
 .draw svg{width:100%;height:auto;display:block}
-.draw .side{fill:none;stroke:var(--text);stroke-width:2.5;stroke-linejoin:round}
 .draw .fill{fill:url(#tg)}
-.draw .side{stroke-width:3}
-.draw .arc{fill:none;stroke:var(--blue);stroke-width:2}
-.draw .lbl{font-family:var(--ui);font-size:13px;fill:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
-.draw .lbl.ang{fill:var(--blue)}
+.draw .s1{stop-color:var(--orange-bg)}
+.draw .s2{stop-color:var(--teal-bg)}
+.draw .side{fill:none;stroke:var(--text);stroke-width:3;stroke-linejoin:round}
+.draw .arc{fill:none;stroke:var(--teal);stroke-width:2}
+.draw .lbl{font-family:var(--ui);font-size:13px;fill:var(--orange);font-weight:650;font-variant-numeric:tabular-nums;paint-order:stroke;stroke:var(--tile);stroke-width:3px;stroke-linejoin:round}
+.draw .lbl.ang{fill:var(--teal)}
 .draw .v{fill:var(--text)}
-.draw .msg{font-family:var(--ui);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;fill:var(--muted)}
+.draw .msg{font-family:var(--ui);font-size:12px;font-weight:600;fill:var(--muted)}
 .draw .lbl.ex{font-size:17px;font-weight:700}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.f{position:relative}
-.f .input{height:58px;padding:18px 10px 0;font-size:20px;font-variant-numeric:tabular-nums;text-align:center}
-.f label{position:absolute;top:5px;left:0;right:0;text-align:center;font-size:14px;font-weight:700;color:var(--muted);pointer-events:none}
-.f.solved .input{color:var(--blue);background:var(--blue-bg);border-color:transparent;animation:pop .22s ease-out}
+.fld.solved{background:var(--hbg);border-color:transparent;animation:pop .22s ease-out}
+.fld.solved .fv,.fld.solved .fk{color:var(--hc)}
+.fld.bad{border-color:var(--red)}
 @keyframes pop{from{transform:scale(.96);opacity:.5}}
-.f.solved label{color:var(--blue);opacity:.75}
-.f.bad .input{border-color:var(--red)}
-.grid .label{grid-column:1/-1;margin:10px 0 0}
-.grid .label:first-child{margin-top:0}
-.row2{display:flex;gap:8px;margin:14px 0 4px}
-.row2 .btn{flex:1}
-.facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-.fact{background:var(--tile);border:.5px solid var(--tile-line);box-shadow:var(--tile-shadow);border-radius:16px;padding:12px 14px}
-.fact .k{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.fact .v{font-size:22px;font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;overflow-wrap:anywhere}
-.fact.wide{grid-column:1/-1}
-.fact.hero{grid-column:1/-1;background:var(--blue-bg);border-color:transparent}
-.fact.hero .k{color:var(--blue)}
-.fact.hero .v{font-size:34px;font-weight:500;color:var(--blue);letter-spacing:-.02em}
-.note{text-align:center;color:var(--muted);font-size:14px;margin:10px 4px 0;min-height:20px}
-.note.err{color:var(--red)}
-.alt{display:flex;gap:6px;justify-content:center;margin-top:10px}
-.alt .chip{height:34px;font-size:14px}
+.note{text-align:center;color:var(--muted);font-size:14px;margin:0 4px 10px;min-height:20px}
+.note.err{color:var(--red);font-weight:600}
+.alt{margin:0 0 10px}
+.btns{display:flex;gap:8px;margin-bottom:10px}
+.btns .btn{flex:1;height:42px;font-size:15px}
+.tri .s{white-space:nowrap}
 [data-mode="aurora"] .fact{-webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%)}
 </style>
 </head>
@@ -64,21 +51,19 @@
 <main>
   <div class="card draw"><svg id="svg" viewBox="0 0 360 240" aria-label="Triangle drawing"></svg></div>
 
-  <div class="grid" id="grid">
-    <div class="label">Sides</div>
-    <div class="f"><label for="a">a</label><input class="input" id="a" inputmode="decimal" autocomplete="off"></div>
-    <div class="f"><label for="b">b</label><input class="input" id="b" inputmode="decimal" autocomplete="off"></div>
-    <div class="f"><label for="c">c</label><input class="input" id="c" inputmode="decimal" autocomplete="off"></div>
-    <div class="label">Angles (degrees)</div>
-    <div class="f"><label for="A">A</label><input class="input" id="A" inputmode="decimal" autocomplete="off"></div>
-    <div class="f"><label for="B">B</label><input class="input" id="B" inputmode="decimal" autocomplete="off"></div>
-    <div class="f"><label for="C">C</label><input class="input" id="C" inputmode="decimal" autocomplete="off"></div>
-  </div>
+  <section class="card sec hue-orange">
+    <div class="sec-h"><span class="ic orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19 12 5l8 14z"/><path d="M8 12.2 6.2 11.2M16 12.2l1.8-1M12 19v2"/></svg></span><span>Sides</span></div>
+    <div class="sec-b"><div class="grid3"><label class="fld"><span class="fk">a</span><input class="fv" id="a" inputmode="decimal" autocomplete="off"></label><label class="fld"><span class="fk">b</span><input class="fv" id="b" inputmode="decimal" autocomplete="off"></label><label class="fld"><span class="fk">c</span><input class="fv" id="c" inputmode="decimal" autocomplete="off"></label></div></div>
+  </section>
+  <section class="card sec hue-teal">
+    <div class="sec-h"><span class="ic teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M4 19 16 6"/><path d="M10 19a6 6 0 0 0-1.8-4.4"/></svg></span><span>Angles, in degrees</span></div>
+    <div class="sec-b"><div class="grid3"><label class="fld"><span class="fk">A</span><input class="fv" id="A" inputmode="decimal" autocomplete="off"></label><label class="fld"><span class="fk">B</span><input class="fv" id="B" inputmode="decimal" autocomplete="off"></label><label class="fld"><span class="fk">C</span><input class="fv" id="C" inputmode="decimal" autocomplete="off"></label></div></div>
+  </section>
   <div class="note" id="note"></div>
-  <div class="alt" id="alt" hidden><button class="chip on" data-sol="0">Solution 1</button><button class="chip" data-sol="1">Solution 2</button></div>
-  <div class="row2"><button class="btn" id="right">C = 90°</button><button class="btn" id="clear">Clear</button></div>
+  <div class="seg alt" id="alt" hidden><button class="on" data-sol="0">Solution 1</button><button data-sol="1">Solution 2</button></div>
+  <div class="btns"><button class="btn" id="right">C = 90°</button><button class="btn" id="clear">Clear</button></div>
 
-  <div class="facts" id="facts"></div>
+  <div id="facts"></div>
 </main>
 
 <script src="../shared/base.js"></script>
@@ -189,7 +174,7 @@ function draw(t) {
   const unit = (p, q) => { const dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; };
   const anchor = dx => dx > .35 ? 'start' : dx < -.35 ? 'end' : 'middle';
   const text = (cls, x, y, dir, str) => `<text class="lbl ${cls}${ex ? ' ex' : ''}" x="${x}" y="${y + (ex ? 6 : 4)}" text-anchor="${anchor(dir[0])}">${str}</text>`;
-  let h = `<defs><linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1E9BE0" stop-opacity=".28"/><stop offset="1" stop-color="#6A3CE0" stop-opacity=".12"/></linearGradient></defs>`;
+  let h = `<defs><linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop class="s1" offset="0"/><stop class="s2" offset="1"/></linearGradient></defs>`;
   h += `<polygon class="fill" points="${V.A} ${V.B} ${V.C}"/><polygon class="side" points="${V.A} ${V.B} ${V.C}"/>`;
   // angle arcs
   const opp = { A: ['B', 'C'], B: ['C', 'A'], C: ['A', 'B'] };
@@ -238,18 +223,15 @@ function update() {
   if (r.err) { note.textContent = r.err; draw(null); $('#facts').innerHTML = ''; return; }
   if (which >= r.sols.length) which = 0;
   const t = r.sols[which];
-  document.querySelectorAll('#alt .chip').forEach(c => c.classList.toggle('on', +c.dataset.sol === which));
+  document.querySelectorAll('#alt button').forEach(c => c.classList.toggle('on', +c.dataset.sol === which));
   note.textContent = r.ambiguous ? 'Two triangles fit these values.' : kind(t);
   for (const x of KEYS) if (!isFinite(k[x])) { $('#' + x).value = x === x.toLowerCase() ? fmt(t[x]) : fmt(t[x]); $('#' + x).parentElement.classList.add('solved'); }
   draw(t);
   const s = (t.a + t.b + t.c) / 2, area = Math.sqrt(Math.max(0, s * (s - t.a) * (s - t.b) * (s - t.c)));
-  const facts = [
-    ['Area', fmt(area)], ['Perimeter', side(t.a + t.b + t.c)],
-    ['Height to a', side(2 * area / t.a)], ['Height to b', side(2 * area / t.b)], ['Height to c', side(2 * area / t.c)],
-    ['Type', kind(t)]
-  ];
-  if (S.frac) facts.splice(1, 0, ['Sides to 1/' + S.prec, `a ${frac(t.a, S.prec)} · b ${frac(t.b, S.prec)} · c ${frac(t.c, S.prec)}`]);
-  $('#facts').innerHTML = facts.map(([k, v], i) => `<div class="fact${k === 'Area' ? ' hero' : k === 'Type' || k.startsWith('Sides') ? ' wide' : ''}"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('');
+  const li = (k, v, hue) => `<div class="li${hue ? ' h-' + hue : ''}"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`;
+  $('#facts').innerHTML = `<div class="hero"><div class="k">Area</div><div class="v">${esc(fmt(area))}</div><div class="s">${esc(kind(t))}</div></div>
+    <div class="tri">${['a', 'b', 'c'].map(x => { const v = 2 * area / t[x]; return `<div class="fact"><div class="k">Height to ${x}</div><div class="v">${esc(fmt(v))}</div>${S.frac ? `<div class="s">≈ ${esc(frac(v, S.prec))}</div>` : ''}</div>`; }).join('')}</div>
+    <div class="card list">${li('Perimeter', side(t.a + t.b + t.c), 'orange')}${S.frac ? li('Sides to 1/' + S.prec, `a ${frac(t.a, S.prec)} · b ${frac(t.b, S.prec)} · c ${frac(t.c, S.prec)}`, 'orange') : ''}${li('Type', kind(t))}</div>`;
 }
 function clearSolved() { KEYS.forEach(x => { const f = $('#' + x).parentElement; if (f.classList.contains('solved')) { $('#' + x).value = ''; f.classList.remove('solved'); } }); }
 
@@ -263,14 +245,14 @@ $('#clear').onclick = () => { KEYS.forEach(x => $('#' + x).value = ''); which = 
 $('#right').onclick = () => { clearSolved(); $('#C').value = '90'; buzz(8); update(); if (!$('#a').value) $('#a').focus(); };
 $('#setBtn').onclick = () => {
   const el = sheet(`<h2>Settings</h2>${themeSegHTML()}
-    <div class="label">Inch fractions</div>
-    <button class="opt" data-act="frac">Show sides as fractions<span class="check">${S.frac ? '✓' : ''}</span></button>
+    <div class="label">Inch fractions next to lengths</div>
+    <div class="seg">${[[false, 'Off'], [true, 'On']].map(([v, l]) => `<button data-frac="${v}" class="${S.frac === v ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div class="label">Round to</div>
-    <div class="seg">${[8, 16, 32, 64].map(p => `<button data-prec="${p}" class="${S.prec === p ? 'on' : ''}">1/${p}</button>`).join('')}</div>
-    <p style="color:var(--muted);font-size:14px;margin:16px 0 0">Sides accept fractions (3 1/2) and feet-inches (5' 3 1/2"), converted to inches.</p>`);
+    <div class="seg">${[16, 8, 32, 64].map(p => `<button data-prec="${p}" class="${S.prec === p ? 'on' : ''}">1/${p}</button>`).join('')}</div>
+    <p class="hint" style="margin-top:16px">Sides accept fractions (3 1/2) and feet-inches (5' 3 1/2"), converted to inches.</p>`);
   el.addEventListener('click', e => {
-    const a = e.target.closest('[data-act]')?.dataset.act, p = e.target.closest('[data-prec]');
-    if (a === 'frac') { S.frac = !S.frac; e.target.closest('.opt').querySelector('.check').textContent = S.frac ? '✓' : ''; }
+    const a = e.target.closest('[data-frac]'), p = e.target.closest('[data-prec]');
+    if (a) { S.frac = a.dataset.frac === 'true'; el.querySelectorAll('[data-frac]').forEach(x => x.classList.toggle('on', x === a)); }
     if (p) { S.prec = +p.dataset.prec; el.querySelectorAll('[data-prec]').forEach(x => x.classList.toggle('on', x === p)); }
     if (a || p) { persist(); clearSolved(); update(); }
   });

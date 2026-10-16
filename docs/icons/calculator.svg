@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<!-- Calculator icon: purple glyph on black. Render with docs/icons/render.cjs. -->
+<rect width="512" height="512" fill="#000"/>
+<g fill="none" stroke="#9F8FEF" stroke-width="30"><rect x="158" y="100" width="196" height="312" rx="34"/></g>
+<g fill="#9F8FEF"><rect x="196" y="140" width="120" height="57" rx="10"/>
+<circle cx="214" cy="247" r="15"/><circle cx="256" cy="247" r="15"/><circle cx="298" cy="247" r="15"/>
+<circle cx="214" cy="301" r="15"/><circle cx="256" cy="301" r="15"/><circle cx="298" cy="301" r="15"/>
+<circle cx="214" cy="356" r="15"/><rect x="241" y="341" width="72" height="30" rx="15"/></g>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<!-- Parking icon: yellow P on black. Render with docs/icons/render.cjs. -->
+<rect width="512" height="512" fill="#000"/>
+<path fill="#F5CD47" fill-rule="evenodd" d="M173 359V140h110a72 72 0 0 1 0 144h-53v75zM230 183h35a30 30 0 0 1 0 60h-35z"/>
+</svg>
