@@ -99,9 +99,9 @@
   function newTab(name) {
     return {
       name: name || 'TV',
-      tv: { src: 'measured', w: null, h: null, size: null, model: '', vesaTop: null, vesaLeft: null, vesaRight: null },
+      tv: { src: 'size', w: null, h: null, size: null, model: '', vesaTop: null, vesaLeft: null, vesaRight: null },
       mount: {
-        model: '', holesToTop: null, chain: 'measured', hookDrop: null, armDrop: null, sag: null,
+        model: '', holesFrom: 'top', holesToTop: null, holesToBottom: null, chain: 'measured', hookDrop: null, armDrop: null, sag: null,
         plateW: null, plateH: null, holeDown: null, rowGap: null, lagSpan: null, slide: null,
         adjUp: null, adjDown: null, studsNeeded: null
       },
@@ -111,7 +111,7 @@
         mantle: { edge: 'bottom', value: null, h: null, hR: null, len: null },
         ceiling: { edge: 'top', value: null, h: null }
       },
-      center: { mode: 'two', from: 'left', a: null, b: null, d: null },
+      center: { mode: 'half', from: 'left', a: null, b: null, d: null },
       studs: { from: 'center', list: [] },
       box: { on: false, w: null, h: null, margin: null },
       view: { eye: null, dist: null },
@@ -142,7 +142,7 @@
       tvSrc: tv.src === 'size' ? 'size' : 'measured', w: n(tv.w), h: n(tv.h), size: n(tv.size), model: pro ? (tv.model || '') : '',
       vesaTop: p(tv.vesaTop), vesaLeft: p(tv.vesaLeft), vesaRight: p(tv.vesaRight),
       chain: pro && m.chain === 'split' ? 'split' : 'measured',
-      holesToTop: n(m.holesToTop), hookDrop: p(m.hookDrop), armDrop: p(m.armDrop), sag: p(m.sag, DEFAULTS.sag),
+      holesFrom: m.holesFrom === 'bottom' ? 'bottom' : 'top', holesToTop: n(m.holesToTop), holesToBottom: n(m.holesToBottom), hookDrop: p(m.hookDrop), armDrop: p(m.armDrop), sag: p(m.sag, DEFAULTS.sag),
       mountModel: pro ? (m.model || '') : '',
       plateW: p(m.plateW), plateH: p(m.plateH), holeDown: p(m.holeDown), rowGap: p(m.rowGap),
       lagSpan: p(m.lagSpan), slide: p(m.slide), adjUp: p(m.adjUp), adjDown: p(m.adjDown), studsNeeded: p(m.studsNeeded),
@@ -218,7 +218,7 @@
   const EDGE_NAME = { top: 'TV top', center: 'TV center', bottom: 'TV bottom', bar: 'Bar bottom' };
   const FIELD_NAME = {
     'tv.w': 'TV width', 'tv.h': 'TV height', 'tv.size': 'TV size', 'tv.vesaTop': 'VESA to TV top',
-    'mount.holesToTop': 'holes to TV top', 'mount.hookDrop': 'plate holes to hook', 'mount.armDrop': 'arm hook to VESA',
+    'mount.holesToTop': 'holes to TV top', 'mount.holesToBottom': 'holes to TV bottom', 'mount.hookDrop': 'plate holes to hook', 'mount.armDrop': 'arm hook to VESA',
     'ref.floor.value': 'target height', 'ref.mantle.value': 'gap above mantle', 'ref.ceiling.value': 'gap below ceiling',
     'ref.ceiling.h': 'ceiling height', 'bar.h': 'soundbar height'
   };
@@ -247,10 +247,15 @@
       if (!isNum(e.hookDrop)) miss('mount.hookDrop');
       if (!isNum(e.armDrop)) miss('mount.armDrop');
       if (isNum(e.vesaTop) && isNum(e.hookDrop) && isNum(e.armDrop)) h2t = e.vesaTop - e.hookDrop - e.armDrop;
+    } else if (e.holesFrom === 'bottom') {             // top holes down to the TV bottom: the rest of the height is above
+      if (!isNum(e.holesToBottom)) miss('mount.holesToBottom');
+      else if (H != null) h2t = H - e.holesToBottom;
+      else if (e.tvSrc === 'measured') miss('tv.h');
     } else if (isNum(e.holesToTop)) h2t = e.holesToTop;
     else miss('mount.holesToTop');
     const hung = h2t == null ? null : h2t - e.sag;
-    r.chain = { mode: e.chain, measured: h2t, sag: e.sag, hung, vesaTop: e.vesaTop, hookDrop: e.hookDrop, armDrop: e.armDrop };
+    const from = e.chain === 'split' ? null : e.holesFrom;
+    r.chain = { mode: e.chain, from, measured: h2t, sag: e.sag, hung, vesaTop: e.vesaTop, hookDrop: e.hookDrop, armDrop: e.armDrop, toBottom: e.holesToBottom };
 
     /* reference */
     const kind = e.kind, edge = e.edge;
@@ -514,6 +519,7 @@
     if (chain.hung != null) {
       let how = '';
       if (chain.mode === 'split') how = 'VESA ' + T(chain.vesaTop) + ' − hook ' + T(chain.hookDrop) + ' − arm ' + T(chain.armDrop) + (chain.sag ? ' − sag ' + T(chain.sag) : '');
+      else if (chain.from === 'bottom') how = 'height ' + T(tv.h) + ' − ' + T(chain.toBottom) + ' to bottom' + (chain.sag ? ' − sag ' + T(chain.sag) : '');
       else if (chain.sag) how = 'measured ' + T(chain.measured) + ' − sag ' + T(chain.sag);
       rows.push({ id: 'chain', k: chain.hung < 0 ? 'Top holes above TV top' : 'Top holes to TV top', v: Math.abs(chain.hung), sub: 'once hung', alt: how });
     }
@@ -680,7 +686,8 @@
     const from = ref.kind === 'floor' ? -ref.ff : 0;
     const keys = [['bottom', 'bottom'], ['center', 'center'], ['hole', 'holes'], ['top', 'top']];
     for (const [k, nm] of keys) if (y[k] != null && Math.abs(y[k] - from) > EPS) add({ t: 'dim', side: 'left', a: from, b: y[k], v: Math.abs(y[k] - from), name: nm, key: k });
-    if (r.chain.hung != null && Math.abs(r.chain.hung) > EPS) add({ t: 'dim', side: 'right', a: y.hole, b: y.top, v: Math.abs(r.chain.hung), name: 'holes to top', key: 'chain' });
+    if (r.chain.from === 'bottom' && y.hole != null) add({ t: 'dim', side: 'right', a: y.bottom, b: y.hole, v: Math.abs(y.hole - y.bottom), name: 'holes to bottom', key: 'chain' });
+    else if (r.chain.hung != null && Math.abs(r.chain.hung) > EPS) add({ t: 'dim', side: 'right', a: y.hole, b: y.top, v: Math.abs(r.chain.hung), name: 'holes to top', key: 'chain' });
     if (r.bar && r.bar.top != null) {
       const b = r.bar;
       if (b.kind === 'wall') add({ t: 'dim', side: 'left', a: from, b: b.hole != null ? b.hole : b.top, v: Math.abs((b.hole != null ? b.hole : b.top) - from), name: b.hole != null ? 'bar holes' : 'bar top', key: b.hole != null ? 'barhole' : 'bartop' });
