@@ -218,7 +218,7 @@
   /* ---------- the whole result ---------- */
 
   const REF_LABEL = { floor: 'above floor', mantle: 'above mantle', ceiling: 'below ceiling' };
-  const EDGE_NAME = { top: 'TV top', center: 'TV center', bottom: 'TV bottom', bar: 'Bar bottom' };
+  const EDGE_NAME = { top: 'TV top', center: 'TV center', bottom: 'TV bottom', bar: 'Soundbar bottom' };
   const FIELD_NAME = {
     'tv.w': 'TV width', 'tv.h': 'TV height', 'tv.size': 'TV size', 'tv.vesaTop': 'VESA to TV top',
     'mount.holesToTop': 'holes to TV top', 'mount.holesToBottom': 'holes to TV bottom', 'mount.hookDrop': 'plate holes to hook', 'mount.armDrop': 'arm hook to VESA',
