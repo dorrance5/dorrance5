@@ -1,5 +1,5 @@
-const CACHE = 'counter-v20';
-const FILES = ['./', './index.html', './manifest.json', './icon-180.png', './icon-512.png'];
+const CACHE = 'counter-v21';
+const FILES = ['./', './index.html', './manifest.json', './icon-180.png', './icon-512.png', '../shared/base.css', '../shared/base.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
