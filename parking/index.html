@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Parking">
-<meta name="theme-color" content="#F2F2F7">
+<meta name="theme-color" content="#F4F4F5">
 <meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -15,13 +15,13 @@
 <link rel="stylesheet" href="../shared/base.css">
 <title>Parking</title>
 <style>
-:root{--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--hot:#D02A2A}
+:root{--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--hot:#C9372C}
 .mono{font-family:var(--mono);font-weight:700;letter-spacing:.04em}
 
 /* status pill */
 .pill{display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:17px;font-size:13px;font-weight:600;background:var(--chip);border:.5px solid var(--chip-line);white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}
-.dot.ok{background:var(--green)} .dot.warn{background:#E0A000} .dot.bad{background:var(--red)}
+.dot.ok{background:var(--green)} .dot.warn{background:var(--yellow)} .dot.bad{background:var(--red)}
 .dot.busy{background:var(--blue);animation:blink 1s ease-in-out infinite}
 @keyframes blink{50%{opacity:.25}}
 
@@ -30,8 +30,8 @@
 .banner button{font-weight:700;text-decoration:underline;margin-left:4px}
 
 /* entry card */
-.plate-in{height:64px;font:700 30px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;text-align:center;padding:0 10px}
-.plate-in::placeholder{letter-spacing:.06em;font-weight:600}
+.fld.plate .fv{font:700 28px/1.2 var(--mono);letter-spacing:.1em;text-transform:uppercase}
+.fld + .fld{margin-top:8px}
 .hint{min-height:22px;font-size:15px;line-height:1.4;color:var(--muted);margin:9px 2px 9px}
 .hint b{color:var(--text)}
 .hint.repeat b.n{color:var(--red)} .hint.second b.n{color:var(--blue)}
@@ -40,11 +40,13 @@
 .go{display:flex;gap:8px;margin-top:10px}
 .go .primary{flex:1.25} .go .btn{flex:1}
 
-.seg.tabs{margin:14px 0 8px}
-.seg.tabs button{font-size:14px}
-.seg.tabs b{font-weight:700;opacity:.6;margin-left:3px}
-
-.head{display:flex;align-items:baseline;justify-content:space-between;margin:6px 4px 2px;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+/* the three lists, each a card with its own color */
+.views{margin:2px 0 10px}
+.views button{font-size:14px}
+.views b{font-size:12px;font-weight:700;margin-left:6px;padding:1px 6px;border-radius:8px;background:var(--chip)}
+.views .on b{background:var(--blue);color:var(--bg)}
+.sec-h .sum{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.sec-b.rows{padding:0 16px 2px}
 
 /* list rows */
 .list{padding:2px 14px}
@@ -54,14 +56,15 @@
 .item .mid{flex:1;min-width:0}
 .item .l1{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .l2{font-size:13px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.item.pending .pl::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#E0A000;margin-left:6px;vertical-align:middle}
+.item.pending .pl::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--yellow);margin-left:6px;vertical-align:middle}
 .flags{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
 .flag{font-size:12px;font-weight:700;padding:4px 8px;border-radius:9px;white-space:nowrap;background:var(--chip);border:.5px solid var(--chip-line);color:var(--muted)}
 .flag.blue{color:var(--blue);background:var(--blue-bg);border-color:transparent}
+.flag.orange{color:var(--orange);background:var(--orange-bg);border-color:transparent}
 .flag.red{color:var(--danger-text);background:var(--danger);border-color:var(--danger-line)}
 .flag.hot{color:#fff;background:var(--hot);border-color:var(--hot)}
 .bar{height:6px;border-radius:3px;background:var(--track);overflow:hidden;margin-top:7px}
-.bar i{display:block;height:100%;background:var(--blue);border-radius:3px}
+.bar i{display:block;height:100%;background:var(--orange);border-radius:3px}
 .bar.done i{background:var(--hot)}
 .days{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
 .days span{font-size:12px;font-weight:600;padding:3px 7px;border-radius:7px;background:var(--chip);border:.5px solid var(--chip-line)}
@@ -97,18 +100,21 @@
 <main>
   <div id="banner"></div>
 
-  <div class="card">
-    <input id="plate" class="input plate-in" placeholder="PLATE" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next" maxlength="12" aria-label="Plate">
-    <div id="hint" class="hint"></div>
-    <div id="sugg" class="sugg" hidden></div>
-    <input id="loc" class="input" placeholder="Unit or spot" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done" maxlength="40" aria-label="Unit or spot">
-    <div class="go">
-      <button class="primary" id="log">Log</button>
-      <button class="btn" id="logn">Log + notice</button>
+  <section class="card sec hue-teal">
+    <div class="sec-h"><span class="ic teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16v-3.5L5.5 7h13l2.5 5.5V16z"/><path d="M3.5 12.5h17"/><circle cx="7.5" cy="16.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/></svg></span><span>Log a car</span></div>
+    <div class="sec-b">
+      <label class="fld plate"><span class="fk">Plate</span><input id="plate" class="fv" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next" maxlength="12"></label>
+      <div id="hint" class="hint"></div>
+      <div id="sugg" class="sugg" hidden></div>
+      <label class="fld"><span class="fk">Unit or spot</span><input id="loc" class="fv" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done" maxlength="40"></label>
+      <div class="go">
+        <button class="primary" id="log">Log</button>
+        <button class="btn" id="logn">Log + notice</button>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="seg tabs" id="tabs"></div>
+  <div class="seg views" id="tabs"></div>
   <div id="view"></div>
 </main>
 
@@ -219,7 +225,7 @@ function flagsHTML(r, s) {
   const out = [], n = notice(r);
   if (r.outcome) out.push(`<span class="flag">${esc(r.outcome)}</span>`);
   else if (n && n.ready) out.push(`<span class="flag hot">Tow eligible</span>`);
-  else if (n) out.push(`<span class="flag blue">Notice ${span(n.elig - Date.now())}</span>`);
+  else if (n) out.push(`<span class="flag orange">Notice ${span(n.elig - Date.now())}</span>`);
   const lv = level(s);
   if (lv === 'repeat') out.push(`<span class="flag red">${s.recent.size} nights</span>`);
   else if (lv === 'second') out.push(`<span class="flag blue">2 nights</span>`);
@@ -403,6 +409,17 @@ function nightsChip(s) {
   return lv === 'repeat' ? `<span class="flag red">${s.recent.size} nights</span>` : lv === 'second' ? `<span class="flag blue">2 nights</span>` : '';
 }
 
+// Each list is a card with its own color and icon, like the cards in TV Mount.
+const LOOK = {
+  walk: ['purple', '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'],
+  notices: ['orange', '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'],
+  repeats: ['magenta', '<path d="m17 3 3 3-3 3"/><path d="M4 12v-2a4 4 0 0 1 4-4h12"/><path d="m7 21-3-3 3-3"/><path d="M20 12v2a4 4 0 0 1-4 4H4"/>']
+};
+function box(kind, title, sum, rows) {
+  const [hue, glyph] = LOOK[kind];
+  return `<section class="card sec hue-${hue}"><div class="sec-h"><span class="ic ${hue}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></span><span>${title}</span><span class="sum">${sum}</span></div><div class="sec-b rows">${rows}</div></section>`;
+}
+
 function renderView() {
   const list = entries(), stats = plateStats(list);
   renderTabs(list, stats);
@@ -413,31 +430,28 @@ function renderView() {
     if (!k) { v.innerHTML = `<div class="empty">Nothing logged yet.<br>Type a plate above to start.</div>`; return; }
     const night = list.filter(r => nightKey(r.date, r.time) === k);
     const flagged = night.filter(r => level(stats[r.plate]) !== 'first').length;
-    v.innerHTML = `<div class="head"><span>${day(k)}</span><span>${night.length} ${night.length === 1 ? 'car' : 'cars'}${flagged ? ` · ${flagged} flagged` : ''}</span></div>
-      <div class="card list">${night.map(r => {
-        return itemHTML(r, stats[r.plate], `${r.loc ? esc(r.loc) + ' · ' : ''}${clock(r.time)}`, r.notes ? esc(r.notes) : '');
-      }).join('')}</div>`;
+    v.innerHTML = box('walk', day(k), `${night.length} ${night.length === 1 ? 'car' : 'cars'}${flagged ? ` · ${flagged} flagged` : ''}`, night.map(r => {
+      return itemHTML(r, stats[r.plate], `${r.loc ? esc(r.loc) + ' · ' : ''}${clock(r.time)}`, r.notes ? esc(r.notes) : '');
+    }).join(''));
     return;
   }
 
   if (tab === 'notices') {
     const open = list.filter(r => notice(r) && !r.outcome).sort((a, b) => notice(a).elig - notice(b).elig);
     if (!open.length) { v.innerHTML = `<div class="empty">No open towing notices.<br>Use Log + notice when you place one.</div>`; return; }
-    v.innerHTML = `<div class="head"><span>Open notices</span><span>24-hour clock</span></div>
-      <div class="card list">${open.map(r => {
+    v.innerHTML = box('notices', 'Open notices', '24-hour clock', open.map(r => {
         const n = notice(r);
         const l1 = n.ready ? `<b style="color:var(--red)">Tow eligible now</b>` : `Tow in ${span(n.elig - Date.now())}`;
         const l2 = `${r.loc ? esc(r.loc) + ' · ' : ''}placed ${stamp(n.t)}`;
         return itemHTML(r, stats[r.plate], l1, l2, `<div class="bar${n.ready ? ' done' : ''}"><i style="width:${(n.frac * 100).toFixed(1)}%"></i></div>`, nightsChip(stats[r.plate]));
-      }).join('')}</div>`;
+      }).join(''));
     return;
   }
 
   const reps = Object.values(stats).filter(s => s.recent.size >= 2)
     .sort((a, b) => b.recent.size - a.recent.size || (b.entries[0].date + b.entries[0].time).localeCompare(a.entries[0].date + a.entries[0].time));
   if (!reps.length) { v.innerHTML = `<div class="empty">No plates seen on 2 or more nights in the last ${SET.windowDays} days.</div>`; return; }
-  v.innerHTML = `<div class="head"><span>Last ${SET.windowDays} days</span><span>${SET.repeatNights}+ nights is red</span></div>
-    <div class="card list">${reps.map(s => {
+  v.innerHTML = box('repeats', `Last ${SET.windowDays} days`, `${SET.repeatNights}+ nights is red`, reps.map(s => {
       const r = s.entries[0];
       const total = s.all.size > s.recent.size ? ` · ${s.all.size} nights total` : '';
       return `<button class="item" data-plate="${esc(s.plate)}">
@@ -445,7 +459,7 @@ function renderView() {
         <div class="mid"><div class="l1">${r.loc ? 'Last at ' + esc(r.loc) : 'Last seen ' + day(r.date)}${total}</div>
         <div class="days">${[...s.recent].sort().reverse().map(k => `<span>${md(k)}</span>`).join('')}</div></div>
         <div class="flags">${flagsHTML({ plate: s.plate }, s)}${(() => { const o = s.entries.find(e => notice(e) && !e.outcome); return o ? flagsHTML({ ndate: o.ndate, ntime: o.ntime }, null) : ''; })()}</div></button>`;
-    }).join('')}</div>`;
+    }).join(''));
 }
 
 function render(keepEntry) {      // keepEntry: the open sheet already shows what was typed
