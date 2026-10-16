@@ -164,68 +164,73 @@
   .ptheme{flex:0 0 auto;padding:12px 15px 4px}
   .plabel{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
           color:var(--faint);margin-bottom:8px}
-  .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  [hidden]{display:none!important}
+  .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
   .seg button{height:36px;border-radius:13px;font-size:13px;font-weight:600;letter-spacing:.01em;
               background:rgba(255,255,255,.09);border:.5px solid rgba(255,255,255,.18);
               box-shadow:none;text-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
   .seg button.sel{background:rgba(255,255,255,.24);border-color:rgba(255,255,255,.5)}
 
   /* ============ NIGHT (OLED blackout) ============ */
-  body[data-theme="night"]{background:#000}
+  body[data-theme="night"]{background:#141517;--ink:#E6E7E9;--dim:#A0A3A9;--faint:rgba(230,231,233,.38)}
   body[data-theme="night"] .field,
   body[data-theme="night"] .veil{display:none}
-  body[data-theme="night"] .glass{background:rgba(255,255,255,.05);
-    border-color:rgba(255,255,255,.13);
+  body[data-theme="night"] .glass{background:#1F2023;
+    border-color:rgba(255,255,255,.09);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 22px rgba(0,0,0,.55)}
   body[data-theme="night"] .glass::before{background:none}
   body[data-theme="night"] .value{text-shadow:none}
-  body[data-theme="night"] .pad button{background:#151517;border-color:rgba(255,255,255,.10);
+  body[data-theme="night"] .value.err{color:#FEA362}
+  body[data-theme="night"] .fr.nlit .top{color:#6CC3E0}
+  body[data-theme="night"] .fr.dlit .den{color:#B8ACF6}
+  body[data-theme="night"] .pad button{background:#1F2023;border-color:rgba(255,255,255,.09);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.06);text-shadow:none;
     backdrop-filter:none;-webkit-backdrop-filter:none}
-  body[data-theme="night"] .zone.ops button{background:rgba(10,90,255,.24);
-    border-color:rgba(80,140,255,.45);color:#8FB8FF}
-  body[data-theme="night"] .zone.ops button.clear{background:rgba(255,45,45,.20);
-    border-color:rgba(255,110,110,.45);color:#FF8080}
-  body[data-theme="night"] .zone.ops button.eq{background:linear-gradient(180deg,rgba(255,255,255,.22),transparent) #FFD60A;border-color:#FFD60A;color:#000}
-  body[data-theme="night"] .bar{opacity:.8;box-shadow:none}
-  body[data-theme="night"] .toast{background:rgba(18,18,20,.95)}
-  body[data-theme="night"] .seg button.sel{background:rgba(255,214,10,.18);
-    border-color:rgba(255,214,10,.6);color:#FFD60A}
+  body[data-theme="night"] .zone.ops button{background:#1C2B41;
+    border-color:rgba(87,157,255,.45);color:#85B8FF}
+  body[data-theme="night"] .zone.ops button.clear{background:rgba(248,113,104,.16);
+    border-color:rgba(248,113,104,.45);color:#FD9891}
+  body[data-theme="night"] .zone.ops button.eq{background:linear-gradient(180deg,rgba(255,255,255,.22),transparent) #579DFF;border-color:#85B8FF;color:#141517}
+  body[data-theme="night"] .bar{background:linear-gradient(90deg,#6CC3E0,#B8ACF6);box-shadow:none}
+  body[data-theme="night"] .pill.danger{background:rgba(248,113,104,.16);border-color:rgba(248,113,104,.45);color:#FD9891}
+  body[data-theme="night"] .toast{background:rgba(30,31,34,.97)}
+  body[data-theme="night"] .seg button.sel{background:#1C2B41;
+    border-color:#579DFF;color:#85B8FF}
 
   /* ============ DAY (light) ============ */
-  body[data-theme="day"]{background:#F2F2F7;
-    --ink:#101014;--dim:rgba(0,0,0,.52);--faint:rgba(0,0,0,.34)}
+  body[data-theme="day"]{background:#F4F4F5;
+    --ink:#1E2126;--dim:#60646C;--faint:rgba(0,0,0,.34)}
   body[data-theme="day"] .field,
   body[data-theme="day"] .veil{display:none}
-  body[data-theme="day"] .glass{background:linear-gradient(180deg,#fff,#F7F7FA);
-    border-color:rgba(0,0,0,.08);
+  body[data-theme="day"] .glass{background:linear-gradient(180deg,#fff,#FAFAFA);
+    border-color:rgba(0,0,0,.09);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 1px 3px rgba(0,0,0,.06),0 6px 16px rgba(0,0,0,.05)}
   body[data-theme="day"] .glass::before{background:none}
   body[data-theme="day"] .value{text-shadow:none}
-  body[data-theme="day"] .value.err{color:#B45309}
+  body[data-theme="day"] .value.err{color:#C25100}
   body[data-theme="day"] .menu i{background:rgba(0,0,0,.7)}
   body[data-theme="day"] .menu{border-color:rgba(0,0,0,.14)}
-  body[data-theme="day"] .fr.nlit .top{color:#0E7C9E}
-  body[data-theme="day"] .fr.dlit .den{color:#7C3AED}
-  body[data-theme="day"] .pad button{background:#FFFFFF;border-color:rgba(0,0,0,.08);
+  body[data-theme="day"] .fr.nlit .top{color:#227D9B}
+  body[data-theme="day"] .fr.dlit .den{color:#6E5DC6}
+  body[data-theme="day"] .pad button{background:#FFFFFF;border-color:rgba(0,0,0,.09);
     box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.05);text-shadow:none;
     backdrop-filter:none;-webkit-backdrop-filter:none}
-  body[data-theme="day"] .bar{background:linear-gradient(90deg,#0E7C9E,#7C3AED);opacity:.55;box-shadow:none}
+  body[data-theme="day"] .bar{background:linear-gradient(90deg,#227D9B,#6E5DC6);box-shadow:none}
   body[data-theme="day"] .subpad button.del,
-  body[data-theme="day"] .zone.whole button.sym{color:rgba(0,0,0,.55)}
-  body[data-theme="day"] .zone.ops button{background:#E4EDFF;
-    border-color:rgba(10,87,208,.28);color:#0A57D0}
-  body[data-theme="day"] .zone.ops button.clear{background:#FFE4E4;
-    border-color:rgba(208,42,42,.3);color:#D02A2A}
-  body[data-theme="day"] .zone.ops button.eq{background:linear-gradient(180deg,rgba(255,255,255,.3),transparent) #FFD60A;border-color:#EBC400;color:#101014}
+  body[data-theme="day"] .zone.whole button.sym{color:#60646C}
+  body[data-theme="day"] .zone.ops button{background:#E9F2FF;
+    border-color:rgba(12,102,228,.28);color:#0C66E4}
+  body[data-theme="day"] .zone.ops button.clear{background:#FFECEB;
+    border-color:rgba(201,55,44,.35);color:#AE2E24}
+  body[data-theme="day"] .zone.ops button.eq{background:linear-gradient(180deg,rgba(255,255,255,.22),transparent) #0C66E4;border-color:#0055CC;color:#fff}
   body[data-theme="day"] .scrim{background:rgba(0,0,0,.28)}
   body[data-theme="day"] .row{background:rgba(0,0,0,.045);border-color:rgba(0,0,0,.10)}
   body[data-theme="day"] .pill{background:rgba(0,0,0,.06);border-color:rgba(0,0,0,.14)}
-  body[data-theme="day"] .pill.danger{background:#FFE4E4;border-color:rgba(208,42,42,.3);color:#D02A2A}
+  body[data-theme="day"] .pill.danger{background:#FFECEB;border-color:rgba(201,55,44,.35);color:#AE2E24}
   body[data-theme="day"] .phead{border-bottom-color:rgba(0,0,0,.12)}
-  body[data-theme="day"] .toast{background:rgba(255,255,255,.95);color:#101014;border-color:rgba(0,0,0,.12)}
+  body[data-theme="day"] .toast{background:rgba(255,255,255,.97);color:#1E2126;border-color:rgba(0,0,0,.12)}
   body[data-theme="day"] .seg button{background:rgba(0,0,0,.05);border-color:rgba(0,0,0,.12)}
-  body[data-theme="day"] .seg button.sel{background:#FFD60A;border-color:#EBC400;color:#101014}
+  body[data-theme="day"] .seg button.sel{background:#E9F2FF;border-color:#0C66E4;color:#0C66E4}
 </style>
 </head>
 <body>
@@ -255,12 +260,12 @@ if(t==="dark") document.body.dataset.theme="night";
     <button class="pill danger" id="wipeBtn">Clear</button>
   </div>
   <div class="ptheme">
-    <div class="plabel">Theme</div>
+    <div class="plabel" id="themeLabel" data-theme-label>Theme</div>
     <div class="seg" id="themeSeg" role="group" aria-label="Theme">
       <button data-t="auto">Auto</button>
       <button data-t="day">Day</button>
       <button data-t="night">Night</button>
-      <button data-t="aurora">Aurora</button>
+      <button data-t="aurora" hidden>Aurora</button>
     </div>
   </div>
   <div class="rows" id="rows"></div>
@@ -489,7 +494,7 @@ if(t==="dark") document.body.dataset.theme="night";
   /* ================= themes ================= */
   var themeSeg=document.getElementById("themeSeg");
   var themeMeta=document.querySelector('meta[name="theme-color"]');
-  var THEME_BG={day:"#F2F2F7",night:"#000000",aurora:"#0E0A1E"};
+  var THEME_BG={day:"#F4F4F5",night:"#141517",aurora:"#0E0A1E"};
 
   var darkMQ=matchMedia("(prefers-color-scheme: dark)");
   var themePref="auto";
@@ -501,7 +506,9 @@ if(t==="dark") document.body.dataset.theme="night";
     localStorage.removeItem("calculator.theme");
   }catch(e){}
 
-  // t = auto | day | night | aurora; Auto follows the device's light/dark setting
+  // t = auto | day | night | aurora; Auto follows the device's light/dark setting.
+  // Aurora is secret: the picker shows Auto, Day and Night. Five taps on the "Theme" label
+  // within 2 seconds turn Aurora on, and its button shows, selected, until another theme is picked.
   function setTheme(t){
     themePref=t;
     var mode=t==="auto"?(darkMQ.matches?"night":"day"):t;
@@ -510,6 +517,7 @@ if(t==="dark") document.body.dataset.theme="night";
     if(themeMeta) themeMeta.setAttribute("content",THEME_BG[mode]||THEME_BG.aurora);
     themeSeg.querySelectorAll("button").forEach(function(b){
       b.classList.toggle("sel",b.dataset.t===t);
+      if(b.dataset.t==="aurora") b.hidden=t!=="aurora";
     });
     try{ localStorage.setItem("theme",TO_SHARED[t]||t); }catch(e){}
   }
@@ -520,6 +528,13 @@ if(t==="dark") document.body.dataset.theme="night";
   themeSeg.addEventListener("click",function(e){
     var b=e.target.closest?e.target.closest("button"):null;
     if(b) setTheme(b.dataset.t);
+  });
+  var taps=[];
+  document.getElementById("themeLabel").addEventListener("click",function(){
+    var now=Date.now();
+    taps=taps.filter(function(x){return now-x<2000;}).concat(now);
+    if(taps.length<5) return;
+    taps=[]; setTheme("aurora"); toast("Aurora");
   });
   setTheme(themePref);
 

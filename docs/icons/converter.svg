@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<!-- Converter icon: teal arrows on black. Render with docs/icons/render.cjs. -->
+<rect width="512" height="512" fill="#000"/>
+<g fill="none" stroke="#6CC3E0" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"><path d="M120 196h273M332 135l61 61-61 61M391 315H120M181 254l-61 61 61 61"/></g>
+</svg>
