@@ -65,7 +65,7 @@ const scenes = [
   { name: '18-soundbar-wall', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1) },
   { name: '19-soundbar-wall-results', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1), scroll: 330 },
   { name: '20-soundbar-centered-mantle', seed: withBar(jobDoc('pro'), { kind: 'wall', place: 'center', w: 45, h: 3.25, holesToTop: 1.5 }), scroll: 330 },
-  { name: '21-soundbar-attachment-night', seed: withBar(jobDoc('simple'), { kind: 'tv', w: 45, h: 3.25, gap: 0.75 }), theme: 'dark' },
+  { name: '21-soundbar-attachment-night', seed: withBar(jobDoc('simple'), { kind: 'tv', w: 45, h: 3.25 }), theme: 'dark' },
   { name: '23-screenshot-room', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[1].room, { ceil: 108, mantle: 38, left: 52, right: 70 }); d.current = d.tabs[1].id; return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
   { name: '24-screenshot-room-mantle', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[0].room, { ceil: 110, left: 60, right: 66 }); return d; })(), theme: 'dark', act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
   { name: '25-room-card', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[1].room, { ceil: 108, mantle: 38, left: 52, right: 70 }); d.current = d.tabs[1].id; return d; })(), act: async p => { await p.click('[data-fold="room"]'); await p.evaluate(() => document.querySelector('[data-sec="room"]').scrollIntoView()); } },

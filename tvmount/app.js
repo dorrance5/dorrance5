@@ -297,12 +297,11 @@
     if (sb.kind !== 'none') {
       const centered = sb.kind === 'wall' && sb.place === 'center';
       b += `<div class="grid2">${fld('bar.w')}${fld('bar.h')}`;
-      if (!centered) b += fld('bar.gap', { ph: sb.kind === 'wall' ? G.DEFAULTS.barGap : G.DEFAULTS.barGapTV });
+      if (sb.kind === 'wall' && !centered) b += fld('bar.gap', { ph: G.DEFAULTS.barGap });   // an attachment holds the bar flush under the TV
       if (centered && kind !== 'mantle') b += fld('bar.below');
       if (sb.kind === 'wall') b += fld('bar.holesToTop');
       b += '</div>';
-      b += hint(sb.kind === 'tv' ? 'A soundbar attachment hangs the bar from the TV mount, so there is nothing to drill. Measure the TV bottom to the bar top once it hangs.'
-        : (centered ? (kind === 'mantle' ? 'Centered between the TV bottom and the mantle top.' : 'Centered between the TV bottom and the console top. Leave the console blank to center over the floor.') + ' '
+      if (sb.kind === 'wall') b += hint((centered ? (kind === 'mantle' ? 'Centered between the TV bottom and the mantle top.' : 'Centered between the TV bottom and the console top. Leave the console blank to center over the floor.') + ' '
           : '') + 'Hang the bracket on the bar, then measure from its holes to the bar top. The bar is centered on the TV center line.');
     }
     h += card('bar', 'Soundbar', b);
@@ -765,7 +764,7 @@
       if (edge === 'bar' && b) cap += line('Soundbar bottom ' + fmt(at(b, 'bottom')) + ' ' + label);
       else cap += line('TV ' + edge + ' ' + fmt(at(r, edge)) + ' ' + label);
       if (ks.length) cap += line((edge === 'bar' ? 'TV ' : '') + ks.map((k, i) => (i || edge === 'bar' ? k : k[0].toUpperCase() + k.slice(1)) + ' ' + fmt(at(r, k))).join(' · '), 'e');
-      if (b) cap += line(b.gap > 1e-9 ? 'Soundbar ' + fmt(b.gap) + ' below the TV' : 'Soundbar right below the TV', 'e');
+      if (b) cap += line(b.kind === 'tv' ? 'Soundbar flush under the TV' : b.gap > 1e-9 ? 'Soundbar ' + fmt(b.gap) + ' below the TV' : 'Soundbar right under the TV', 'e');
     } else if (r.ok) {
       const edges = ['top', 'center', 'bottom'].filter(k => r.m[k] != null).map(k => k + ' ' + fmt(r.m[k])).join(' · ');
       cap += line('Drill top holes ' + fmt(r.rows[0].v) + ' ' + r.rows[0].sub);
