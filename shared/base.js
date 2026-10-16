@@ -40,7 +40,7 @@ window.App = (function () {
     const t = shown(themePref());
     return `<div class="label" data-theme-label>Theme</div><div class="seg">${THEMES.map(([k, l]) =>
       `<button data-theme="${k}" class="${t === k ? 'on' : ''}">${l}</button>`).join('')}${aurora
-      ? `<button data-theme="aurora" class="on"${t === 'aurora' ? '' : ' hidden'}>Aurora</button>` : ''}</div>`;
+      ? `<button data-theme="aurora"${t === 'aurora' ? ' class="on"' : ' hidden'}>Aurora</button>` : ''}</div>`;
   }
   let taps = [];
   function secretTap() {
