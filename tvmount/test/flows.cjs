@@ -118,7 +118,8 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   const barHero = await page.textContent('#res .hero.sb');
   check('soundbar drill height has its own card', /Drill soundbar holes\s*22 1\/8"/.test(barHero.replace(/\u00a0/g, ' ')), barHero);
   check('soundbar is drawn', await page.$('#sk rect.sbar') !== null);
-  check('placement offers Bar bottom in place of TV bottom', (await page.textContent('[data-seg="ref.floor.edge"] [data-v="bottom"]')) === 'Bar bottom');
+  check('placement offers Soundbar bottom in place of TV bottom', (await page.textContent('[data-seg="ref.floor.edge"] [data-v="bottom"]')) === 'Soundbar bottom');
+  check('the Soundbar bottom button fits its text', await page.$eval('[data-seg="ref.floor.edge"] [data-v="bottom"]', el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight));
   check('TV size is not repeated under the results', !/^TV$/m.test(await page.$$eval('#res .li .k', ks => ks.map(k => k.textContent).join('\n'))));
   await page.tap('[data-seg="bar.place"] [data-v="center"]');
   check('centered hides the gap and asks for a console', !(await page.$('[data-k="bar.gap"]')) && !!(await page.$('[data-k="bar.below"]')));

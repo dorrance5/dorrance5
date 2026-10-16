@@ -48,7 +48,7 @@
     const t = tab(), kind = t.ref.kind;
     if (/^ref\.(floor|mantle|ceiling)\.value$/.test(path)) {
       const ed = G.edgeOf(t.ref[kind].edge, kind, t.bar), e = G.EDGE_NAME[ed];
-      return kind === 'floor' ? e + ' height' : (kind === 'mantle' ? 'Mantle to ' : 'Ceiling to ') + (ed === 'bar' ? 'bar bottom' : e);
+      return kind === 'floor' ? e + ' height' : (kind === 'mantle' ? 'Mantle to ' : 'Ceiling to ') + (ed === 'bar' ? 'soundbar bottom' : e);
     }
     if (path === 'ref.mantle.h' && pro()) return 'Left end height';
     if (/^studs\.list\./.test(path)) return tab().studs.from === 'edge' ? 'Stud from the ' + (t.center.mode !== 'half' && t.center.from === 'right' ? 'right' : 'left') + ' edge' : 'Stud from center (− is left)';
@@ -193,9 +193,9 @@
     return `<button class="fld${kp.path === path ? ' on' : ''}${o.wide ? ' wide' : ''}" data-k="${path}"><span class="fk">${esc(lab)}</span><span class="fv${shown ? '' : ' ph'}">${esc(shown || phs)}</span></button>`;
   }
   // Every choice lists its default first, on the left.
-  function seg(path, opts) {
+  function seg(path, opts, cls) {
     const cur = String(get(tab(), path));
-    return `<div class="seg" data-seg="${path}">${opts.map(([v, l]) => `<button data-v="${v}" class="${cur === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    return `<div class="seg${cls ? ' ' + cls : ''}" data-seg="${path}">${opts.map(([v, l]) => `<button data-v="${v}" class="${cur === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   }
   const CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
   // Each card has a color: its icon, its selected buttons and the field being typed in use it,
@@ -268,8 +268,10 @@
     // placement
     const k = t.ref[kind];
     b = seg('ref.kind', [['floor', 'Floor'], ['mantle', 'Mantle'], ['ceiling', 'Ceiling']]);
-    b += `<div class="label">Set the</div>` + seg('ref.' + kind + '.edge', [['bottom', t.bar.kind === 'none' ? 'TV bottom' : 'Bar bottom'], ['center', 'TV center'], ['top', 'TV top']]);
-    b += `<div class="grid2">${fld('ref.' + kind + '.value')}`;
+    // with a soundbar, the long "Soundbar bottom" gets a wider button and its field the full row
+    const hasBar = t.bar.kind !== 'none', barEdge = G.edgeOf(k.edge, kind, t.bar) === 'bar';
+    b += `<div class="label">Set the</div>` + seg('ref.' + kind + '.edge', [['bottom', hasBar ? 'Soundbar bottom' : 'TV bottom'], ['center', 'TV center'], ['top', 'TV top']], hasBar ? 'fit' : '');
+    b += `<div class="grid2">${fld('ref.' + kind + '.value', { wide: barEdge })}`;
     if (kind === 'mantle') b += fld('ref.mantle.h') + (P ? fld('ref.mantle.hR') + fld('ref.mantle.len') : '');
     if (kind === 'ceiling') b += fld('ref.ceiling.h');
     if (P) b += fld('ref.ff');
