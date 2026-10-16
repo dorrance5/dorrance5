@@ -201,6 +201,16 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.tap('#sk', { position: { x: 100, y: 100 } });
   await page.waitForTimeout(100);
   check('double-tap fits it again', (await vb()) === v0, [v0, await vb()]);
+  const halos = await page.$$eval('#sk text.dl', ts => {
+    const want = getComputedStyle(document.documentElement).getPropertyValue('--halo').trim();
+    const probe = document.createElementNS('http://www.w3.org/2000/svg', 'text'); probe.style.stroke = want; document.getElementById('sk').appendChild(probe);
+    const ok = getComputedStyle(probe).stroke; probe.remove();
+    return ts.filter(t => getComputedStyle(t).stroke !== ok).map(t => t.textContent);
+  });
+  check('every dimension label has the background halo', halos.length === 0, halos);
+  const vbNow = (await vb()).split(' ').map(Number);
+  const labelsIn = await page.$$eval('#sk text', (ts, v) => ts.every(t => { const b = t.getBBox(); return b.y >= v[1] - 0.01 && b.y + b.height <= v[1] + v[3] + 0.01; }), vbNow);
+  check('no label is cut off at the top or bottom', labelsIn);
   const touchAction = await page.$eval('#sk', el => getComputedStyle(el).touchAction);
   check('sketch has touch-action: none', touchAction === 'none', touchAction);
 
