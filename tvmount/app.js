@@ -531,9 +531,11 @@
     }
 
     // dimensions: drill red, the number you set orange, TV purple, bracket blue, soundbar teal, center line magenta
-    const dimCls = d => 'dl' + (d.key === 'hole' || d.key === 'barhole' ? ' hole' : d.input ? ' in' : d.key === 'chain' ? ' br' : d.key === 'tv' ? ' tv'
+    // (label classes must not match shape classes such as .tv or .hole, or they take that shape's outline)
+    const dimCls = d => 'dl' + (d.key === 'hole' || d.key === 'barhole' ? ' drl' : d.input ? ' in' : d.key === 'chain' ? ' br' : d.key === 'tv' ? ' tvd'
       : d.key === 'bargap' || d.key === 'bartop' ? ' sb' : d.side === 'bottom' ? ' cl' : '');
     const dims = [], t = f * 0.38;
+    let top = E.y1;   // a label too long for its dimension sits above it; the drawing grows to fit it
     const tick = (x, y) => L('dim', x - t, y - t, x + t, y + t);
     for (const p of placed) {
       const d = p.d, off = pad + p.k * gap;
@@ -548,7 +550,7 @@
         const room = p.hi - p.lo - f * 0.6;
         let s = full, cy = (p.lo + p.hi) / 2, fs = f;
         if (textW(s) > room) s = example ? name : value;
-        if (textW(s) > room) { if (textW(s) * 0.6 <= room) fs = f * room / textW(s); else cy = p.hi + textW(s) / 2 + f * 0.5; }
+        if (textW(s) > room) { if (textW(s) * 0.6 <= room) fs = f * room / textW(s); else { cy = p.hi + textW(s) / 2 + f * 0.5; top = Math.max(top, cy + textW(s) / 2); } }
         text.push(T(dimCls(d), X, cy, s, { rot: true, fs }));
       } else {
         const Y = d.side === 'top' ? B.y1 + off : B.y0 - off;
@@ -572,7 +574,7 @@
     }
 
     const m = f * 1.2;
-    const vb = { x: E.x0 - m, y: -(E.y1 + m), w: E.x1 - E.x0 + 2 * m, h: E.y1 - E.y0 + 2 * m };
+    const vb = { x: E.x0 - m, y: -(top + m), w: E.x1 - E.x0 + 2 * m, h: top - E.y0 + 2 * m };
     const defs = `<defs><pattern id="${hid}" patternUnits="userSpaceOnUse" width="1.6" height="1.6" patternTransform="rotate(45)"><line class="hl" x1="0" y1="0" x2="0" y2="1.6"/></pattern></defs>`;
     return { html: defs + back.join('') + mid.join('') + front.join('') + dims.join('') + text.join(''), vb };
   }
