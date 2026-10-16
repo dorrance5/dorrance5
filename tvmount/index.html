@@ -231,7 +231,9 @@ h1 .pro{font-size:12px;vertical-align:3px}
 .shot .cap span.e{font-size:14px}
 .shot .sk{flex:1;height:auto;min-height:0}
 .shot .x{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;width:40px;height:40px;border-radius:20px;background:var(--chip);border:.5px solid var(--chip-line);font-size:18px;transition:opacity .4s}
-.shot .x.gone{opacity:0;pointer-events:none}
+.shot .x.gone,.shot .vw.gone{opacity:0;pointer-events:none}
+.shot .vw{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);transform:translateX(-50%);width:228px;padding:4px;gap:4px;border-radius:17px;background:var(--tile);box-shadow:0 2px 14px rgba(0,0,0,.14);transition:opacity .4s}
+.shot .vw button{height:34px}
 </style>
 </head>
 <body>

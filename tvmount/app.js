@@ -430,8 +430,11 @@
   const EXAMPLE = (() => { const t = G.newTab('Example'); t.tv.src = 'size'; t.tv.size = 65; t.mount.holesToTop = 4.5; t.ref.floor.value = 30; return t; })();
 
   // Lay the sketch out at label size f (wall inches). Returns svg markup and its viewBox.
-  function sketchSVG(sk, f, example, hid, room) {
-    const items = room ? sk.items : sk.items.filter(i => !i.room), tv = sk.tv;   // room items: screenshot mode only
+  // view: 'phone' (the app), 'crew' (installer screenshot) or 'client' (client screenshot).
+  // Room items show in screenshots only; the client sees no holes, studs or layout marks.
+  const SHOWS = { phone: i => !i.room && !i.client, crew: i => !i.client, client: i => !i.crew };
+  function sketchSVG(sk, f, example, hid, view) {
+    const items = sk.items.filter(SHOWS[view] || SHOWS.phone), tv = sk.tv;
     const B = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
     const grow = (x, y) => { B.x0 = Math.min(B.x0, x); B.x1 = Math.max(B.x1, x); B.y0 = Math.min(B.y0, y); B.y1 = Math.max(B.y1, y); };
     for (const it of items) {
@@ -450,16 +453,32 @@
     // stud and edge names sit just inside the bottom of the drawing (above the floor when there is one)
         const studRow = B.y0 + f * 0.8, edgeRow = B.y0 + f * 0.8;
 
-    // dimension tiers: shortest nearest the drawing; dims that don't overlap share a tier
+    const textW = (s, fs) => String(s).length * 0.56 * (fs || f);
+    // a side dimension's label: name and value, the value alone, smaller, or above the dimension when it is too short
+    const sideLabel = (d, lo, hi) => {
+      const room = hi - lo - f * 0.6, value = example ? '' : fmt(d.v);
+      let s = example ? d.name : d.name + ' ' + value, fs = f, over = false;
+      if (textW(s) > room) s = example ? d.name : value;
+      if (textW(s) > room) { if (textW(s) * 0.6 <= room) fs = f * room / textW(s); else over = true; }
+      return { s, fs, over };
+    };
+
+    // dimension tiers: shortest nearest the drawing; dims that don't overlap share a tier.
+    // A label above its dimension counts as part of it, so the next dimension up moves out a tier.
     const pad = f * 1.5, gap = f * 2.3, tiers = {}, placed = [];
     for (const s of ['left', 'right', 'top', 'bottom']) {
       const list = items.filter(i => i.t === 'dim' && i.side === s)
-        .map(d => ({ d, lo: Math.min(d.a, d.b), hi: Math.max(d.a, d.b) }))
+        .map(d => {
+          const p = { d, lo: Math.min(d.a, d.b), hi: Math.max(d.a, d.b) };
+          p.end = p.hi;
+          if (s === 'left' || s === 'right') { p.lab = sideLabel(d, p.lo, p.hi); if (p.lab.over) p.end = p.hi + f * 0.8 + textW(p.lab.s); }
+          return p;
+        })
         .sort((p, q) => (p.hi - p.lo) - (q.hi - q.lo));
       const rows = [];
       for (const p of list) {
         let k = 0;
-        while (rows[k] && rows[k].some(q => p.lo < q.hi - 1e-6 && q.lo < p.hi - 1e-6)) k++;
+        while (rows[k] && rows[k].some(q => p.lo < q.end - 1e-6 && q.lo < p.end - 1e-6)) k++;
         (rows[k] = rows[k] || []).push(p); p.k = k; placed.push(p);
       }
       tiers[s] = rows.length;
@@ -474,7 +493,6 @@
       const fs = o.fs || f;
       return `<text class="${cls}" x="${N(x)}" y="${N(-y)}" font-size="${N(fs)}" stroke-width="${N(fs * 0.34)}" text-anchor="${o.anchor || 'middle'}" dominant-baseline="central"${o.rot ? ` transform="rotate(-90 ${N(x)} ${N(-y)})"` : ''}>${esc(s)}</text>`;
     };
-    const textW = (s, fs) => String(s).length * 0.56 * (fs || f);
     const val = s => example ? s.replace(/\{[^}]*\}/g, '…') : fill(s);
 
     for (const it of items) {
@@ -493,7 +511,8 @@
           if (it.hspan) {
             // the ceiling's name sits under it at the left, inside the drawing, clear of the right-hand dimensions
             if (it.cls === 'ceiling') text.push(T('ll', B.x0 + f * 0.4, y0 - f * 0.8, s, { anchor: 'start', fs: f * 0.9 }));
-            else text.push(T(it.cls === 'eye' ? 'el' : 'll', it.cls === 'eye' ? B.x1 : E.x1, y0 + f * 0.8, s, { anchor: 'end', fs: f * 0.9 }));
+            else if (it.cls === 'eye') text.push(T('el', Math.min(B.x1, ...items.filter(i => i.cls === 'wall' && i.side > 0).map(i => i.x0 - f * 0.4)), y0 + f * 0.8, s, { anchor: 'end', fs: f * 0.9 }));   // inside the right wall
+            else text.push(T('ll', E.x1, y0 + f * 0.8, s, { anchor: 'end', fs: f * 0.9 }));
           } else if (it.cls === 'stud') text.push(T('stl', it.x0, studRow + textW(s, f * 0.85) / 2 - f * 0.4, s, { fs: f * 0.85, rot: true }));
           else text.push(T('cll', it.x0, edgeRow, s, { fs: f * 0.85 }));
         }
@@ -562,10 +581,9 @@
         const xe = d.side === 'left' ? tv.x0 : tv.x1;
         for (const yy of [d.a, d.b]) dims.push(`<line class="ext" x1="${N(xe + sgn * f * 0.25)}" y1="${N(-yy)}" x2="${N(X + sgn * f * 0.45)}" y2="${N(-yy)}"${VE}/>`);
         dims.push(L('dim', X, d.a, X, d.b), tick(X, d.a), tick(X, d.b));
-        const room = p.hi - p.lo - f * 0.6;
-        let s = full, cy = (p.lo + p.hi) / 2, fs = f;
-        if (textW(s) > room) s = example ? name : value;
-        if (textW(s) > room) { if (textW(s) * 0.6 <= room) fs = f * room / textW(s); else { cy = p.hi + textW(s) / 2 + f * 0.5; top = Math.max(top, cy + textW(s) / 2); } }
+        const { s, fs, over } = p.lab;
+        const cy = over ? p.hi + textW(s) / 2 + f * 0.5 : (p.lo + p.hi) / 2;
+        if (over) top = Math.max(top, cy + textW(s) / 2);
         text.push(T(dimCls(d), X, cy, s, { rot: true, fs }));
       } else {
         const Y = d.side === 'top' ? B.y1 + off : B.y0 - off;
@@ -680,12 +698,12 @@
     const aspectH = vb => Math.max(220, Math.min(Math.min(470, innerHeight * 0.56), cw * vb.h / vb.w));
     let f = o.px * (sk.tv.x1 - sk.tv.x0) * 1.9 / cw, out;
     for (let i = 0; i < 3; i++) {
-      out = sketchSVG(sk, f, o.example, o.hid, o.room);
+      out = sketchSVG(sk, f, o.example, o.hid, o.view);
       if (o.autoHeight) svg.style.height = Math.round(aspectH(out.vb)) + 'px';
       const ch = svg.clientHeight || 300;
       f = o.px / Math.min(cw / out.vb.w, ch / out.vb.h);
     }
-    out = sketchSVG(sk, f, o.example, o.hid, o.room);
+    out = sketchSVG(sk, f, o.example, o.hid, o.view);
     svg.innerHTML = out.html;
     zm.setBase(fitAspect(out.vb, cw, svg.clientHeight || 300));
   }
@@ -707,25 +725,53 @@
     closeKeypad(); closeSheet();
     const el = document.createElement('div');
     el.className = 'shot';
-    el.innerHTML = '<div class="cap" id="shotCap"></div><svg class="sk" id="shotSk" role="img" aria-label="Wall sketch"></svg><button class="x" id="shotX" aria-label="Close screenshot mode">✕</button>';
+    el.innerHTML = '<div class="cap" id="shotCap"></div><svg class="sk" id="shotSk" role="img" aria-label="Wall sketch"></svg><button class="x" id="shotX" aria-label="Close screenshot mode">✕</button>'
+      + '<div class="seg vw" id="shotVw" role="group" aria-label="Screenshot for"><button data-v="client">Client</button><button data-v="crew">Installer</button></div>';
     document.body.appendChild(el);
-    const x = el.querySelector('#shotX');
+    const x = el.querySelector('#shotX'), vw = el.querySelector('#shotVw');
     let hideT;
-    const peek = () => { x.classList.remove('gone'); clearTimeout(hideT); hideT = setTimeout(() => x.classList.add('gone'), 1800); };
+    const peek = () => {
+      for (const c of [x, vw]) c.classList.remove('gone');
+      clearTimeout(hideT); hideT = setTimeout(() => { for (const c of [x, vw]) c.classList.add('gone'); }, 1800);
+    };
     shot = { el, zm: zoomer(el.querySelector('#shotSk'), peek) };
     x.onclick = closeShot;
+    vw.onclick = e => {
+      const b = e.target.closest('[data-v]');
+      if (!b) return;
+      peek();
+      if (b.dataset.v === doc.settings.shot) return;
+      doc.settings.shot = b.dataset.v; persist(); buzz(6);
+      shot.zm.reset(); renderShot();
+    };
     peek();
     renderShot();
   }
   function closeShot() { if (!shot) return; shot.el.remove(); shot = null; }
   function renderShot() {
     if (!shot) return;
-    const t = tab(), example = !r.sketch;
-    const hero = r.rows[0];
-    const edges = ['top', 'center', 'bottom'].filter(k => r.m[k] != null).map(k => k + ' ' + fmt(r.m[k])).join(' · ');
-    const sbh = r.ok && r.bar && r.bar.hole != null ? `<span class="e">Soundbar holes ${esc(fmt(r.bar.m.hole))}</span>` : '';
-    $('#shotCap').innerHTML = `<b>${esc(t.name)}</b><span>${r.ok ? 'Drill top holes ' + esc(fmt(hero.v)) + ' ' + esc(hero.sub) : 'Example'}</span>${r.ok && edges ? `<span class="e">TV ${esc(edges)}</span>` : ''}${sbh}`;
-    drawInto(shot.el.querySelector('#shotSk'), shot.zm, example ? G.compute(EXAMPLE, { mode: 'simple' }).sketch : r.sketch, { px: Math.max(13, Math.min(22, Math.min(innerWidth, innerHeight) / 29)), example, hid: 'hatchB', room: true });
+    const t = tab(), example = !r.sketch, view = doc.settings.shot;
+    shot.el.querySelectorAll('#shotVw button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
+    const line = (s, cls) => `<span${cls ? ` class="${cls}"` : ''}>${esc(s)}</span>`;
+    let cap = '';
+    if (example) cap = line('Example');
+    else if (view === 'client') {
+      // where the TV goes, as the client reads it: heights above the finished floor, or from the mantle or ceiling
+      const { kind, edge, label } = r.ref, b = r.bar && r.bar.top != null ? r.bar : null;
+      const at = (o, k) => kind === 'floor' ? o.aff[k] : o.m[k];
+      const ks = ['top', 'center', 'bottom'].filter(k => k !== edge && at(r, k) != null);
+      if (edge === 'bar' && b) cap += line('Soundbar bottom ' + fmt(at(b, 'bottom')) + ' ' + label);
+      else cap += line('TV ' + edge + ' ' + fmt(at(r, edge)) + ' ' + label);
+      if (ks.length) cap += line((edge === 'bar' ? 'TV ' : '') + ks.map((k, i) => (i || edge === 'bar' ? k : k[0].toUpperCase() + k.slice(1)) + ' ' + fmt(at(r, k))).join(' · '), 'e');
+      if (b) cap += line(b.gap > 1e-9 ? 'Soundbar ' + fmt(b.gap) + ' below the TV' : 'Soundbar right below the TV', 'e');
+    } else if (r.ok) {
+      const edges = ['top', 'center', 'bottom'].filter(k => r.m[k] != null).map(k => k + ' ' + fmt(r.m[k])).join(' · ');
+      cap += line('Drill top holes ' + fmt(r.rows[0].v) + ' ' + r.rows[0].sub);
+      if (edges) cap += line('TV ' + edges, 'e');
+      if (r.bar && r.bar.hole != null) cap += line('Soundbar holes ' + fmt(r.bar.m.hole), 'e');
+    } else cap = line('Add the bracket to see where to drill');
+    $('#shotCap').innerHTML = `<b>${esc(t.name)}</b>${cap}`;
+    drawInto(shot.el.querySelector('#shotSk'), shot.zm, example ? G.compute(EXAMPLE, { mode: 'simple' }).sketch : r.sketch, { px: Math.max(13, Math.min(22, Math.min(innerWidth, innerHeight) / 29)), example, hid: 'hatchB', view });
   }
   $('#shotBtn').onclick = openShot;
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && shot) closeShot(); });

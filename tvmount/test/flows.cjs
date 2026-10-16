@@ -138,8 +138,20 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   check('the phone sketch leaves the room out', !(await page.$('#sk line.wall')) && (await hero()).replace(/\u00a0/g, ' ') === '53 7/8"');
   await page.tap('[data-shot]');
   check('screenshot mode draws both walls and the ceiling', (await page.$$('#shotSk line.wall')).length === 2 && /Ceiling/.test(await page.textContent('#shotSk')));
-  await page.tap('#shotSk', { position: { x: 150, y: 400 } });
-  await page.waitForTimeout(400);
+  // the client view comes first: where the TV goes, without holes, studs or layout marks
+  const shotCap = async () => (await page.textContent('#shotCap')).replace(/\u00a0/g, ' ');
+  check('screenshot mode starts on the client view, on the left', await page.$eval('#shotVw', el => el.firstElementChild.dataset.v === 'client' && el.firstElementChild.classList.contains('on')));
+  const clientShot = { drill: (await page.$$('#shotSk line.drill')).length, holes: (await page.$$('#shotSk circle.hole')).length, cap: await shotCap() };
+  check('the client view has no drill lines or holes', clientShot.drill === 0 && clientShot.holes === 0, clientShot);
+  check('the client caption gives the TV height, not the drill height', /^Living room\s*TV center 42" above floor/.test(clientShot.cap) && !/Drill|holes/.test(clientShot.cap), clientShot.cap);
+  await page.tap('#shotVw [data-v="crew"]');
+  const crewShot = { drill: (await page.$$('#shotSk line.drill')).length, cap: await shotCap() };
+  check('the installer view shows the drill line and height', crewShot.drill === 1 && /Drill top holes 53 7\/8"/.test(crewShot.cap), crewShot);
+  check('the view choice is saved', await page.evaluate(() => TVM.doc.settings.shot) === 'crew');
+  await page.tap('#shotX');
+  await page.tap('[data-shot]');
+  check('and it opens on the last view', await page.$eval('#shotVw .on', el => el.dataset.v) === 'crew' && (await page.$$('#shotSk line.drill')).length === 1);
+  await page.tap('#shotVw [data-v="client"]');
   await page.tap('#shotX');
   await page.tap('[data-fold="room"]');
 
@@ -233,7 +245,7 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.tap('#shotBtn');
   check('screenshot mode covers the screen', await page.isVisible('.shot') && await page.$eval('.shot', el => { const r = el.getBoundingClientRect(); return r.width === innerWidth && r.height === innerHeight; }));
   await page.waitForTimeout(2300);
-  check('its close button fades away', await page.$eval('#shotX', el => el.classList.contains('gone')));
+  check('its close button and view choice fade away', await page.$eval('#shotX', el => el.classList.contains('gone')) && await page.$eval('#shotVw', el => el.classList.contains('gone')));
   await page.tap('#shotSk', { position: { x: 150, y: 400 } });
   await page.waitForTimeout(500);
   await page.tap('#shotX');

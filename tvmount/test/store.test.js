@@ -15,7 +15,7 @@ test('first run gives one empty tab', () => {
   assert.equal(doc.version, S.VERSION);
   assert.equal(doc.tabs.length, 1);
   assert.equal(doc.current, doc.tabs[0].id);
-  assert.deepEqual(doc.settings, { mode: 'simple', prec: 16, dec: false });
+  assert.deepEqual(doc.settings, { mode: 'simple', prec: 16, dec: false, shot: 'client' });
 });
 
 test('save then load round-trips', () => {

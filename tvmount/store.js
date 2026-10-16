@@ -20,7 +20,7 @@
     0: d => Object.assign(Array.isArray(d) ? { tabs: d } : Object.assign({}, d), { version: 1 })
   };
 
-  const SETTINGS = { mode: 'simple', prec: 16, dec: false };
+  const SETTINGS = { mode: 'simple', prec: 16, dec: false, shot: 'client' };
   const TV_ITEM = { model: '', w: null, h: null, vesaTop: null, vesaLeft: null, vesaRight: null };
   const MOUNT_ITEM = {
     model: '', holesFrom: 'top', holesToTop: null, holesToBottom: null, hookDrop: null, armDrop: null, sag: null, plateW: null, plateH: null,
@@ -72,6 +72,7 @@
     doc.settings = conform(SETTINGS, d.settings);
     if (![8, 16, 32].includes(doc.settings.prec)) doc.settings.prec = 16;
     if (!['simple', 'pro'].includes(doc.settings.mode)) doc.settings.mode = 'simple';
+    if (!['client', 'crew'].includes(doc.settings.shot)) doc.settings.shot = 'client';   // who the screenshot is for
     doc.tabs = items(d.tabs, SAVED_TAB, 't').map(t => {
       if (!t.name.trim()) t.name = 'TV';
       return t;
