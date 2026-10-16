@@ -44,6 +44,7 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   check('standard size and half a distance by default', !!(await page.$('[data-size="65"]')) && !!(await page.$('[data-k="center.d"]')));
   const firsts = await page.$$eval('#form .seg', segs => segs.map(sg => sg.firstElementChild.classList.contains('on')));
   check('every choice starts on its leftmost option', firsts.every(Boolean), firsts);
+  check('half a distance has no left or right choice', !(await page.$('[data-seg="center.from"]')));
   await page.tap('[data-seg="tv.src"] [data-v="measured"]');
 
   // keypad: whole inches, then numerator over denominator like Calculator

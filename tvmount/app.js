@@ -50,7 +50,7 @@
       return kind === 'floor' ? e + ' height' : (kind === 'mantle' ? 'Mantle to ' : 'Ceiling to ') + (ed === 'bar' ? 'bar bottom' : e);
     }
     if (path === 'ref.mantle.h' && pro()) return 'Left end height';
-    if (/^studs\.list\./.test(path)) return tab().studs.from === 'edge' ? 'Stud from the ' + (t.center.from || 'left') + ' edge' : 'Stud from center (− is left)';
+    if (/^studs\.list\./.test(path)) return tab().studs.from === 'edge' ? 'Stud from the ' + (t.center.mode !== 'half' && t.center.from === 'right' ? 'right' : 'left') + ' edge' : 'Stud from center (− is left)';
     return (F[path] || [path])[0];
   }
 
@@ -277,9 +277,10 @@
 
     // center line
     const ct = r.center;
-    b = seg('center.mode', [['half', 'Half a distance'], ['two', 'Two marks']]) + seg('center.from', [['left', 'From left'], ['right', 'From right']]);
+    b = seg('center.mode', [['half', 'Half a distance'], ['two', 'Two marks']]);
+    if (t.center.mode !== 'half') b += seg('center.from', [['left', 'From left'], ['right', 'From right']]);   // half is the same from either end
     b += t.center.mode === 'half' ? `<div class="grid2">${fld('center.d', { wide: true })}</div>` : `<div class="grid2">${fld('center.a')}${fld('center.b')}</div>`;
-    b += ct ? `<div class="res">Center line <b>${fmt(ct.pos)}</b> from the ${ct.from} edge${ct.mode === 'two' ? `, ${fmt(ct.half)} to each mark` : ''}</div>`
+    b += ct ? `<div class="res">Center line <b>${fmt(ct.pos)}</b> ${ct.mode === 'half' ? 'from either end' : 'from the ' + ct.from + ' edge'}${ct.mode === 'two' ? `, ${fmt(ct.half)} to each mark` : ''}</div>`
       : hint(t.center.mode === 'half' ? 'One distance, like the wall or the mantle; the center is half of it.' : 'Two marks measured from the same edge, like both sides of a fireplace.');
     h += card('center', 'Center line', b);
 
