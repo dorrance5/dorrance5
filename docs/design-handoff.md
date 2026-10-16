@@ -4,18 +4,29 @@
 
 Restyle the other apps on dorrance.me so that they look like TV Mount (`tvmount/`). The owner likes the TV Mount design. Keep what each app does. Change only how it looks.
 
-The apps to restyle are Calculator, Converter, Counter, Triangle, Parking and the home page (`index.html`).
+| App | What to do |
+|---|---|
+| Converter (`converter/`) | Full restyle. |
+| Triangle (`triangle/`) | Full restyle. |
+| Counter (`counter/`) | Full restyle. |
+| Home page (`index.html`) | Full restyle. |
+| Calculator (`calculator/`) | Colors only. Keep its glass look and its layout. |
+| Parking (`parking/`) | Do not change. It must keep its current look. |
+| TV Mount (`tvmount/`) | The model. Only move its shared parts to `shared/`. |
+
+## Decisions from the owner
+
+- **Aurora is a secret theme.** Remove it from every theme picker. Keep it in the code. A hidden gesture turns it on (see "Secret Aurora" below). TV Mount does not get Aurora at all.
+- **Calculator gets new colors only.** Keep its glass look, its layout and its keys. Change the colors of its Day and Night themes to the TV Mount colors.
+- **Parking is not included.** It must look the same after your work as it does now.
+- **Triangle and Converter keep the phone keyboard.** Do not give them the TV Mount keypad.
 
 ## Before you start
 
 1. Read `CLAUDE.md`. It has the push rule, the cache rule and the choice rule.
 2. Open TV Mount at phone size (390 × 844) in Day and in Night. Look at Simple mode first. The owner uses Simple mode most.
 3. Make reference screenshots of TV Mount with `tvmount/test/shots.cjs`. The commands are in `CLAUDE.md`.
-4. Ask the owner these questions before you change code:
-   - TV Mount has no Aurora theme. Remove Aurora from all apps? Calculator, Counter and the home page use Aurora now.
-   - Calculator has its own glass look and its own theme code. Restyle all of it, or only its colors?
-   - Parking is not on the home page. Restyle it too?
-   - Triangle and Converter take numbers with the phone keyboard. Give them the TV Mount keypad, or keep the phone keyboard?
+4. Make Day and Night screenshots of every app at 390 × 844, Parking included. You need them to compare later.
 
 ## What the TV Mount design is
 
@@ -23,7 +34,7 @@ All of it is in `tvmount/index.html` (styles) and `tvmount/app.js` (`card()`, `I
 
 ### Colors
 
-- There are two themes, Day and Night. Auto follows the phone.
+- There are two themes in the picker, Day and Night. Auto follows the phone.
 - The grays are neutral. Do not use blue grays.
 - The accent colors come from Atlassian's palette.
 - Blue is for selection outside a card, the main result card, and the main button (for example Done).
@@ -69,38 +80,44 @@ All of it is in `tvmount/index.html` (styles) and `tvmount/app.js` (`card()`, `I
 - A row of choices is a `.seg`.
 - Put the default choice on the left, in every row.
 
-### Keypad
-
-- The TV Mount keypad follows Calculator. Whole numbers are on the left. The numerator and the denominator are on the right, with a teal-to-purple bar between them.
-- Numerator digits are teal. Denominator digits are purple.
-- The keypad is 313 px tall on an iPhone 13.
-
 ### Type and shape
 
 - The font is `--ui`, the system rounded font.
 - Cards have a 20 px radius. Buttons and chips have a 13 to 14 px radius.
 - Use sentence case. Small section labels are uppercase.
 
+### Keypad
+
+- The TV Mount keypad is for TV Mount only. Do not add it to other apps.
+
+## Secret Aurora
+
+- Every theme picker shows Auto, Day and Night only.
+- Tap the "Theme" label five times within 2 seconds to turn Aurora on. Show a short toast: "Aurora".
+- While Aurora is on, show an extra "Aurora" button in the picker, selected. When the owner picks another theme, hide that button again.
+- The setting stays in the shared `theme` key as `aurora`, so it carries to the other apps.
+- TV Mount ignores Aurora and shows Night (`App.init({ aurora: false })` does this now). Keep that.
+- `shared/base.js`, Calculator, Counter and the home page each have theme code. Do the same thing in each.
+
 ## Plan
 
-1. Move the shared parts from `tvmount/index.html` to `shared/base.css`:
+1. Freeze Parking first. Copy `shared/base.css` and `shared/base.js` to `parking/base.css` and `parking/base.js`. Point `parking/index.html` and `parking/sw.js` at the copies. Increase its `CACHE`. Make Parking screenshots again. They must match the ones from before.
+2. Move the shared parts from `tvmount/index.html` to `shared/base.css`:
    - the Day and Night tokens, but not the sketch tokens (`--tv`, `--wood`, `--stud` and the others),
    - `.pro`, `.ic` and the `hue-*` classes,
    - the card header (`.sec`), `.fld`, `.hero`, `.tri`, `.fact` and `.li` with `h-*`.
 
    Keep the sketch and keypad styles in `tvmount/index.html`. Then make TV Mount screenshots again. They must match the reference screenshots.
-2. Restyle the apps that use `shared/`: Converter, Triangle and Parking.
-3. Restyle Counter and Calculator. They have their own styles and theme code. Move them onto `shared/base.css` and `shared/base.js` if the owner agrees. This keeps one source for the look.
-4. Restyle the home page: the icon grid, the menu and the theme picker.
-5. If the owner removes Aurora everywhere:
-   - remove it from `THEMES` in `shared/base.js` and from `shared/base.css`,
-   - remove it from Calculator, Counter and the home page,
-   - show a stored `aurora` setting as Night. TV Mount already does this with `App.init({ aurora: false })`.
+3. Make Aurora secret in `shared/base.js`, as "Secret Aurora" says.
+4. Restyle Converter and Triangle. They use `shared/`.
+5. Restyle Counter. It has its own styles and theme code. Move it onto `shared/base.css` and `shared/base.js` if the change stays small. If not, copy the tokens into it.
+6. Recolor Calculator. Change only the colors in its `body[data-theme="day"]` and `body[data-theme="night"]` rules and in its theme picker. Make Aurora secret in its own theme code.
+7. Restyle the home page: the icon grid, the menu and the theme picker. Make Aurora secret there too.
 
 ## Rules
 
 - Do not change the localStorage keys or the format of saved data in any app.
-- Do not change the sync code or the web app address in Parking. It writes to the owner's Google Sheet.
+- Do not change Parking, except for step 1 of the plan.
 - Every app must still work offline. Increase `CACHE` in the `sw.js` of each app that you change.
 - Keep the `prefers-reduced-motion` support.
 - Commit each app on its own. Start the title with the app name.
@@ -113,4 +130,6 @@ All of it is in `tvmount/index.html` (styles) and `tvmount/app.js` (`card()`, `I
   - make Day and Night screenshots at 390 × 844, before and after,
   - use the main functions in a browser,
   - make sure there are no console errors.
+- Check the secret Aurora gesture in each app that has a theme picker.
+- Check that Parking looks the same as before.
 - Send the owner the before and after screenshots.
