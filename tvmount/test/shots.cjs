@@ -56,8 +56,8 @@ const scenes = [
   { name: '09-pro-form', seed: jobDoc('pro'), scroll: 1500 },
   { name: '10-pro-form-2', seed: jobDoc('pro'), scroll: 2400 },
   { name: '11-pro-form-3', seed: jobDoc('pro'), scroll: 3400 },
-  { name: '12-screenshot-mode', seed: jobDoc('pro'), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
-  { name: '13-screenshot-simple', seed: jobDoc('simple'), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
+  { name: '12-screenshot-mode', seed: jobDoc('pro'), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(3400); } },
+  { name: '13-screenshot-simple', seed: jobDoc('simple'), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(3400); } },
   { name: '14-pro-night', seed: jobDoc('pro'), theme: 'dark' },
   { name: '15-keypad-night', seed: jobDoc('simple'), theme: 'dark', act: async p => { await p.click('[data-k="ref.mantle.value"]'); await p.click('#kp [data-key="n3"]'); await p.waitForTimeout(400); } },
   { name: '16-menu', seed: jobDoc('pro'), act: async p => { await p.click('#menuBtn'); await p.waitForTimeout(400); } },
@@ -66,12 +66,12 @@ const scenes = [
   { name: '19-soundbar-wall-results', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1), scroll: 330 },
   { name: '20-soundbar-centered-mantle', seed: withBar(jobDoc('pro'), { kind: 'wall', place: 'center', w: 45, h: 3.25, holesToTop: 1.5 }), scroll: 330 },
   { name: '21-soundbar-attachment-night', seed: withBar(jobDoc('simple'), { kind: 'tv', w: 45, h: 3.25 }), theme: 'dark' },
-  { name: '23-screenshot-room', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[1].room, { ceil: 108, mantle: 38, left: 52, right: 70 }); d.current = d.tabs[1].id; return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
-  { name: '24-screenshot-room-mantle', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[0].room, { ceil: 110, left: 60, right: 66 }); return d; })(), theme: 'dark', act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
+  { name: '23-screenshot-room', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[1].room, { ceil: 108, mantle: 38, left: 52, right: 70 }); d.current = d.tabs[1].id; return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(3400); } },
+  { name: '24-screenshot-room-mantle', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[0].room, { ceil: 110, left: 60, right: 66 }); return d; })(), theme: 'dark', act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(3400); } },
   { name: '25-room-card', seed: (() => { const d = jobDoc('simple'); Object.assign(d.tabs[1].room, { ceil: 108, mantle: 38, left: 52, right: 70 }); d.current = d.tabs[1].id; return d; })(), act: async p => { await p.click('[data-fold="room"]'); await p.evaluate(() => document.querySelector('[data-sec="room"]').scrollIntoView()); } },
-  { name: '26-screenshot-installer', seed: (() => { const d = jobDoc('pro'); d.settings.shot = 'crew'; return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
+  { name: '26-screenshot-installer', seed: (() => { const d = jobDoc('pro'); d.settings.shot = 'crew'; return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(3400); } },
   { name: '27-client-soundbar-room', seed: (() => { const d = withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1); Object.assign(d.tabs[1].room, { ceil: 108, left: 52, right: 70 }); return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(400); } },
-  { name: '28-client-sideways', landscape: true, seed: (() => { const d = jobDoc('pro'); Object.assign(d.tabs[0].room, { ceil: 110, left: 60, right: 66 }); return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(2400); } },
+  { name: '28-client-sideways', landscape: true, seed: (() => { const d = jobDoc('pro'); Object.assign(d.tabs[0].room, { ceil: 110, left: 60, right: 66 }); return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(3400); } },
   { name: '22-soundbar-form', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="bar"]').scrollIntoView()); } }
 ];
 // The same job with a soundbar, on the tab at index `on` (0 = the mantle job, 1 = the floor job).

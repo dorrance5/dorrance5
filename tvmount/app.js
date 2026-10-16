@@ -730,16 +730,26 @@
       + '<div class="seg vw" id="shotVw" role="group" aria-label="Screenshot for"><button data-v="client">Client</button><button data-v="crew">Installer</button></div>';
     document.body.appendChild(el);
     const x = el.querySelector('#shotX'), vw = el.querySelector('#shotVw');
-    let hideT;
-    const peek = () => {
-      for (const c of [x, vw]) c.classList.remove('gone');
-      clearTimeout(hideT); hideT = setTimeout(() => { for (const c of [x, vw]) c.classList.add('gone'); }, 1800);
-    };
-    shot = { el, zm: zoomer(el.querySelector('#shotSk'), peek) };
-    x.onclick = closeShot;
+    let hideT, down = null, revealedAt = -1e9;
+    const show = on => { for (const c of [x, vw]) c.classList.toggle('gone', !on); };
+    const peek = () => { show(true); clearTimeout(hideT); hideT = setTimeout(() => show(false), 3000); };
+    // a tap anywhere, the caption and the empty corners too, brings the controls back at once;
+    // a pan or pinch to frame the shot does not
+    el.addEventListener('pointerdown', e => { down = e.isPrimary ? { x: e.clientX, y: e.clientY, t: e.timeStamp, hidden: x.classList.contains('gone') } : null; });
+    el.addEventListener('pointerup', e => {
+      if (down && e.isPrimary && e.timeStamp - down.t < 500 && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 10) {
+        if (down.hidden) revealedAt = e.timeStamp;
+        peek();
+      }
+      down = null;
+    });
+    // the tap that brings a control back does not also press it
+    const fresh = e => e.timeStamp - revealedAt < 600;
+    shot = { el, zm: zoomer(el.querySelector('#shotSk')) };
+    x.onclick = e => { if (!fresh(e)) closeShot(); };
     vw.onclick = e => {
       const b = e.target.closest('[data-v]');
-      if (!b) return;
+      if (!b || fresh(e)) return;
       peek();
       if (b.dataset.v === doc.settings.shot) return;
       doc.settings.shot = b.dataset.v; persist(); buzz(6);

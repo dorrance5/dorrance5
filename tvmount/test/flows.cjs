@@ -248,10 +248,21 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   // screenshot mode hides the controls
   await page.tap('#shotBtn');
   check('screenshot mode covers the screen', await page.isVisible('.shot') && await page.$eval('.shot', el => { const r = el.getBoundingClientRect(); return r.width === innerWidth && r.height === innerHeight; }));
-  await page.waitForTimeout(2300);
-  check('its close button and view choice fade away', await page.$eval('#shotX', el => el.classList.contains('gone')) && await page.$eval('#shotVw', el => el.classList.contains('gone')));
-  await page.tap('#shotSk', { position: { x: 150, y: 400 } });
-  await page.waitForTimeout(500);
+  const gone = () => page.$eval('#shotX', el => el.classList.contains('gone'));
+  await page.waitForTimeout(3300);
+  check('its close button and view choice fade away', await gone() && await page.$eval('#shotVw', el => el.classList.contains('gone')));
+  const xAt = await page.$eval('#shotX', el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.touchscreen.tap(xAt.x, xAt.y);
+  check('a tap where the close button was brings it back at once', !(await gone()) && await page.isVisible('.shot'));
+  await page.waitForTimeout(3300);
+  await page.tap('#shotCap');
+  check('a tap on the caption brings it back too', !(await gone()));
+  await page.waitForTimeout(3300);
+  await page.mouse.move(150, 500); await page.mouse.down(); await page.mouse.move(210, 540, { steps: 6 }); await page.mouse.up();
+  check('a pan to frame the shot leaves it hidden', await gone());
+  await page.touchscreen.tap(xAt.x, xAt.y);
+  check('the first tap on its spot only shows it', !(await gone()) && await page.isVisible('.shot'));
+  await page.waitForTimeout(700);
   await page.tap('#shotX');
   check('tap shows close, close exits', !(await page.isVisible('.shot')));
 
