@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="TV Mount">
-<meta name="theme-color" content="#F4F5F7">
+<meta name="theme-color" content="#F4F4F5">
 <meta name="description" content="Plan where to drill so a wall-mounted TV lands at the planned height. Dimensioned sketch, studs, viewing angle. Works offline.">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -16,28 +16,30 @@
 <title>TV Mount</title>
 <style>
 :root{
-  --bg:#F4F5F7;--text:#172B4D;--muted:#626F86;--line:rgba(9,30,66,.12);--track:rgba(9,30,66,.05);
+  --bg:#F4F4F5;--text:#1E2126;--muted:#60646C;--line:rgba(0,0,0,.1);--track:rgba(0,0,0,.04);
   --surface:#fff;--sheet:rgba(255,255,255,.97);
-  --tile:#fff;--tile-line:rgba(9,30,66,.12);--tile-shadow:0 1px 1px rgba(9,30,66,.12),0 0 1px rgba(9,30,66,.2);
-  --chip:rgba(9,30,66,.06);--chip-line:rgba(9,30,66,.14);
+  --tile:#fff;--tile-line:rgba(0,0,0,.09);--tile-shadow:0 1px 1px rgba(0,0,0,.07),0 0 1px rgba(0,0,0,.16);
+  --chip:rgba(0,0,0,.05);--chip-line:rgba(0,0,0,.12);
   --sel:#E9F2FF;--sel-line:#0C66E4;--sel-text:#0C66E4;
   --primary:#0C66E4;--primary-line:#0055CC;--primary-text:#fff;
   --danger:#FFECEB;--danger-line:rgba(201,55,44,.35);--danger-text:#AE2E24;
-  --blue:#0C66E4;--blue-bg:#E9F2FF;--green:#1F845A;--red:#C9372C;
-  --teal:#227D9B;--teal-bg:#E7F9FF;--purple:#6E5DC6;--purple-bg:#F3F0FF;
-  --tv:#1D2125;--tv-line:#091E42;--wood:#C7956A;--wood-line:#8F5F36;--stud:#E56910;--zone:#1F845A;--drill:#C9372C;--plate:#1D7AFC;--dimc:#44546F;--halo:#fff;--eye:#6E5DC6;--built:#AE4787;--sb:#227D9B
+  --blue:#0C66E4;--blue-bg:#E9F2FF;--green:#1F845A;--green-bg:#DCFFF1;--red:#C9372C;
+  --teal:#227D9B;--teal-bg:#E7F9FF;--purple:#6E5DC6;--purple-bg:#F3F0FF;--magenta:#AE4787;--magenta-bg:#FFECF8;
+  --orange:#C25100;--orange-bg:#FFF3EB;--yellow:#946F00;--yellow-bg:#FFF7D6;--lime:#4C6B1F;--lime-bg:#EFFFD6;
+  --tv:#1E2126;--tv-line:#000;--wood:#C7956A;--wood-line:#8F5F36;--stud:#E56910;--zone:#1F845A;--drill:#C9372C;--plate:#1D7AFC;--dimc:#4B4F57;--halo:#fff;--eye:#6E5DC6;--built:#AE4787;--sb:#227D9B
 }
 :root[data-mode="dark"]{
-  --bg:#161A1D;--text:#DEE4EA;--muted:#9FADBC;--line:rgba(166,197,226,.16);--track:rgba(161,189,217,.08);
-  --surface:#1D2125;--sheet:rgba(34,39,43,.97);
-  --tile:#22272B;--tile-line:rgba(166,197,226,.14);--tile-shadow:inset 0 1px 0 rgba(255,255,255,.04);
-  --chip:rgba(161,189,217,.08);--chip-line:rgba(166,197,226,.18);
+  --bg:#141517;--text:#E6E7E9;--muted:#A0A3A9;--line:rgba(255,255,255,.1);--track:rgba(255,255,255,.05);
+  --surface:#1B1C1F;--sheet:rgba(30,31,34,.97);
+  --tile:#1F2023;--tile-line:rgba(255,255,255,.09);--tile-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+  --chip:rgba(255,255,255,.06);--chip-line:rgba(255,255,255,.13);
   --sel:#1C2B41;--sel-line:#579DFF;--sel-text:#85B8FF;
-  --primary:#579DFF;--primary-line:#85B8FF;--primary-text:#161A1D;
+  --primary:#579DFF;--primary-line:#85B8FF;--primary-text:#141517;
   --danger:rgba(248,113,104,.16);--danger-line:rgba(248,113,104,.45);--danger-text:#FD9891;
-  --blue:#85B8FF;--blue-bg:#1C2B41;--green:#7EE2B8;--red:#FD9891;
-  --teal:#6CC3E0;--teal-bg:#1A2E36;--purple:#B8ACF6;--purple-bg:#2B273F;
-  --tv:#101214;--tv-line:rgba(222,228,234,.45);--wood:#7A5534;--wood-line:#C9A27E;--stud:#FEA362;--zone:#4BCE97;--drill:#F87168;--plate:#579DFF;--dimc:#B6C2CF;--halo:#22272B;--eye:#9F8FEF;--built:#E774BB;--sb:#6CC3E0
+  --blue:#85B8FF;--blue-bg:#1C2B41;--green:#7EE2B8;--green-bg:#1C3329;--red:#FD9891;
+  --teal:#6CC3E0;--teal-bg:#1A2E36;--purple:#B8ACF6;--purple-bg:#2B273F;--magenta:#F797D2;--magenta-bg:#3D2232;
+  --orange:#FEA362;--orange-bg:#3A2B1F;--yellow:#F5CD47;--yellow-bg:#36301A;--lime:#B3DF72;--lime-bg:#28311B;
+  --tv:#0D0E0F;--tv-line:rgba(230,231,233,.45);--wood:#7A5534;--wood-line:#C9A27E;--stud:#FEA362;--zone:#4BCE97;--drill:#F87168;--plate:#579DFF;--dimc:#B9BCC2;--halo:#1F2023;--eye:#9F8FEF;--built:#E774BB;--sb:#6CC3E0
 }
 .pro{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--purple);background:var(--purple-bg);padding:2px 7px;border-radius:7px}
 h1 .pro{font-size:12px;vertical-align:3px}
@@ -83,7 +85,6 @@ h1 .pro{font-size:12px;vertical-align:3px}
 .sk .dl.hole{fill:var(--drill)}
 .sk .ll{fill:var(--muted);font-weight:600}
 .sk .tl{fill:#fff;stroke:none;font-weight:600}
-.sk .tl.sub{fill:rgba(255,255,255,.7);font-weight:500}
 .sk .ml{fill:#fff;stroke:none;font-weight:700;opacity:.9}
 .sk .gl{fill:var(--dimc);font-weight:600}
 .sk .stl{fill:var(--stud);font-weight:650}
@@ -111,6 +112,8 @@ h1 .pro{font-size:12px;vertical-align:3px}
 .li .v{font-size:18px;font-weight:550;margin-top:2px;font-variant-numeric:tabular-nums}
 .li .s{font-size:13px;color:var(--muted);margin-top:1px;line-height:1.35}
 .li .a{font-size:13px;opacity:.8;margin-top:2px;line-height:1.35}
+.li.h-blue .k{color:var(--blue)}.li.h-teal .k{color:var(--teal)}.li.h-purple .k{color:var(--purple)}.li.h-green .k{color:var(--green)}
+.li.h-orange .k{color:var(--orange)}.li.h-magenta .k{color:var(--magenta)}.li.h-yellow .k{color:var(--yellow)}.li.h-lime .k{color:var(--lime)}
 .li.good .v{color:var(--green)}
 .li.warn .v{color:var(--red)}
 .facts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -131,6 +134,12 @@ h1 .pro{font-size:12px;vertical-align:3px}
 /* form */
 .sec{padding:0;overflow:hidden}
 .sec-h{display:flex;align-items:center;gap:8px;width:100%;padding:14px 16px;font-size:17px;font-weight:650;text-align:left}
+.sec-h .ic{flex:none;width:28px;height:28px;border-radius:8px;display:grid;place-items:center}
+.sec-h .ic svg{width:17px;height:17px}
+.ic.tv{background:var(--tv);color:#fff}
+.ic.blue{color:var(--blue);background:var(--blue-bg)}.ic.teal{color:var(--teal);background:var(--teal-bg)}.ic.purple{color:var(--purple);background:var(--purple-bg)}
+.ic.green{color:var(--green);background:var(--green-bg)}.ic.orange{color:var(--orange);background:var(--orange-bg)}.ic.magenta{color:var(--magenta);background:var(--magenta-bg)}
+.ic.yellow{color:var(--yellow);background:var(--yellow-bg)}.ic.lime{color:var(--lime);background:var(--lime-bg)}
 .sec-h .chev{margin-left:auto;width:18px;height:18px;transition:transform .15s;opacity:.5}
 .sec.shut .chev{transform:rotate(-90deg)}
 .sec-b{padding:0 16px 16px}
@@ -173,7 +182,7 @@ h1 .pro{font-size:12px;vertical-align:3px}
 .sheet .stack{margin-top:14px}
 
 /* keypad: whole inches on the left, numerator over denominator on the right, like Calculator */
-.kp{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border-top:.5px solid var(--line);padding:8px 8px calc(env(safe-area-inset-bottom,0px) + 8px);box-shadow:0 -10px 30px rgba(9,30,66,.14);animation:up .16s ease-out}
+.kp{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border-top:.5px solid var(--line);padding:8px 8px calc(env(safe-area-inset-bottom,0px) + 8px);box-shadow:0 -10px 30px rgba(0,0,0,.14);animation:up .16s ease-out}
 .kp-in{max-width:560px;margin:0 auto}
 .kp-top{display:flex;align-items:center;gap:10px;padding:0 4px 8px;min-height:40px}
 .kp-name{font-size:13px;font-weight:700;color:var(--muted);line-height:1.2;flex:1;min-width:0}

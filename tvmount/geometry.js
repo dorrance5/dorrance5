@@ -123,6 +123,12 @@
   // Defaults that stand in for pro values in Simple mode, or when a pro field is blank.
   const DEFAULTS = { sag: 0, ff: 0, slide: 0, holeDown: 0, boxMargin: 2, eye: 40, studWidth: 1.5, barGap: 2, barGapTV: 0 };
 
+  // With a soundbar under the TV, the bottom edge you measure to is the soundbar's bottom.
+  function edgeOf(edge, kind, sb) {
+    const ed = ['top', 'center', 'bottom'].includes(edge) ? edge : EDGE[kind];
+    return ed === 'bottom' && sb && (sb.kind === 'wall' || sb.kind === 'tv') ? 'bar' : ed;
+  }
+
   // The numbers compute() actually uses. Simple mode swaps every pro value for its default.
   function effective(tab, mode) {
     const pro = mode === 'pro';
@@ -140,7 +146,7 @@
       mountModel: pro ? (m.model || '') : '',
       plateW: p(m.plateW), plateH: p(m.plateH), holeDown: p(m.holeDown), rowGap: p(m.rowGap),
       lagSpan: p(m.lagSpan), slide: p(m.slide), adjUp: p(m.adjUp), adjDown: p(m.adjDown), studsNeeded: p(m.studsNeeded),
-      kind, edge: ['top', 'center', 'bottom'].includes(k.edge) ? k.edge : EDGE[kind], value: n(k.value),
+      kind, edge: edgeOf(k.edge, kind, sb), value: n(k.value),
       ff: p(rf.ff, DEFAULTS.ff),
       mantleH: kind === 'mantle' ? n(k.h) : null,
       mantleR: kind === 'mantle' ? p(k.hR) : null,
@@ -209,11 +215,12 @@
   /* ---------- the whole result ---------- */
 
   const REF_LABEL = { floor: 'above floor', mantle: 'above mantle', ceiling: 'below ceiling' };
-  const EDGE_NAME = { top: 'TV top', center: 'TV center', bottom: 'TV bottom' };
+  const EDGE_NAME = { top: 'TV top', center: 'TV center', bottom: 'TV bottom', bar: 'Bar bottom' };
   const FIELD_NAME = {
     'tv.w': 'TV width', 'tv.h': 'TV height', 'tv.size': 'TV size', 'tv.vesaTop': 'VESA to TV top',
     'mount.holesToTop': 'holes to TV top', 'mount.hookDrop': 'plate holes to hook', 'mount.armDrop': 'arm hook to VESA',
-    'ref.floor.value': 'target height', 'ref.mantle.value': 'gap above mantle', 'ref.ceiling.value': 'gap below ceiling'
+    'ref.floor.value': 'target height', 'ref.mantle.value': 'gap above mantle', 'ref.ceiling.value': 'gap below ceiling',
+    'ref.ceiling.h': 'ceiling height', 'bar.h': 'soundbar height'
   };
 
   function compute(tab, opts) {
@@ -263,15 +270,27 @@
       }
     }
     r.ref = { kind, edge, value: e.value, refNow, ff: e.ff, label: REF_LABEL[kind], L, R, slope, rise, span };
+    const yOfAff = f => refNow == null ? null : f + e.ff - refNow;
+    const under = e.bar ? barUnder(e.bar, r.ref, yOfAff) : null;
 
     /* vertical positions, y up from the reference line */
     let yEdge = null;
-    if (isNum(e.value)) yEdge = kind === 'ceiling' ? -e.value : kind === 'mantle' ? e.value + rise : e.value;
+    if (isNum(e.value)) yEdge = kind === 'ceiling' ? -e.value : kind === 'mantle' ? e.value + (edge === 'bar' ? under.y : rise) : e.value;
     else miss('ref.' + kind + '.value');
     if (edge !== 'top' && H == null && e.tvSrc === 'measured') miss('tv.h');
+    // measured to the soundbar bottom: up the bar and its gap to the TV bottom
+    let barUp = null;
+    if (edge === 'bar') {
+      const B = e.bar;
+      if (!isNum(B.h) || B.h <= 0) miss('bar.h');
+      else if (B.place !== 'center') barUp = B.h + B.gap;
+      else if (!under) miss('ref.ceiling.h');
+      else if (yEdge != null) barUp = B.h + yEdge - under.y;   // centered: the same gap above as below
+    }
     let top = null;
     if (yEdge != null) {
       if (edge === 'top') top = yEdge;
+      else if (edge === 'bar') { if (H != null && barUp != null) top = yEdge + barUp + H; }
       else if (H != null) top = yEdge + (edge === 'center' ? H / 2 : H);
     }
     const y = {
@@ -286,7 +305,6 @@
     const measure = v => v == null ? null : kind === 'floor' ? v + e.ff : kind === 'ceiling' ? -v : v;
     const fromMeasure = v => !isNum(v) ? null : kind === 'floor' ? v - e.ff : kind === 'ceiling' ? -v : v;
     const aff = v => v == null || refNow == null ? null : refNow + v - e.ff;
-    const yOfAff = f => refNow == null ? null : f + e.ff - refNow;
     r.m = {}; r.aff = {};
     for (const k of ['hole', 'top', 'center', 'bottom']) { r.m[k] = measure(y[k]); r.aff[k] = aff(y[k]); }
     r.floorKnown = refNow != null;
@@ -422,7 +440,7 @@
       };
     }
 
-    r.bar = barFor(e, y, r);
+    r.bar = barFor(e, y, r, under);
 
     r.ok = y.hole != null;
     r.rows = rowsFor(r);
@@ -430,34 +448,33 @@
     return r;
   }
 
+  // What a soundbar hangs over: the mantle top (its high point under the bar), a console top
+  // when it is centered over one, or the floor. Null when the floor height is unknown.
+  function barUnder(B, ref, yOfAff) {
+    if (ref.kind === 'mantle') return { what: 'mantle', y: Math.abs(ref.slope) * Math.min(B.w > 0 ? B.w : 0, ref.span || 0) / 2 };
+    if (ref.refNow == null) return null;
+    if (B.place === 'center' && isNum(B.below)) return { what: 'console', y: yOfAff(B.below) };
+    return { what: 'floor', y: yOfAff(0) };
+  }
+
   // A soundbar under the TV, centered on the TV center line. Its top sits a gap below the TV
-  // bottom, or (on the wall) halfway between the TV and the surface below it: the mantle top,
-  // a console top, or the floor.
-  function barFor(e, y, r) {
+  // bottom, or (on the wall) halfway between the TV and the surface below it.
+  function barFor(e, y, r, under) {
     const B = e.bar;
     if (!B) return null;
-    const ref = r.ref, b = { kind: B.kind, place: B.place, w: B.w && B.w > 0 ? B.w : null, h: B.h, need: [] };
-    let under = null;
-    if (ref.kind === 'mantle') under = { what: 'mantle', y: Math.abs(ref.slope) * Math.min(b.w || 0, ref.span || 0) / 2 };
-    else if (B.place === 'center' && isNum(B.below)) under = ref.refNow == null ? null : { what: 'console', y: r.toY.yOfAff(B.below) };
-    else if (ref.refNow != null) under = { what: 'floor', y: r.toY.yOfAff(0) };
-    b.under = under;
+    const ref = r.ref, b = { kind: B.kind, place: B.place, w: B.w && B.w > 0 ? B.w : null, h: B.h, need: [], under };
     if (!isNum(B.h) || B.h <= 0) b.need.push('height');
     if (y.bottom == null) b.need.push('position');
     if (B.place === 'center' && !under) b.need.push('floor');
     if (b.need.length) return b;
 
-    if (B.place === 'center') {
-      b.gap = (y.bottom - under.y - B.h) / 2;
-      if (b.gap < -EPS) r.warnings.push('The soundbar needs ' + T(-2 * b.gap) + ' more room between the TV and the ' + under.what + '.');
-    } else b.gap = B.gap;
+    b.gap = B.place === 'center' ? (y.bottom - under.y - B.h) / 2 : B.gap;
     b.top = y.bottom - b.gap;
     b.bottom = b.top - B.h;
     b.hole = isNum(B.holesToTop) ? b.top - B.holesToTop : null;
     b.clear = under ? b.bottom - under.y : null;
-    if (B.place === 'gap' && b.clear != null && b.clear < -EPS) {
-      r.warnings.push('Soundbar bottom is ' + T(-b.clear) + ' below the ' + (under.what === 'floor' ? 'floor.' : under.what + ' top.'));
-    }
+    if (B.place === 'center' && ref.edge !== 'bar' && b.gap < -EPS) r.warnings.push('The soundbar needs ' + T(-2 * b.gap) + ' more room between the TV and the ' + under.what + '.');
+    else if (b.clear != null && b.clear < -EPS) r.warnings.push('Soundbar bottom is ' + T(-b.clear) + ' below the ' + (under.what === 'floor' ? 'floor.' : under.what + ' top.'));
     b.m = {}; b.aff = {};
     for (const k of ['hole', 'top', 'bottom']) { b.m[k] = r.toMeasure(b[k]); b.aff[k] = b[k] == null || ref.refNow == null ? null : ref.refNow + b[k] - ref.ff; }
     return b;
@@ -505,7 +522,8 @@
     }
     if (ref.kind === 'mantle') {
       if (ref.refNow != null && Math.abs(ref.slope) > EPS) rows.push({ id: 'mantle', k: 'Mantle', s: 'left ' + T(ref.L) + ' · right ' + T(ref.R), sub: 'measure up from the mantle at the center line, ' + T(ref.refNow) + ' above floor', cls: 'wide' });
-      if (ref.gapL != null && Math.abs(ref.slope) > EPS) rows.push({ id: 'gaps', k: 'Gap over mantle', s: 'left ' + T(ref.gapL) + ' · right ' + T(ref.gapR), sub: 'at the TV ends', cls: 'wide' });
+      if (r.bar) { /* the soundbar row gives its gap over the mantle */ }
+      else if (ref.gapL != null && Math.abs(ref.slope) > EPS) rows.push({ id: 'gaps', k: 'Gap over mantle', s: 'left ' + T(ref.gapL) + ' · right ' + T(ref.gapR), sub: 'at the TV ends', cls: 'wide' });
       else if (ref.gap != null && ref.edge !== 'bottom') rows.push({ id: 'gap', k: 'Gap over mantle', v: ref.gap, sub: 'TV bottom to mantle top' });
     }
     if (ref.kind === 'ceiling' && ref.gap != null && ref.edge !== 'top') rows.push({ id: 'gap', k: 'Gap to ceiling', v: ref.gap, sub: 'TV top to ceiling' });
@@ -651,7 +669,7 @@
     add({ t: 'mark', cls: 'cmark', x: 0, y: y.center });
 
     const name = tv.est ? tv.size + '″ class (estimate)' : (tv.model || 'TV');
-    add({ t: 'label', cls: 'tvname', x: 0, y: y.center, lines: [name, (tv.w ? T(tv.w) : '?') + ' × ' + T(tv.h)], anchor: 'middle', inside: true, avoid: y.hole });
+    add({ t: 'label', cls: 'tvname', x: 0, y: y.center, lines: [name], anchor: 'middle', inside: true, avoid: y.hole });
 
     if (r.built && r.built.top != null) {
       const bt = r.built.top, bb = r.built.bottom != null ? r.built.bottom : bt - tv.h;
@@ -667,12 +685,13 @@
       const b = r.bar;
       if (b.kind === 'wall') add({ t: 'dim', side: 'left', a: from, b: b.hole != null ? b.hole : b.top, v: Math.abs((b.hole != null ? b.hole : b.top) - from), name: b.hole != null ? 'bar holes' : 'bar top', key: b.hole != null ? 'barhole' : 'bartop' });
       if (b.gap > EPS) add({ t: 'dim', side: 'right', a: b.top, b: y.bottom, v: b.gap, name: 'gap', key: 'bargap' });
+      if (ref.edge === 'bar' && Math.abs(b.bottom - from) > EPS) add({ t: 'dim', side: 'left', a: from, b: b.bottom, v: Math.abs(b.bottom - from), name: 'bar bottom', key: 'barbottom' });
     }
     add({ t: 'dim', side: 'right', a: y.bottom, b: y.top, v: tv.h, name: 'height' });
     if (ref.kind !== 'floor' && ref.refNow != null) add({ t: 'dim', side: 'right', a: -ref.refNow, b: 0, v: ref.refNow, name: ref.kind === 'mantle' ? 'mantle' : 'ceiling', ref: true });
     if (ref.kind === 'floor' && Math.abs(ref.ff) > EPS) add({ t: 'dim', side: 'right', a: -ref.ff, b: 0, v: Math.abs(ref.ff), name: 'finish' });
     if (tv.w) add({ t: 'dim', side: 'top', a: x0, b: x1, v: tv.w, name: 'width' });
-    if (ref.kind === 'mantle' && ref.gapL != null && Math.abs(ref.slope) > EPS) {
+    if (ref.kind === 'mantle' && ref.gapL != null && Math.abs(ref.slope) > EPS && !r.bar) {
       add({ t: 'label', cls: 'gap', x: x0 + 1, y: y.bottom, lines: ['gap ' + T(ref.gapL)], anchor: 'start', below: true });
       add({ t: 'label', cls: 'gap', x: x1 - 1, y: y.bottom, lines: ['gap ' + T(ref.gapR)], anchor: 'end', below: true });
     }
@@ -683,6 +702,6 @@
   return {
     isNum, parseInches, formatInches, formatExact, fill, T,
     SIZES, BEZEL, sizeEstimate, EDGE, KINDS, DEFAULTS, REF_LABEL, EDGE_NAME, FIELD_NAME,
-    newTab, effective, centerTool, fillStuds, slideCheck, placeInBay, compute
+    newTab, edgeOf, effective, centerTool, fillStuds, slideCheck, placeInBay, compute
   };
 });
