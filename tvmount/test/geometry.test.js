@@ -308,7 +308,8 @@ test('soundbar on the wall, a gap below the TV', () => {
 });
 
 test('soundbar centered between the TV and what is under it', () => {
-  const m = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 6, h: 54 } }, bar: { kind: 'wall', place: 'center', h: 3 } }), { mode: 'simple' });
+  // TV center 22 3/8 above the mantle puts the TV bottom at 6
+  const m = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'center', value: 22.375, h: 54 } }, bar: { kind: 'wall', place: 'center', h: 3 } }), { mode: 'simple' });
   near(m.bar.gap, 1.5);
   near(m.bar.m.top, 4.5);
   near(m.bar.m.bottom, 1.5);
@@ -318,19 +319,38 @@ test('soundbar centered between the TV and what is under it', () => {
   assert.equal(f.bar.under.what, 'console');
   const c = G.compute(tab(BASE, { ref: { kind: 'ceiling', ceiling: { edge: 'top', value: 6 } }, bar: { kind: 'wall', place: 'center', h: 3 } }), { mode: 'simple' });
   assert.deepEqual(c.bar.need, ['floor']);
-  const tight = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 2, h: 54 } }, bar: { kind: 'wall', place: 'center', h: 3 } }), { mode: 'simple' });
+  const tight = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'top', value: 34.75, h: 54 } }, bar: { kind: 'wall', place: 'center', h: 3 } }), { mode: 'simple' });
   assert.ok(tight.warnings.some(w => /more room between the TV and the mantle/.test(w)));
 });
 
-test('soundbar on a TV attachment hangs from the TV, no drilling', () => {
-  const r = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 6 } }, bar: { kind: 'tv', h: 3.25, gap: 0.5, holesToTop: 2 } }), { mode: 'simple' });
-  near(r.bar.m.top, 5.5);
-  near(r.bar.m.bottom, 2.25);
-  near(r.bar.clear, 2.25);
+test('with a soundbar, the bottom you measure to is the soundbar bottom', () => {
+  // mantle to bar bottom 2, a 3 1/4 bar hung 1/2 under the TV: TV bottom at 5 3/4
+  const r = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 2 } }, bar: { kind: 'tv', h: 3.25, gap: 0.5, holesToTop: 2 } }), { mode: 'simple' });
+  assert.equal(r.ref.edge, 'bar');
+  near(r.bar.m.bottom, 2);
+  near(r.bar.m.top, 5.25);
+  near(r.m.bottom, 5.75);
+  near(r.m.hole, 34);
+  near(r.bar.clear, 2);
+  near(r.sketch.items.find(d => d.t === 'dim' && d.key === 'barbottom').v, 2);
   assert.equal(r.bar.hole, null);           // bracket holes only count on the wall
-  assert.ok(!r.rows.some(x => x.id === 'barhole'));
-  const low = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 2 } }, bar: { kind: 'tv', h: 3.25 } }), { mode: 'simple' });
-  assert.ok(low.warnings.some(w => /Soundbar bottom is 1 1\/4" below the mantle top/.test(G.fill(w, G.formatInches))));
+  assert.ok(!r.rows.some(x => x.id === 'barhole' || x.id === 'gap'));
+  // floor: bar bottom at 20, default 2" gap on the wall
+  const f = G.compute(tab(BASE, { ref: { floor: { edge: 'bottom', value: 20 } }, bar: { kind: 'wall', h: 3 } }), { mode: 'simple' });
+  near(f.m.bottom, 25);
+  near(f.bar.m.bottom, 20);
+  // centered over the mantle: the gap below sets the gap above
+  const c = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: 1.5 } }, bar: { kind: 'wall', place: 'center', h: 3 } }), { mode: 'simple' });
+  near(c.m.bottom, 6);
+  near(c.bar.gap, 1.5);
+  // no bar height yet: nothing to place
+  const n = G.compute(tab(BASE, { ref: { floor: { edge: 'bottom', value: 20 } }, bar: { kind: 'wall' } }), { mode: 'simple' });
+  assert.equal(n.ok, false);
+  assert.ok(n.missing.includes('bar.h'));
+  // soundbar off: back to the TV bottom
+  near(G.compute(tab(BASE, { ref: { floor: { edge: 'bottom', value: 20 } }, bar: { kind: 'none', h: 3 } }), { mode: 'simple' }).m.bottom, 20);
+  const low = G.compute(tab(BASE, { ref: { kind: 'mantle', mantle: { edge: 'bottom', value: -1 } }, bar: { kind: 'tv', h: 3.25 } }), { mode: 'simple' });
+  assert.ok(low.warnings.some(w => /Soundbar bottom is 1" below the mantle top/.test(G.fill(w, G.formatInches))));
   assert.equal(G.compute(tab(BASE, { bar: { kind: 'none', h: 3 } }), { mode: 'simple' }).bar, null);
   assert.deepEqual(G.compute(tab(BASE, { bar: { kind: 'tv' } }), { mode: 'simple' }).bar.need, ['height']);
 });

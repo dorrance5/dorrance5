@@ -46,8 +46,8 @@
   function label(path) {
     const t = tab(), kind = t.ref.kind;
     if (/^ref\.(floor|mantle|ceiling)\.value$/.test(path)) {
-      const e = G.EDGE_NAME[t.ref[kind].edge] || 'TV';
-      return kind === 'floor' ? e + ' height' : (kind === 'mantle' ? 'Mantle to ' : 'Ceiling to ') + e;
+      const ed = G.edgeOf(t.ref[kind].edge, kind, t.bar), e = G.EDGE_NAME[ed];
+      return kind === 'floor' ? e + ' height' : (kind === 'mantle' ? 'Mantle to ' : 'Ceiling to ') + (ed === 'bar' ? 'bar bottom' : e);
     }
     if (path === 'ref.mantle.h' && pro()) return 'Left end height';
     if (/^studs\.list\./.test(path)) return tab().studs.from === 'edge' ? 'Stud from the ' + (t.center.from || 'left') + ' edge' : 'Stud from center (− is left)';
@@ -196,8 +196,21 @@
     return `<div class="seg" data-seg="${path}">${opts.map(([v, l]) => `<button data-v="${v}" class="${cur === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   }
   const CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  // Each card has an icon in the color its part has on the sketch.
+  const ICON = {
+    tv: ['tv', '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M9 20h6"/>'],
+    bracket: ['blue', '<rect x="5" y="4" width="14" height="16" rx="2"/><circle cx="9" cy="8" r="1"/><circle cx="15" cy="8" r="1"/><circle cx="9" cy="16" r="1"/><circle cx="15" cy="16" r="1"/>'],
+    place: ['yellow', '<path d="M12 4v16M8.5 7.5 12 4l3.5 3.5M8.5 16.5 12 20l3.5-3.5"/>'],
+    center: ['lime', '<path d="M12 3v3M12 10.5v3M12 18v3M3 12h5M5.5 9.5 3 12l2.5 2.5M21 12h-5M18.5 9.5 21 12l-2.5 2.5"/>'],
+    bar: ['teal', '<rect x="2" y="9" width="20" height="6" rx="3"/><circle cx="7" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="17" cy="12" r=".6"/>'],
+    studs: ['orange', '<path d="M6 3v18M12 3v18M18 3v18"/>'],
+    box: ['green', '<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/>'],
+    view: ['purple', '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/>'],
+    built: ['magenta', '<path d="m5 12.5 4.5 4.5L19 7.5"/>']
+  };
   function card(id, title, body, isPro) {
-    return `<section class="card sec${ui.shut[id] ? ' shut' : ''}" data-sec="${id}"><button class="sec-h" data-fold="${id}"><span>${title}</span>${isPro ? '<span class="pro">Pro</span>' : ''}${CHEV}</button><div class="sec-b">${body}</div></section>`;
+    const [hue, glyph] = ICON[id];
+    return `<section class="card sec${ui.shut[id] ? ' shut' : ''}" data-sec="${id}"><button class="sec-h" data-fold="${id}"><span class="ic ${hue}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></span><span>${title}</span>${isPro ? '<span class="pro">Pro</span>' : ''}${CHEV}</button><div class="sec-b">${body}</div></section>`;
   }
   const hint = s => `<p class="hint">${s}</p>`;
   function libButtons(kind) {
@@ -246,7 +259,7 @@
     // placement
     const k = t.ref[kind];
     b = seg('ref.kind', [['floor', 'Floor'], ['mantle', 'Mantle'], ['ceiling', 'Ceiling']]);
-    b += `<div class="label">Set the</div>` + seg('ref.' + kind + '.edge', [['top', 'TV top'], ['center', 'TV center'], ['bottom', 'TV bottom']]);
+    b += `<div class="label">Set the</div>` + seg('ref.' + kind + '.edge', [['top', 'TV top'], ['center', 'TV center'], ['bottom', t.bar.kind === 'none' ? 'TV bottom' : 'Bar bottom']]);
     b += `<div class="grid2">${fld('ref.' + kind + '.value')}`;
     if (kind === 'mantle') b += fld('ref.mantle.h') + (P ? fld('ref.mantle.hR') + fld('ref.mantle.len') : '');
     if (kind === 'ceiling') b += fld('ref.ceiling.h');
@@ -369,12 +382,14 @@
   function needText() {
     const t = tab();
     const lower = s => /^TV/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1);
-    const names = r.missing.map(k => /^ref\./.test(k) ? lower(label('ref.' + t.ref.kind + '.value')) : (G.FIELD_NAME[k] || k));
+    const names = r.missing.map(k => /^ref\.\w+\.value$/.test(k) ? lower(label('ref.' + t.ref.kind + '.value')) : (G.FIELD_NAME[k] || k));
     return names.length ? 'Fill in ' + names.join(', ') : '';
   }
+  // Result labels take the color their part has on the sketch.
+  const HUE = { chain: 'blue', vesa: 'blue', plate: 'blue', adjust: 'blue', mantle: 'yellow', gaps: 'yellow', gap: 'yellow', bar: 'teal', centerline: 'lime', studs: 'orange', box: 'green', view: 'purple', built: 'magenta' };
   function factHTML(x) {
     const v = x.s != null ? fill(x.s) : x.v != null ? fmt(x.v) : '—';
-    return `<div class="li${x.cls ? ' ' + x.cls : ''}"><div class="k">${esc(x.k)}</div><div class="v">${esc(v)}</div>${x.sub ? `<div class="s">${esc(fill(x.sub))}</div>` : ''}${x.alt ? `<div class="a">${esc(fill(x.alt))}</div>` : ''}</div>`;
+    return `<div class="li${x.cls ? ' ' + x.cls : ''}${HUE[x.id] ? ' h-' + HUE[x.id] : ''}"><div class="k">${esc(x.k)}</div><div class="v">${esc(v)}</div>${x.sub ? `<div class="s">${esc(fill(x.sub))}</div>` : ''}${x.alt ? `<div class="a">${esc(fill(x.alt))}</div>` : ''}</div>`;
   }
   function renderResults() {
     const by = id => r.rows.find(x => x.id === id), hero = by('hole');
@@ -385,7 +400,7 @@
     if (tri.some(x => x.v != null)) h += `<div class="tri">${tri.map(x => `<div class="fact"><div class="k">${x.k}</div><div class="v">${x.v != null ? fmt(x.v) : '—'}</div><div class="s">${esc(x.alt ? fill(x.alt) : x.sub)}</div></div>`).join('')}</div>`;
     const bh = by('barhole');
     if (bh) h += `<div class="hero sb"><div class="k">${esc(bh.k)}</div><div class="v">${fmt(bh.v)}</div><div class="s">${esc(bh.sub)}${bh.alt ? ' · ' + esc(fill(bh.alt)) : ''}</div></div>`;
-    const rest = r.rows.filter(x => !['hole', 'top', 'center', 'bottom', 'barhole'].includes(x.id));
+    const rest = r.rows.filter(x => !['hole', 'top', 'center', 'bottom', 'barhole', 'tv'].includes(x.id));
     if (rest.length) h += `<div class="card list">${rest.map(factHTML).join('')}</div>`;
     if (r.warnings.length) h += `<ul class="warns">${r.warnings.map(w => `<li>${esc(fill(w))}</li>`).join('')}</ul>`;
     $('#res').innerHTML = h;
@@ -481,8 +496,8 @@
       } else if (it.t === 'label') {
         if (it.cls === 'tvname') {
           // bottom-left inside the TV, clear of the plate, holes and center mark
-          let fs1 = f * 0.95, fs2 = f * 0.8;
-          const x = tv.x0 + f * 0.6, th = tv.y1 - tv.y0;
+          let fs = f * 0.95;
+          const x = tv.x0 + f * 0.6, th = tv.y1 - tv.y0, base = tv.y0 + f * 0.6 + fs * 0.5;
           // shrink to fit left of the box, plate or "as built" where they share a line's height
           const fit = (s, fs, base) => {
             const lo = base - fs * 0.25, hi = base + fs;
@@ -495,12 +510,9 @@
             }
             return room / (textW(s, fs) * 1.12);   // model numbers are mostly capitals and digits, wider than average
           };
-          const k = Math.max(0.6, Math.min(1, fit(val(it.lines[0]), fs1, tv.y0 + f * 0.6 + fs2 * 1.25), fit(val(it.lines[1]), fs2, tv.y0 + f * 0.6 + fs2 * 0.1)));
-          fs1 *= k; fs2 *= k;
-          if (th > (fs1 + fs2) * 2.2) {
-            text.push(T('tl', x, tv.y0 + f * 0.6 + fs2 * 1.25, val(it.lines[0]), { fs: fs1, anchor: 'start' }));
-            text.push(T('tl sub', x, tv.y0 + f * 0.6 + fs2 * 0.1, val(it.lines[1]), { fs: fs2, anchor: 'start' }));
-          } else text.push(T('tl', x, tv.y0 + th * 0.3, val(it.lines[0]), { fs: Math.min(fs1, th * 0.5), anchor: 'start' }));
+          fs *= Math.max(0.6, Math.min(1, fit(val(it.lines[0]), fs, base)));
+          if (th > fs * 2.2) text.push(T('tl', x, base, val(it.lines[0]), { fs, anchor: 'start' }));
+          else text.push(T('tl', x, tv.y0 + th * 0.3, val(it.lines[0]), { fs: Math.min(fs, th * 0.5), anchor: 'start' }));
         } else if (it.cls === 'mantle') {
           const mx = Math.min(...items.filter(i => i.t === 'poly' && i.cls === 'mantle').flatMap(i => i.pts.map(p => p[0])));
           text.push(T('ll', isFinite(mx) ? mx : it.x, -2.5 - f * 0.8, it.lines[0], { fs: f * 0.85, anchor: isFinite(mx) ? 'start' : 'middle' }));
@@ -738,7 +750,7 @@
     }
     if (r.warnings.length) { out.push(''); r.warnings.forEach(w => out.push('! ' + fill(w))); }
     const kind = t.ref.kind, k = t.ref[kind];
-    out.push('', 'Inputs', 'Reference: ' + kind + ', ' + (G.EDGE_NAME[k.edge] || '').toLowerCase());
+    out.push('', 'Inputs', 'Reference: ' + kind + ', ' + (G.EDGE_NAME[r.ref.edge] || '').toLowerCase());
     if (t.tv.src === 'size' && t.tv.size) out.push('TV size: ' + t.tv.size + '″ class (estimate)');
     if (pro() && t.tv.model) out.push('TV model: ' + t.tv.model);
     if (pro() && t.mount.model) out.push('Mount model: ' + t.mount.model);

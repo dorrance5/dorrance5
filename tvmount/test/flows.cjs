@@ -100,12 +100,15 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   const barHero = await page.textContent('#res .hero.sb');
   check('soundbar drill height has its own card', /Drill soundbar holes\s*22 1\/8"/.test(barHero.replace(/\u00a0/g, ' ')), barHero);
   check('soundbar is drawn', await page.$('#sk rect.sbar') !== null);
+  check('placement offers Bar bottom in place of TV bottom', (await page.textContent('[data-seg="ref.floor.edge"] [data-v="bottom"]')) === 'Bar bottom');
+  check('TV size is not repeated under the results', !/^TV$/m.test(await page.$$eval('#res .li .k', ks => ks.map(k => k.textContent).join('\n'))));
   await page.tap('[data-seg="bar.place"] [data-v="center"]');
   check('centered hides the gap and asks for a console', !(await page.$('[data-k="bar.gap"]')) && !!(await page.$('[data-k="bar.below"]')));
   await page.tap('[data-seg="bar.kind"] [data-v="tv"]');
   check('TV attachment has no bracket holes', !(await page.$('[data-k="bar.holesToTop"]')) && (await page.$$('#sk line.drill')).length === 1 && !/Drill soundbar/.test(await page.textContent('#res')));
   await page.tap('[data-seg="bar.kind"] [data-v="none"]');
   check('none hides the soundbar again', !(await page.$('#sk rect.sbar')) && (await tab0()).bar.w === 45);
+  check('and TV bottom comes back', (await page.textContent('[data-seg="ref.floor.edge"] [data-v="bottom"]')) === 'TV bottom');
 
   // modes keep their data
   await page.tap('#menuBtn');
