@@ -54,7 +54,7 @@
     'ref.mantle.h': ['Mantle height'], 'ref.mantle.hR': ['Right end', 'same'], 'ref.mantle.len': ['Mantle length', 'TV width'],
     'ref.ceiling.h': ['Ceiling height'], 'ref.ff': ['Finished floor adds', 0],
     'center.a': ['First mark'], 'center.b': ['Second mark'], 'center.d': ['Whole distance'],
-    'box.w': ['Box width'], 'box.h': ['Box height'], 'box.margin': ['Keep in from edges', 2],
+    'box.w': ['Box width'], 'box.h': ['Box height'], 'box.margin': ['Keep in from edges', 2], 'box.bottom': ['Box bottom'], 'box.x': ['Center line → box', 0],
     'view.eye': ['Seated eye height', 40], 'view.dist': ['Eyes to wall'],
     'built.top': ['TV top'], 'built.bottom': ['TV bottom'],
     'bar.w': ['Bar width', 'for the sketch'], 'bar.h': ['Bar height'], 'bar.gap': ['TV bottom → bar top'],
@@ -68,6 +68,7 @@
       return kind === 'floor' ? e + ' height' : (kind === 'mantle' ? 'Mantle to ' : 'Ceiling to ') + (ed === 'bar' ? 'soundbar bottom' : e);
     }
     if (path === 'ref.mantle.h' && pro()) return 'Left end height';
+    if (path === 'box.bottom') return 'Bottom ' + (kind === 'floor' ? 'above floor' : kind === 'mantle' ? 'above mantle' : 'below ceiling');
     if (/^studs\.list\./.test(path)) return tab().studs.from === 'edge' ? 'Stud from the ' + (t.center.mode !== 'half' && t.center.from === 'right' ? 'right' : 'left') + ' edge' : 'Stud from center (− is left)';
     return (F[path] || [path])[0];
   }
@@ -346,7 +347,11 @@
 
       // box
       b = seg('box.on', [[false, 'No box'], [true, 'Recessed box']]);
-      if (t.box.on) b += `<div class="grid3">${fld('box.w')}${fld('box.h')}${fld('box.margin', { label: 'Keep in' })}</div>` + hint('Finds room behind the TV, clear of the plate and between studs, for a recessed power and low-voltage box.');
+      if (t.box.on) {
+        b += seg('box.place', [['auto', 'Find a spot'], ['set', 'Already in the wall']]);
+        if (t.box.place === 'set') b += `<div class="grid2">${fld('box.w')}${fld('box.h')}${fld('box.bottom')}${fld('box.x')}</div>` + hint('Box center from the center line. Left is negative: tap ± on the keypad. The box can sit behind the plate.');
+        else b += `<div class="grid3">${fld('box.w')}${fld('box.h')}${fld('box.margin', { label: 'Keep in' })}</div>` + hint('Finds room behind the TV, clear of the plate and between studs, for a recessed power and low-voltage box.');
+      }
       h += card('box', 'Rough-in box', b, true);
 
       // viewing

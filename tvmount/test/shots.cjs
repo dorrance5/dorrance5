@@ -72,8 +72,12 @@ const scenes = [
   { name: '26-screenshot-installer', seed: (() => { const d = jobDoc('pro'); d.settings.shot = 'crew'; return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(3400); } },
   { name: '27-client-soundbar-room', seed: (() => { const d = withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1); Object.assign(d.tabs[1].room, { ceil: 108, left: 52, right: 70 }); return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(400); } },
   { name: '28-client-sideways', landscape: true, seed: (() => { const d = jobDoc('pro'); Object.assign(d.tabs[0].room, { ceil: 110, left: 60, right: 66 }); return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(3400); } },
+  { name: '29-box-in-wall', seed: boxSet(jobDoc('pro')) },
+  { name: '30-box-in-wall-form', seed: boxSet(jobDoc('pro')), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="box"]').scrollIntoView()); } },
   { name: '22-soundbar-form', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="bar"]').scrollIntoView()); } }
 ];
+// The same job with the box already in the wall, partly behind the plate.
+function boxSet(d) { Object.assign(d.tabs[0].box, { place: 'set', bottom: 16, x: -4 }); return d; }
 // The same job with a soundbar, on the tab at index `on` (0 = the mantle job, 1 = the floor job).
 function withBar(d, bar, on = 0) {
   Object.assign(d.tabs[on].bar, bar);

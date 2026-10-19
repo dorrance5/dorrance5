@@ -256,6 +256,21 @@ test('adjustment left after drilling', () => {
   assert.deepEqual(r.adjust, { up: 0.5, down: 1, left: 5, right: 1 });
 });
 
+test('a box already in the wall: behind the TV, partly behind the plate', () => {
+  const mount = { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1 };
+  const r = G.compute(tab(BASE, { mount, box: { on: true, place: 'set', w: 8, h: 8, bottom: 40, x: -3 } }), { mode: 'pro' });
+  assert.ok(r.box.set);
+  near(r.box.at.y0, 40); near(r.box.at.x0, -7);
+  assert.equal(r.box.shows.length, 0);
+  assert.equal(r.box.plate, 'partly behind');
+  assert.ok(!r.warnings.some(w => /box/.test(w)));
+  const low = G.compute(tab(BASE, { mount, box: { on: true, place: 'set', w: 8, h: 8, bottom: 20 } }), { mode: 'pro' });
+  assert.equal(low.box.shows[0].k, 'below');
+  assert.ok(low.warnings.some(w => /box shows/.test(w)));
+  const stud = G.compute(tab(BASE, { mount, box: { on: true, place: 'set', w: 8, h: 8, bottom: 40 }, studs: { list: [2] } }), { mode: 'pro' });
+  assert.ok(stud.warnings.some(w => /crosses a stud/.test(w)));
+});
+
 test('recessed box zone below the plate', () => {
   const t = tab(BASE, { mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1 }, box: { on: true, w: 8, h: 8 } });
   const r = G.compute(t, { mode: 'pro' });

@@ -113,7 +113,7 @@
       },
       center: { mode: 'half', from: 'left', a: null, b: null, d: null },
       studs: { from: 'center', list: [] },
-      box: { on: false, w: null, h: null, margin: null },
+      box: { on: false, place: 'auto', w: null, h: null, margin: null, bottom: null, x: null },
       view: { eye: null, dist: null },
       built: { top: null, bottom: null },
       bar: { kind: 'none', w: null, h: null, place: 'gap', gap: null, below: null, holesToTop: null },
@@ -156,7 +156,7 @@
       center: { mode: c.mode === 'half' ? 'half' : 'two', from: c.mode !== 'half' && c.from === 'right' ? 'right' : 'left', a: n(c.a), b: n(c.b), d: n(c.d) },
       studsFrom: st.from === 'edge' ? 'edge' : 'center',
       studs: pro && Array.isArray(st.list) ? st.list.filter(isNum) : [],
-      box: pro && bx.on ? { w: n(bx.w), h: n(bx.h), margin: isNum(bx.margin) ? bx.margin : DEFAULTS.boxMargin } : null,
+      box: pro && bx.on ? { place: bx.place === 'set' ? 'set' : 'auto', w: n(bx.w), h: n(bx.h), margin: isNum(bx.margin) ? bx.margin : DEFAULTS.boxMargin, bottom: n(bx.bottom), x: isNum(bx.x) ? bx.x : 0 } : null,
       eye: p(vw.eye, DEFAULTS.eye), dist: p(vw.dist),
       built: pro ? { top: n(b.top), bottom: n(b.bottom) } : null,
       room: { ceil: n(rm.ceil), mantle: n(rm.mantle), left: n(rm.left), right: n(rm.right) },
@@ -382,7 +382,26 @@
 
     /* recessed box zone */
     r.box = null;
-    if (e.box && W && y.top != null && y.bottom != null) {
+    const bw = e.box && isNum(e.box.w) && e.box.w > 0 ? e.box.w : null, bh = e.box && isNum(e.box.h) && e.box.h > 0 ? e.box.h : null;
+    if (e.box && e.box.place === 'set') {
+      // already in the wall: report where it sits against the TV, the plate and the studs
+      r.box = { set: true, zones: [], at: null, w: bw, h: bh, shows: [], plate: null };
+      const y0 = fromMeasure(e.box.bottom);
+      if (bw && bh && y0 != null) {
+        const x = e.box.x, b = r.box.at = { where: 'set', x, x0: x - bw / 2, x1: x + bw / 2, y0, y1: y0 + bh, cy: y0 + bh / 2 };
+        if (W && y.top != null && y.bottom != null) {
+          r.box.tvKnown = true;
+          const out = [['above', b.y1 - y.top], ['below', y.bottom - b.y0], ['left of', -W / 2 - b.x0], ['right of', b.x1 - W / 2]];
+          r.box.shows = out.filter(([, d]) => d > EPS).map(([k, d]) => ({ k, d }));
+          if (r.box.shows.length) r.warnings.push('The box shows ' + r.box.shows.map(s => T(s.d) + ' ' + s.k).join(' and ') + ' the TV.');
+        }
+        if (r.plate) {
+          const ox = Math.min(b.x1, r.plate.x1) - Math.max(b.x0, r.plate.x0), oy = Math.min(b.y1, r.plate.y1) - Math.max(b.y0, r.plate.y0);
+          if (ox > EPS && oy > EPS) r.box.plate = ox >= bw - EPS && oy >= bh - EPS ? 'behind' : 'partly behind';
+        }
+        if (studs.some(s => s + 0.75 > b.x0 + EPS && s - 0.75 < b.x1 - EPS)) r.warnings.push('The box crosses a stud mark. Check the stud and box positions.');
+      }
+    } else if (e.box && W && y.top != null && y.bottom != null) {
       const m = e.box.margin;
       const x0 = -W / 2 + m, x1 = W / 2 - m;
       const lowRow = holeRows.length ? holeRows[holeRows.length - 1] : y.hole;
@@ -569,7 +588,9 @@
       }
       if (r.box) {
         const b = r.box;
-        if (b.at) rows.push({ id: 'box', k: 'Recessed box', s: 'center ' + T(r.toMeasure(b.at.cy)) + ' ' + sub, sub: side(b.at.x) + ' of center line, ' + b.at.where + ' the plate', alt: 'top ' + T(r.toMeasure(b.at.y1)) + ', bottom ' + T(r.toMeasure(b.at.y0)), cls: 'wide' });
+        if (b.set) {
+          if (b.at) rows.push({ id: 'box', k: 'Recessed box', s: b.shows.length ? 'shows ' + b.shows.map(s => T(s.d) + ' ' + s.k).join(', ') + ' the TV' : b.tvKnown ? 'hidden behind the TV' : 'bottom ' + T(r.toMeasure(b.at.y0)) + ' ' + sub, sub: [side(b.at.x) + ' of center line', b.plate ? b.plate + ' the plate' : null].filter(Boolean).join(', '), cls: b.shows.length ? 'wide warn' : 'wide' });
+        } else if (b.at) rows.push({ id: 'box', k: 'Recessed box', s: 'center ' + T(r.toMeasure(b.at.cy)) + ' ' + sub, sub: side(b.at.x) + ' of center line, ' + b.at.where + ' the plate', alt: 'top ' + T(r.toMeasure(b.at.y1)) + ', bottom ' + T(r.toMeasure(b.at.y0)), cls: 'wide' });
         else if (b.zones.length) {
           const z = b.zones[0];
           rows.push({ id: 'box', k: 'Box zone', s: T(r.toMeasure(z.y0)) + ' to ' + T(r.toMeasure(z.y1)) + ' ' + sub, sub: 'within ' + T(Math.abs(z.x0)) + ' of the center line, ' + z.where + ' the plate', cls: 'wide' });

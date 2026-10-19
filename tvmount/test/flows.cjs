@@ -317,6 +317,12 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   check('2 studs picked', (await tab0()).mount.studsNeeded === 2);
   await page.tap('[data-seg="mount.studsNeeded"] [data-v="null"]');
   check('Auto clears the stud count', (await tab0()).mount.studsNeeded === null);
+  // a box already in the wall: Find a spot on the left, then its own fields
+  await page.evaluate(() => { const t = TVM.doc.tabs.find(x => x.id === TVM.doc.current); t.box.on = true; TVM.render(); });
+  check('Find a spot comes first', await page.$eval('[data-seg="box.place"] button', b => b.textContent === 'Find a spot' && b.classList.contains('on')));
+  await page.tap('[data-seg="box.place"] [data-v="set"]');
+  check('box bottom and center line fields', !!await page.$('[data-k="box.bottom"]') && !!await page.$('[data-k="box.x"]') && !await page.$('[data-k="box.margin"]'));
+  await page.evaluate(() => { const t = TVM.doc.tabs.find(x => x.id === TVM.doc.current); t.box.on = false; t.box.place = 'auto'; TVM.render(); });
   await page.evaluate(() => { TVM.doc.settings.mode = 'simple'; TVM.render(); });
 
   // restore a backup file
