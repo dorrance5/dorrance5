@@ -27,7 +27,7 @@ function jobDoc(mode) {
   d.settings.mode = mode;
   const t = d.tabs[0];
   t.name = 'Living room';
-  Object.assign(t.tv, { src: 'measured', model: 'QN65Q80C', w: 57.125, h: 32.75, vesaTop: 7.5, vesaW: 15.75, vesaH: 11.75 });
+  Object.assign(t.tv, { src: 'measured', model: 'QN65Q80C', w: 57.125, h: 32.75, vesaTop: 7.5, vesaW: 400, vesaH: 300 });
   Object.assign(t.mount, { model: 'Sanus VLT7', holesToTop: 4.5, chain: 'split', hookDrop: 1.25, armDrop: 0.5, sag: 0.125, plateW: 26.5, plateH: 10.75, holeDown: 0.75, rowGap: 8.5, lagSpan: 24, slide: 3, adjUp: 0.5, adjDown: 0.5 });
   t.ref.kind = 'mantle';
   Object.assign(t.ref.mantle, { edge: 'bottom', value: 4, h: 54.25, hR: 54.625, len: 66 });
@@ -75,6 +75,7 @@ const scenes = [
   { name: '29-box-in-wall', seed: boxSet(jobDoc('pro')) },
   { name: '30-box-in-wall-form', seed: boxSet(jobDoc('pro')), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="box"]').scrollIntoView()); } },
   { name: '33-box-corner-drawing', seed: boxSet(jobDoc('pro')), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="box"] .plate-fig').scrollIntoView({ block: 'center' })); } },
+  { name: '34-vesa-mm-keypad', seed: jobDoc('pro'), act: async p => { await p.evaluate(() => document.querySelector('[data-k="tv.vesaW"]').scrollIntoView({ block: 'center' })); await p.click('[data-k="tv.vesaW"]'); await p.waitForTimeout(400); } },
   { name: '31-countertop', seed: (() => { const d = jobDoc('simple'); d.tabs[0].ref.mantle.what = 'counter'; Object.assign(d.tabs[0].ref.mantle, { h: 36, value: 18 }); return d; })() },
   { name: '32-countertop-form', seed: (() => { const d = jobDoc('simple'); d.tabs[0].ref.mantle.what = 'counter'; Object.assign(d.tabs[0].ref.mantle, { h: 36, value: 18 }); return d; })(), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="place"]').scrollIntoView()); } },
   { name: '22-soundbar-form', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="bar"]').scrollIntoView()); } }

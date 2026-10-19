@@ -35,7 +35,7 @@ test('unversioned data is backed up then migrated', () => {
   const { doc, from } = S.load(st);
   assert.equal(from, 0);
   assert.equal(st.map.get('tvmount.backup.v0'), JSON.stringify(old));
-  assert.equal(doc.version, 1);
+  assert.equal(doc.version, S.VERSION);
   assert.equal(doc.tabs[0].id, 'a1');
   assert.equal(doc.tabs[0].tv.w, 50);
   assert.equal(doc.tabs[0].tv.src, 'measured');          // filled from the template
@@ -51,6 +51,27 @@ test('unversioned data is backed up then migrated', () => {
   assert.equal(fresh.tv.src, 'size');                    // new tabs start on a standard size
   assert.equal(fresh.center.mode, 'half');
   for (const k of ['floor', 'mantle', 'ceiling']) assert.equal(fresh.ref[k].edge, 'bottom');
+});
+
+test('VESA spacing moves from inches to millimeters', () => {
+  const old = {
+    version: 1,
+    tabs: [{ id: 'a1', name: 'Den', tv: { w: 57, h: 32.5, vesaTop: 7.25, vesaW: 15.75, vesaH: 11.75 } }, { id: 'a2', name: 'Bed', tv: { w: 50 } }],
+    lib: { tvs: [{ id: 'v1', model: 'ODD', vesaW: 13, vesaH: 3.9375 }] }
+  };
+  const st = memStorage({ 'tvmount.data': JSON.stringify(old) });
+  const { doc, from } = S.load(st);
+  assert.equal(from, 1);
+  assert.equal(st.map.get('tvmount.backup.v1'), JSON.stringify(old));
+  assert.equal(doc.version, 2);
+  assert.equal(doc.tabs[0].tv.vesaW, 400);              // 400.05 mm snaps to the standard size
+  assert.equal(doc.tabs[0].tv.vesaH, 300);              // 298.45 mm too
+  assert.equal(doc.tabs[0].tv.vesaTop, 7.25);           // still inches
+  assert.equal(doc.tabs[1].tv.vesaW, null);
+  assert.equal(doc.lib.tvs[0].vesaW, 330);              // 330.2 mm, no standard size near: whole millimeters
+  assert.equal(doc.lib.tvs[0].vesaH, 100);
+  S.save(st, doc);
+  assert.equal(S.load(st).doc.tabs[0].tv.vesaW, 400);   // converted once, not again
 });
 
 test('fields a newer app wrote are kept, bad numbers dropped', () => {
@@ -116,7 +137,7 @@ test('tab add, duplicate, delete', () => {
 
 test('saved TVs and mounts by model number', () => {
   const d = S.blank(), t = d.tabs[0];
-  Object.assign(t.tv, { model: 'QN65Q80C', w: 57.1, h: 32.7, vesaTop: 7.25, vesaW: 15.75, vesaH: 11.75 });
+  Object.assign(t.tv, { model: 'QN65Q80C', w: 57.1, h: 32.7, vesaTop: 7.25, vesaW: 400, vesaH: 300 });
   const item = S.upsert(d.lib.tvs, S.tvFromTab(t));
   assert.equal(d.lib.tvs.length, 1);
   S.upsert(d.lib.tvs, Object.assign(S.tvFromTab(t), { model: 'qn65q80c ', h: 32.75 }));

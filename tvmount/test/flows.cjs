@@ -297,6 +297,17 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.waitForFunction(() => TVM.doc.lib.synced);
   check('shared TVs load from the site', await page.evaluate(() => TVM.doc.lib.tvs.some(x => x.model === 'SHARED65' && !x.local)));
   await page.evaluate(() => { TVM.doc.settings.mode = 'pro'; TVM.render(); });
+  check('VESA inches from an older app read as millimeters', await page.evaluate(() => { const x = TVM.doc.lib.tvs.find(i => i.model === 'SHARED65'); return x.vesaW === 400 && x.vesaH === 300; }));
+  // VESA spacing is typed in millimeters, so the fraction keys are off
+  await page.tap('[data-k="tv.vesaW"]');
+  await keys('clear', '4', '0', '0');
+  check('VESA width typed in millimeters', (await tab0()).tv.vesaW === 400 && (await page.textContent('#kpVal')).endsWith(' mm') && !!(await page.$('#kp.mm')));
+  await keys('next');
+  check('VESA height is in millimeters too', !!(await page.$('#kp.mm')));
+  await keys('next');
+  check('the fraction keys come back for top holes to TV top', !(await page.$('#kp.mm')));
+  await keys('done');
+  check('the field shows millimeters', (await page.textContent('[data-k="tv.vesaW"] .fv')).replace(/\u00a0/g, ' ') === '400 mm');
   await page.tap('[data-libsave="tv"]');
   await page.fill('#modelIn', 'NEW55');
   await page.tap('.sheet [data-act="save"]');
@@ -304,7 +315,7 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.fill('#passIn', 'abc');
   await page.tap('.sheet [data-act="ok"]');
   await page.waitForFunction(() => TVM.doc.lib.tvs.some(x => x.model === 'NEW55' && !x.local));
-  check('a saved TV goes to the site', shared.tvs.some(x => x.model === 'NEW55'));
+  check('a saved TV goes to the site', shared.tvs.some(x => x.model === 'NEW55' && x.vesaW === 400));
   check('the passcode is kept on this phone', await page.evaluate(() => localStorage.getItem('tvmount.pass')) === 'abc');
   await page.tap('[data-lib="tv"]');
   const del = `.sheet [data-del^="tv:"]`;

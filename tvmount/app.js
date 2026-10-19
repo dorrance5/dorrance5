@@ -21,6 +21,9 @@
   const NB = s => s.replace(/ /g, '\u00a0');   // keep 33 1/8" on one line
   const fmt = v => NB(G.formatInches(v, { prec: doc.settings.prec, dec: doc.settings.dec }));
   const fmtIn = v => NB(G.formatExact(v, { dec: doc.settings.dec }));
+  // VESA hole spacing is typed and shown in millimeters, as TV specs list it.
+  const MM = ['tv.vesaW', 'tv.vesaH'], inMm = path => MM.includes(path);
+  const fmtMm = v => NB(+(+v).toFixed(1) + ' mm');
   const fill = s => G.fill(s, fmt);
   function persist() { if (!S.save(localStorage, doc)) toast('Couldn’t save on this phone'); }
   function update() { persist(); render(); }
@@ -109,6 +112,7 @@
     kp.w = ''; kp.n = ''; kp.d = ''; kp.neg = false; kp.at = 'w';
     if (!isNum(v)) return;
     kp.neg = v < 0;
+    if (inMm(kp.path)) { kp.w = String(+Math.abs(v).toFixed(2)); return; }
     const a = Math.abs(v), n64 = Math.round(a * 64);
     if (Math.abs(a * 64 - n64) < 1e-7) {
       const w = Math.floor(n64 / 64);
@@ -144,6 +148,7 @@
     kp.path = path; kp.fresh = true;
     loadKp(get(tab(), path));
     $('#kp').hidden = false;
+    $('#kp').classList.toggle('mm', inMm(path));   // millimeters have no fractions
     if (changed) render(); else { renderForm(); syncKeypad(); }
     if (first) $('#main').style.paddingBottom = ($('#kp').offsetHeight + 16) + 'px';
     reveal(path);
@@ -170,7 +175,7 @@
     if (!kp.path) return;
     let h = kpBlank() ? (kp.neg ? '−' : '—') : (kp.neg ? '−' : '') + esc(kp.w);
     if (kp.n || kp.d) h += `<span class="fr"><span class="nu${kp.n ? ' lit' : ''}">${kp.n || '·'}</span><span class="de${kp.d ? ' lit' : ''}">${kp.d || '·'}</span></span>`;
-    $('#kpVal').innerHTML = h + (kpBlank() ? '' : '"');
+    $('#kpVal').innerHTML = h + (kpBlank() ? '' : inMm(kp.path) ? ' mm' : '"');
     $('#kpVal').classList.toggle('ph', kpBlank());
     const live = r && r.ok ? 'Drill ' + fmt(r.m.hole) + ' ' + r.rows[0].sub : '';
     $('#kpName').innerHTML = esc(label(kp.path)) + (live ? `<span class="live">${esc(live)}</span>` : '');
@@ -178,6 +183,7 @@
   function key(k) {
     if (k === 'done') { closeKeypad(); return; }
     if (k === 'next' || k === 'prev') { stepField(k === 'next' ? 1 : -1); return; }
+    if (inMm(kp.path) && (/^[nd]\d$/.test(k) || k === 'space' || k === 'over')) return;
     if (k === 'space') { if (kp.w) kp.at = 'n'; return; }       // keyboard: "57 1/8"
     if (k === 'over') {                                          // keyboard: "3/4" moves the 3 up
       if (kp.at === 'w' && !kp.n && kp.w && !kp.w.includes('.') && !kp.fresh) { kp.n = kp.w; kp.w = ''; }
@@ -229,7 +235,7 @@
     const v = get(tab(), path), ph = o.ph !== undefined ? o.ph : (F[path] || [])[1];
     const lab = o.label || label(path);
     formFields.push([path, lab]);
-    const shown = isNum(v) ? fmtIn(v) : '';
+    const shown = isNum(v) ? (inMm(path) ? fmtMm(v) : fmtIn(v)) : '';
     const phs = ph == null ? '—' : typeof ph === 'number' ? fmt(ph) : ph;
     return `<button class="fld${kp.path === path ? ' on' : ''}${o.wide ? ' wide' : ''}" data-k="${path}"><span class="fk">${esc(lab)}</span><span class="fv${shown ? '' : ' ph'}">${esc(shown || phs)}</span></button>`;
   }
@@ -280,7 +286,7 @@
     } else b += `<div class="grid2">${fld('tv.w')}${fld('tv.h')}</div>`;
     if (P) {
       b += `<div class="label">VESA holes</div><div class="grid3">${fld('tv.vesaW')}${fld('tv.vesaH')}${fld('tv.vesaTop')}</div>`;
-      b += hint('Hole spacing, and top holes up to the TV top. The holes sit centered on the TV.') + libButtons('tv');
+      b += hint('Hole spacing in millimeters, as the TV’s specs list it, like 400 × 300. Then the top holes up to the TV top. The holes sit centered on the TV.') + libButtons('tv');
     }
     h += card('tv', 'TV', b);
 
@@ -1003,8 +1009,12 @@
     const out = { synced: true };
     for (const k of LISTS) {
       const tpl = k === 'tvs' ? S.TV_ITEM : S.MOUNT_ITEM, list = Array.isArray(srv[k]) ? srv[k] : [];
-      out[k] = list.filter(x => x && x.id).map(x => Object.assign({ id: String(x.id) }, S.conform(tpl, x)))
-        .concat(doc.lib[k].filter(x => x.local && !list.some(y => norm(y.model) === norm(x.model))));
+      out[k] = list.filter(x => x && x.id).map(x => {
+        const c = Object.assign({ id: String(x.id) }, S.conform(tpl, x));
+        // An app from before millimeters saved VESA spacing in inches. No VESA size is under 40 mm.
+        if (k === 'tvs') for (const f of ['vesaW', 'vesaH']) if (isNum(c[f]) && c[f] < 40) c[f] = S.vesaMm(c[f]);
+        return c;
+      }).concat(doc.lib[k].filter(x => x.local && !list.some(y => norm(y.model) === norm(x.model))));
     }
     doc.lib = out; persist();
   }

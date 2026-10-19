@@ -8,16 +8,32 @@
 })(typeof self !== 'undefined' ? self : this, function (Geo) {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const KEY = 'tvmount.data';
   const isNum = v => typeof v === 'number' && isFinite(v);
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const clone = o => JSON.parse(JSON.stringify(o));
 
+  // VESA hole spacing is in millimeters, as TV specs list it. It was in inches before version 2:
+  // a measured 15 3/4" becomes 400, the standard size within 7 mm, or else whole millimeters.
+  const VESA_SIZES = [50, 75, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800];
+  function vesaMm(inches) {
+    if (!isNum(inches)) return inches;
+    const mm = inches * 25.4, std = VESA_SIZES.reduce((a, b) => Math.abs(b - mm) < Math.abs(a - mm) ? b : a);
+    return Math.abs(std - mm) <= 7 ? std : Math.round(mm);
+  }
+  function vesaToMm(tv) { if (tv && typeof tv === 'object') { tv.vesaW = vesaMm(tv.vesaW); tv.vesaH = vesaMm(tv.vesaH); } }
+
   // STEPS[n] turns a version-n doc into version n+1.
   const STEPS = {
     // unversioned: a bare array of tabs, or a doc saved before the version field existed
-    0: d => Object.assign(Array.isArray(d) ? { tabs: d } : Object.assign({}, d), { version: 1 })
+    0: d => Object.assign(Array.isArray(d) ? { tabs: d } : Object.assign({}, d), { version: 1 }),
+    // VESA spacing from inches to millimeters, in the tabs and the saved TVs
+    1: d => {
+      (Array.isArray(d.tabs) ? d.tabs : []).forEach(t => t && vesaToMm(t.tv));
+      (d.lib && Array.isArray(d.lib.tvs) ? d.lib.tvs : []).forEach(vesaToMm);
+      return Object.assign(d, { version: 2 });
+    }
   };
 
   const SETTINGS = { mode: 'simple', prec: 16, dec: false, shot: 'client' };
@@ -186,7 +202,7 @@
   }
 
   return {
-    VERSION, KEY, STEPS, SETTINGS, TV_ITEM, MOUNT_ITEM,
+    VERSION, KEY, STEPS, SETTINGS, TV_ITEM, MOUNT_ITEM, vesaMm,
     conform, normalize, migrate, load, save, blank, newTab,
     exportText, parseImport, mergeDocs, replaceDoc,
     addTab, duplicateTab, deleteTab, nextName,

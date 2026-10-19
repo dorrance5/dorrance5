@@ -239,10 +239,11 @@ test('studs measured from the edge convert to the center line', () => {
 });
 
 test('VESA centered and drill points on two rows', () => {
-  const t = tab(BASE, { tv: { w: 57.125, h: 32.75, vesaW: 15.75, vesaH: 11.75 }, mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1, rowGap: 8, lagSpan: 24, slide: 0 }, studs: { list: [-8, 8] } });
+  const t = tab(BASE, { tv: { w: 57.125, h: 32.75, vesaW: 400, vesaH: 300 }, mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1, rowGap: 8, lagSpan: 24, slide: 0 }, studs: { list: [-8, 8] } });
   const r = G.compute(t, { mode: 'pro' });
   near(r.vesa.x, 0);
-  near(r.vesa.w, 15.75);
+  near(r.vesa.w, 400 / 25.4);                           // typed in mm, drawn in inches
+  near(r.vesa.h, 300 / 25.4);
   near(r.plateX, 0);
   assert.equal(r.drill.length, 4);
   near(r.drill[1].y, 53.875 - 8);

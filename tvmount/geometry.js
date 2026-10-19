@@ -341,7 +341,8 @@
     const ct = centerTool(e.center);
     r.center = ct;
     const vesaX = 0;   // VESA holes are always centered left to right on the TV
-    r.vesa = isNum(e.vesaW) ? { x: 0, w: e.vesaW, h: e.vesaH } : null;
+    // VESA spacing is typed in millimeters; the sketch works in inches.
+    r.vesa = isNum(e.vesaW) ? { x: 0, w: e.vesaW / 25.4, h: isNum(e.vesaH) ? e.vesaH / 25.4 : null } : null;
 
     let studs = [];
     if (e.studs.length) {
