@@ -25,15 +25,32 @@
   function persist() { if (!S.save(localStorage, doc)) toast('Couldn’t save on this phone'); }
   function update() { persist(); render(); }
 
+  // The wall plate with its measurements, named like the fields under it.
+  const PLATE_SVG = (() => {
+    const dim = (x1, y1, x2, y2) => { const v = x1 === x2, t = (x, y) => v ? `M${x - 4} ${y}h8` : `M${x} ${y - 4}v8`; return `<path class="dm" d="M${x1} ${y1}L${x2} ${y2}${t(x1, y1)}${t(x2, y2)}"/>`; };
+    const slot = (x, y) => `<rect class="lh" x="${x - 3}" y="${y - 7}" width="6" height="14" rx="3"/>`;
+    return `<svg class="plate-fig" viewBox="0 0 340 156" role="img" aria-label="Wall plate measurements">
+      <rect class="pl" x="100" y="36" width="200" height="80" rx="6"/>
+      ${[118, 282].flatMap(x => [52, 100].map(y => slot(x, y))).join('')}
+      <path class="ex" d="M100 36H80M112 52H80M112 100H80M118 108V136M282 108V136M100 36V16M300 36V16M300 36h20M300 116h20"/>
+      ${dim(100, 22, 300, 22)}${dim(314, 36, 314, 116)}${dim(86, 36, 86, 52)}${dim(86, 52, 86, 100)}${dim(118, 132, 282, 132)}
+      <text x="200" y="13" text-anchor="middle">Plate width</text>
+      <text transform="translate(322 76) rotate(90)" text-anchor="middle">Plate height</text>
+      <text x="78" y="40" text-anchor="end">Plate top →</text><text x="78" y="52" text-anchor="end">lag holes</text>
+      <text x="78" y="76" text-anchor="end">Top → bottom</text><text x="78" y="88" text-anchor="end">lag row</text>
+      <text x="200" y="150" text-anchor="middle">Left ↔ right lag holes</text>
+    </svg>`;
+  })();
+
   /* ---------- field labels: [label, placeholder] ---------- */
   const F = {
     'tv.w': ['Width'], 'tv.h': ['Height'],
     'tv.vesaTop': ['To TV top'], 'tv.vesaW': ['Width'], 'tv.vesaH': ['Height'],
     'mount.holesToTop': ['Top holes → TV top'], 'mount.holesToBottom': ['Top holes → TV bottom'],
     'mount.hookDrop': ['Top holes → hook'], 'mount.armDrop': ['Arm hook → VESA'], 'mount.sag': ['Sag once hung', 0],
-    'mount.plateW': ['Plate width'], 'mount.plateH': ['Plate height'], 'mount.holeDown': ['Plate top → holes', 0], 'mount.rowGap': ['Hole rows apart'],
-    'mount.lagSpan': ['Lag span', 'plate width'], 'mount.slide': ['Slide each way', 0],
-    'mount.adjUp': ['Adjusts up'], 'mount.adjDown': ['Adjusts down'], 'mount.studsNeeded': ['Studs needed', 'auto'],
+    'mount.plateW': ['Plate width'], 'mount.plateH': ['Plate height'], 'mount.holeDown': ['Plate top → lag holes', 0], 'mount.rowGap': ['Top → bottom lag row', 'one row'],
+    'mount.lagSpan': ['Left ↔ right lag holes', 'plate width'], 'mount.slide': ['TV slides left or right', 0],
+    'mount.adjUp': ['Can raise TV'], 'mount.adjDown': ['Can lower TV'],
     'ref.mantle.h': ['Mantle height'], 'ref.mantle.hR': ['Right end', 'same'], 'ref.mantle.len': ['Mantle length', 'TV width'],
     'ref.ceiling.h': ['Ceiling height'], 'ref.ff': ['Finished floor adds', 0],
     'center.a': ['First mark'], 'center.b': ['Second mark'], 'center.d': ['Whole distance'],
@@ -260,7 +277,12 @@
         : 'Plate top holes down to the hook, the arm’s hook down to its top VESA hole, then the TV’s top VESA holes up to its top edge.'}</div>`;
     }
     if (P) {
-      b += `<div class="label">Plate</div><div class="grid2">${fld('mount.plateW')}${fld('mount.plateH')}${fld('mount.holeDown')}${fld('mount.rowGap')}${fld('mount.lagSpan')}${fld('mount.slide')}${fld('mount.adjUp')}${fld('mount.adjDown')}${fld('mount.studsNeeded')}</div>`;
+      b += `<div class="label">Wall plate</div>${PLATE_SVG}<div class="grid2">${fld('mount.plateW')}${fld('mount.plateH')}${fld('mount.holeDown')}${fld('mount.rowGap')}${fld('mount.lagSpan', { wide: true })}</div>`;
+      b += hint('The wall plate is the part that bolts to the wall. Lag holes are its holes for the lag bolts into the studs. Measure from the center of each hole.');
+      b += `<div class="label">Lag bolts go into</div>` + seg('mount.studsNeeded', [['null', 'Auto'], ['1', '1 stud'], ['2', '2 studs'], ['3', '3 studs']]);
+      b += hint(t.mount.studsNeeded == null ? 'Auto picks 2 studs when the lag holes are 16" or more apart, and 1 when they are closer.' : 'The plate goes where its lag holes reach this many studs.');
+      b += `<div class="label">Adjustment</div><div class="grid2">${fld('mount.adjUp')}${fld('mount.adjDown')}${fld('mount.slide', { wide: true })}</div>`;
+      b += hint('How far the mount lets the TV move once it hangs. Leave blank if it has no adjustment.');
       b += libButtons('mount');
     }
     h += card('bracket', 'Bracket', b);
@@ -353,6 +375,7 @@
       const path = sb.parentElement.dataset.seg;
       let v = sb.dataset.v;
       if (path === 'box.on') v = v === 'true';
+      if (path === 'mount.studsNeeded') v = v === 'null' ? null : +v;
       if (path === 'studs.from' && v !== t.studs.from) convertStuds(t, v);
       set(t, path, v); buzz(6); update(); return;
     }

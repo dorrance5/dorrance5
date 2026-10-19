@@ -312,6 +312,11 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.waitForFunction(() => !TVM.doc.lib.tvs.some(x => x.model === 'SHARED65'));
   check('delete removes it from the site', !shared.tvs.some(x => x.model === 'SHARED65'));
   await page.keyboard.press('Escape');
+  // studs for the lags: Auto on the left, a count with no inch mark
+  await page.tap('[data-seg="mount.studsNeeded"] [data-v="2"]');
+  check('2 studs picked', (await tab0()).mount.studsNeeded === 2);
+  await page.tap('[data-seg="mount.studsNeeded"] [data-v="null"]');
+  check('Auto clears the stud count', (await tab0()).mount.studsNeeded === null);
   await page.evaluate(() => { TVM.doc.settings.mode = 'simple'; TVM.render(); });
 
   // restore a backup file

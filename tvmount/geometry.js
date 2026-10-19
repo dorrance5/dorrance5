@@ -557,7 +557,7 @@
       if (r.slide) {
         const s = r.slide;
         if (s.ok) rows.push({ id: 'plate', k: 'Plate', s: 'center ' + side(s.P), sub: 'lags into ' + s.hits.length + ' stud' + (s.hits.length > 1 ? 's' : '') + (Math.abs(s.used) > EPS ? ', TV slides ' + side(s.used) + ' of plate center' : ''), cls: 'wide good' });
-        else rows.push({ id: 'plate', k: 'Plate', s: s.reason === 'span' ? 'can’t reach ' + s.need + ' studs' : 'needs ' + T(s.short) + ' more slide', sub: s.reason === 'slide' ? 'slide ' + T(s.slide) + ' each way' : 'lag span ' + T(s.lagSpan), cls: 'wide warn' });
+        else rows.push({ id: 'plate', k: 'Plate', s: s.reason === 'span' ? 'can’t reach ' + s.need + ' studs' : 'needs ' + T(s.short) + ' more slide', sub: s.reason === 'slide' ? 'slide ' + T(s.slide) + ' each way' : 'lag holes ' + T(s.lagSpan) + ' apart', cls: 'wide warn' });
       }
       if (r.adjust) {
         const a = r.adjust, parts = [];
