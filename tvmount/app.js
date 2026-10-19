@@ -2,7 +2,7 @@
    renders the inputs, the results and the sketch from one computed result. */
 (function () {
   'use strict';
-  const { $, esc, buzz, sheet, closeSheet, toast, copy, themeSegHTML } = App;
+  const { $, esc, buzz, sheet, closeSheet, toast, copy, themeSegHTML, homeLinkHTML } = App;
   const G = window.Geo, S = window.Store, isNum = G.isNum;
   App.init({ aurora: false });
 
@@ -974,7 +974,7 @@
         <button class="btn" data-act="export">Back up to a file</button>
         <button class="btn" data-act="import">Restore from a backup</button>
       </div>
-      <p class="hint">Simple mode uses defaults for the pro values. Switching never loses what you entered.</p>`);
+      <p class="hint">Simple mode uses defaults for the pro values. Switching never loses what you entered.</p>${homeLinkHTML()}`);
     el.addEventListener('click', async e => {
       const b = e.target.closest('[data-set] button');
       if (b) {

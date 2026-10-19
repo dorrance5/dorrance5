@@ -42,6 +42,8 @@ window.App = (function () {
       `<button data-theme="${k}" class="${t === k ? 'on' : ''}">${l}</button>`).join('')}${aurora
       ? `<button data-theme="aurora"${t === 'aurora' ? ' class="on"' : ' hidden'}>Aurora</button>` : ''}</div>`;
   }
+  // The way back to the list of apps, at the bottom of each app's menu, as in Calculator.
+  const homeLinkHTML = () => '<div class="homelink"><a href="../">&lsaquo; dorrance.me</a></div>';
   let taps = [];
   function secretTap() {
     const now = Date.now();
@@ -98,5 +100,5 @@ window.App = (function () {
 
   function init(o) { if (o && o.aurora === false) aurora = false; if (aurora) backdrop(); applyTheme(); sw(); }
 
-  return { $, esc, uid, buzz, load, save, applyTheme, setTheme, themeSegHTML, sheet, closeSheet, toast, copy, init };
+  return { $, esc, uid, buzz, load, save, applyTheme, setTheme, themeSegHTML, homeLinkHTML, sheet, closeSheet, toast, copy, init };
 })();

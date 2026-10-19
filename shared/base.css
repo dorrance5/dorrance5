@@ -89,6 +89,8 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 12px ca
 .btn:disabled,.primary:disabled{opacity:.4}
 .actions{display:flex;gap:8px;align-items:center}
 .stack{display:flex;flex-direction:column;gap:8px}
+.homelink{display:flex;justify-content:center;margin-top:22px}
+.homelink a{color:var(--muted);text-decoration:none;font-size:13px;font-weight:600;padding:8px 14px;border-radius:14px;border:.5px solid var(--chip-line);background:var(--chip)}
 .stack>*{width:100%}
 
 /* inputs */

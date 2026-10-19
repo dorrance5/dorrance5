@@ -73,7 +73,7 @@ const ICON = {
   pen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>'
 };
 
-const { $, esc, uid, buzz, sheet, closeSheet, themeSegHTML } = App;
+const { $, esc, uid, buzz, sheet, closeSheet, themeSegHTML, homeLinkHTML } = App;
 // Saved colors stay as they are; each one shows as the matching TV Mount hue.
 const HUE = {'#0A57D0':'blue','#D02A2A':'red','#F4B400':'yellow','#1F9D55':'green','#7C3AED':'purple','#F28A00':'orange','#6E6E76':'gray'};
 const hueClass = color => HUE[color] ? ' c-' + HUE[color] : '';
@@ -197,7 +197,7 @@ function openSettings() {
     <div class="stack">
       <button class="danger" data-act="all">Reset all counts</button>
       <button class="danger" data-act="wipe">Delete all counters</button>
-    </div>`);
+    </div>${homeLinkHTML()}`);
   el.addEventListener('click', e => {
     setTimeout(syncTheme);   // the shared sheet sets the theme after this handler
     const act = e.target.closest('[data-act]')?.dataset.act;

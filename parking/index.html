@@ -120,7 +120,7 @@
 
 <script src="../shared/base.js"></script>
 <script>
-const { $, esc, uid, buzz, sheet, closeSheet, toast, themeSegHTML } = App;
+const { $, esc, uid, buzz, sheet, closeSheet, toast, themeSegHTML, homeLinkHTML } = App;
 App.init();
 
 /* ---------------------------------------------------------------- storage
@@ -601,7 +601,7 @@ function openSettings() {
     ${meta.sheetUrl ? `<a class="btn" style="width:100%;margin-top:10px" href="${esc(meta.sheetUrl)}" target="_blank" rel="noopener">Open the Google Sheet</a>` : ''}
     <div class="label" style="margin-top:18px">How flags work</div>
     <div class="muted" style="font-size:14px;line-height:1.45">A plate turns blue on its 2nd night and red at ${SET.repeatNights} nights within ${SET.windowDays} days. Sightings before ${SET.cutoffHour} AM count toward the night before. Outcomes of Void or Has pass don't count. The sheet emails you about repeat offenders and expired notices.</div>
-    <div style="margin-top:18px">${themeSegHTML()}</div>`);
+    <div style="margin-top:18px">${themeSegHTML()}</div>${homeLinkHTML()}`);
   const status = () => {
     const box = $('#s-status'); if (!box) return;
     box.innerHTML = `${meta.lastSync ? 'Last synced ' + ago(meta.lastSync) : 'Never synced'}<br>
