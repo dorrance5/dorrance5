@@ -209,6 +209,19 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   names = await page.$$eval('#tabs [data-tab]:not(.add)', b => b.map(x => x.textContent));
   check('tab deleted', !names.includes('Garage'), names);
 
+  // clear a duplicate of the first tab (two taps), keeps its name
+  await page.tap('#tabs [data-tab]:first-child');
+  if (!await page.$('.sheet [data-act="dup"]')) await page.tap('#tabs [data-tab]:first-child');
+  await page.tap('.sheet [data-act="dup"]');
+  const nmD = (await tab0()).name;
+  await page.tap('#tabs .on'); await page.tap('.sheet [data-act="clear"]');
+  check('one tap does not clear', (await tab0()).tv.w === 57.125);
+  await page.tap('.sheet [data-act="clear"]');
+  check('tab cleared', (await tab0()).tv.w === null && (await tab0()).name === nmD);
+  await page.tap('#tabs .on'); await page.tap('.sheet [data-act="del"]'); await page.tap('.sheet [data-act="del"]');
+  await page.tap('#tabs [data-tab]:first-child');
+  if (await page.$('.sheet')) await page.keyboard.press('Escape');
+
   // pan, zoom, double-tap reset
   const vb = () => page.getAttribute('#sk', 'viewBox');
   const v0 = await vb();

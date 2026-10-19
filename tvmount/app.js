@@ -812,6 +812,7 @@
       <div class="stack">
         <button class="btn" data-act="copy">Copy as text</button>
         <button class="btn" data-act="dup">Duplicate</button>
+        <button class="btn" data-act="clear">Clear sheet</button>
         <button class="danger" data-act="del">Delete</button>
       </div>`);
     const inp = el.querySelector('#tabName');
@@ -819,11 +820,16 @@
     inp.addEventListener('input', rename);
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') { rename(); closeSheet(); } });
     if (isNew) setTimeout(() => { inp.focus(); inp.select(); }, 60);
-    let armed = false;
+    let armed = false, armedClear = false;
     el.addEventListener('click', async e => {
       const a = e.target.closest('[data-act]')?.dataset.act;
       if (a === 'copy') { rename(); toast(await copy(tabText()) ? 'Copied' : 'Couldn’t copy'); }
       if (a === 'dup') { rename(); S.duplicateTab(doc, t.id); update(); closeSheet(); scrollTabIntoView(); toast('Duplicated'); }
+      if (a === 'clear') {
+        if (!armedClear) { armedClear = true; e.target.textContent = 'Tap again to clear ' + t.name; return; }
+        rename(); const i = doc.tabs.indexOf(t); const n = Object.assign(G.newTab(t.name), { id: t.id }); doc.tabs[i] = n;
+        update(); closeSheet(); toast('Cleared');
+      }
       if (a === 'del') {
         if (!armed) { armed = true; e.target.textContent = 'Tap again to delete ' + t.name; return; }
         S.deleteTab(doc, t.id); update(); closeSheet(); toast('Deleted');
@@ -965,7 +971,7 @@
       <p class="hint" style="font-size:16px">${esc(file.name)} has ${n(inc.tabs.length, 'tab')}, ${n(inc.lib.tvs.length, 'saved TV')} and ${n(inc.lib.mounts.length, 'saved mount')}.</p>
       <div class="stack"><button class="primary" data-act="merge">Add to what’s here</button><button class="danger" data-act="replace">Replace everything</button></div>
       <p class="hint">Adding keeps your tabs; ones with the same id are updated from the backup.</p>`);
-    let armed = false;
+    let armed = false, armedClear = false;
     el.addEventListener('click', ev => {
       const a = ev.target.closest('[data-act]')?.dataset.act;
       if (a === 'merge') { doc = S.mergeDocs(doc, inc); update(); closeSheet(); toast('Backup added'); }
