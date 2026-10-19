@@ -61,14 +61,18 @@
     'bar.below': ['Console top', 'floor'], 'bar.holesToTop': ['Holes → bar top'],
     'room.ceil': ['Floor to ceiling'], 'room.mantle': ['Floor to mantle top'], 'room.left': ['Center line → left wall'], 'room.right': ['Center line → right wall']
   };
+  // A countertop is placed like a mantle; only the words change.
+  const surface = t => t.ref.kind === 'mantle' && t.ref.mantle.what === 'counter' ? 'countertop' : 'mantle';
   function label(path) {
-    const t = tab(), kind = t.ref.kind;
+    const t = tab(), kind = t.ref.kind, noun = surface(t), Noun = noun[0].toUpperCase() + noun.slice(1);
     if (/^ref\.(floor|mantle|ceiling)\.value$/.test(path)) {
       const ed = G.edgeOf(t.ref[kind].edge, kind, t.bar), e = G.EDGE_NAME[ed];
-      return kind === 'floor' ? e + ' height' : (kind === 'mantle' ? 'Mantle to ' : 'Ceiling to ') + (ed === 'bar' ? 'soundbar bottom' : e);
+      return kind === 'floor' ? e + ' height' : (kind === 'mantle' ? (noun === 'mantle' ? 'Mantle' : 'Counter') + ' to ' : 'Ceiling to ') + (ed === 'bar' ? 'soundbar bottom' : e);
     }
-    if (path === 'ref.mantle.h' && pro()) return 'Left end height';
-    if (path === 'box.bottom') return 'Bottom ' + (kind === 'floor' ? 'above floor' : kind === 'mantle' ? 'above mantle' : 'below ceiling');
+    if (path === 'ref.mantle.h') return pro() ? 'Left end height' : Noun + ' height';
+    if (path === 'ref.mantle.len') return Noun + ' length';
+    if (path === 'room.mantle') return 'Floor to ' + (noun === 'mantle' ? 'mantle top' : noun);
+    if (path === 'box.bottom') return 'Bottom ' + (kind === 'floor' ? 'above floor' : kind === 'mantle' ? 'above ' + noun : 'below ceiling');
     if (/^studs\.list\./.test(path)) return tab().studs.from === 'edge' ? 'Stud from the ' + (t.center.mode !== 'half' && t.center.from === 'right' ? 'right' : 'left') + ' edge' : 'Stud from center (− is left)';
     return (F[path] || [path])[0];
   }
@@ -290,7 +294,9 @@
 
     // placement
     const k = t.ref[kind];
-    b = seg('ref.kind', [['floor', 'Floor'], ['mantle', 'Mantle'], ['ceiling', 'Ceiling']]);
+    const noun = surface(t);
+    b = `<div class="seg" data-seg="ref.kind">${[['floor', 'Floor'], ['mantle', 'Mantle'], ['counter', 'Counter'], ['ceiling', 'Ceiling']].map(([v, l]) =>
+      `<button data-v="${v}" class="${(noun === 'countertop' ? 'counter' : kind) === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
     // with a soundbar, the long "Soundbar bottom" gets a wider button and its field the full row
     const hasBar = t.bar.kind !== 'none', barEdge = G.edgeOf(k.edge, kind, t.bar) === 'bar';
     b += `<div class="label">Set the</div>` + seg('ref.' + kind + '.edge', [['bottom', hasBar ? 'Soundbar bottom' : 'TV bottom'], ['center', 'TV center'], ['top', 'TV top']], hasBar ? 'fit' : '');
@@ -299,7 +305,7 @@
     if (kind === 'ceiling') b += fld('ref.ceiling.h');
     if (P) b += fld('ref.ff');
     b += '</div>';
-    if (kind === 'mantle') b += hint(P ? 'Measure the mantle height from the floor at both ends. The gap holds at the high end; the TV is taken as centered on the mantle.' : 'Mantle height is optional; add it to get heights from the floor too.');
+    if (kind === 'mantle') b += hint(P ? `Measure the ${noun} height from the floor at both ends. The gap holds at the high end; the TV is taken as centered on the ${noun}.` : `${noun === 'mantle' ? 'Mantle' : 'Countertop'} height is optional; add it to get heights from the floor too.`);
     if (kind === 'ceiling') b += hint('Ceiling height is optional; add it to get heights from the floor too.');
     if (P && t.ref.ff) b += hint('Plan to the finished floor; marks are given from the floor as it is today.');
     h += card('place', 'Placement', b);
@@ -324,7 +330,7 @@
       if (centered && kind !== 'mantle') b += fld('bar.below');
       if (sb.kind === 'wall') b += fld('bar.holesToTop');
       b += '</div>';
-      if (sb.kind === 'wall') b += hint((centered ? (kind === 'mantle' ? 'Centered between the TV bottom and the mantle top.' : 'Centered between the TV bottom and the console top. Leave the console blank to center over the floor.') + ' '
+      if (sb.kind === 'wall') b += hint((centered ? (kind === 'mantle' ? 'Centered between the TV bottom and the ' + (noun === 'mantle' ? 'mantle top' : noun) + '.' : 'Centered between the TV bottom and the console top. Leave the console blank to center over the floor.') + ' '
           : '') + 'Hang the bracket on the bar, then measure from its holes to the bar top. The bar is centered on the TV center line.');
     }
     h += card('bar', 'Soundbar', b);
@@ -380,6 +386,7 @@
       const path = sb.parentElement.dataset.seg;
       let v = sb.dataset.v;
       if (path === 'box.on') v = v === 'true';
+      if (path === 'ref.kind' && (v === 'mantle' || v === 'counter')) { t.ref.mantle.what = v; v = 'mantle'; }
       if (path === 'mount.studsNeeded') v = v === 'null' ? null : +v;
       if (path === 'studs.from' && v !== t.studs.from) convertStuds(t, v);
       set(t, path, v); buzz(6); update(); return;

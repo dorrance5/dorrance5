@@ -317,6 +317,16 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   check('2 studs picked', (await tab0()).mount.studsNeeded === 2);
   await page.tap('[data-seg="mount.studsNeeded"] [data-v="null"]');
   check('Auto clears the stud count', (await tab0()).mount.studsNeeded === null);
+  // a countertop is placed like a mantle, with its own words
+  const kind0 = (await tab0()).ref.kind;
+  await page.tap('[data-seg="ref.kind"] [data-v="counter"]');
+  check('Counter sets a mantle placement', (await tab0()).ref.kind === 'mantle' && (await tab0()).ref.mantle.what === 'counter');
+  check('Counter words on the form', await page.$eval('[data-k="ref.mantle.value"] .fk', el => el.textContent.startsWith('Counter to')));
+  check('Counter words on the results', await page.evaluate(() => TVM.r.ref.label) === 'above countertop');
+  await page.tap('[data-seg="ref.kind"] [data-v="mantle"]');
+  check('Mantle words come back', await page.$eval('[data-k="ref.mantle.value"] .fk', el => el.textContent.startsWith('Mantle to')));
+  await page.tap(`[data-seg="ref.kind"] [data-v="${kind0}"]`);
+
   // a box already in the wall: Find a spot on the left, then its own fields
   await page.evaluate(() => { const t = TVM.doc.tabs.find(x => x.id === TVM.doc.current); t.box.on = true; TVM.render(); });
   check('Find a spot comes first', await page.$eval('[data-seg="box.place"] button', b => b.textContent === 'Find a spot' && b.classList.contains('on')));

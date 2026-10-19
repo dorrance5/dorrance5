@@ -108,7 +108,7 @@
       ref: {
         kind: 'floor', ff: null,
         floor: { edge: 'bottom', value: null },
-        mantle: { edge: 'bottom', value: null, h: null, hR: null, len: null },
+        mantle: { what: 'mantle', edge: 'bottom', value: null, h: null, hR: null, len: null },
         ceiling: { edge: 'bottom', value: null, h: null }
       },
       center: { mode: 'half', from: 'left', a: null, b: null, d: null },
@@ -148,6 +148,7 @@
       plateW: p(m.plateW), plateH: p(m.plateH), holeDown: p(m.holeDown), rowGap: p(m.rowGap),
       lagSpan: p(m.lagSpan), slide: p(m.slide), adjUp: p(m.adjUp), adjDown: p(m.adjDown), studsNeeded: p(m.studsNeeded),
       kind, edge: edgeOf(k.edge, kind, sb), value: n(k.value),
+      counter: kind === 'mantle' && rf.mantle && rf.mantle.what === 'counter',   // a countertop works like a mantle
       ff: p(rf.ff, DEFAULTS.ff),
       mantleH: kind === 'mantle' ? n(k.h) : null,
       mantleR: kind === 'mantle' ? p(k.hR) : null,
@@ -277,7 +278,8 @@
         }
       }
     }
-    r.ref = { kind, edge, value: e.value, refNow, ff: e.ff, label: REF_LABEL[kind], L, R, slope, rise, span };
+    const noun = e.counter ? 'countertop' : 'mantle';
+    r.ref = { kind, edge, value: e.value, refNow, ff: e.ff, label: kind === 'mantle' ? 'above ' + noun : REF_LABEL[kind], noun, short: e.counter ? 'counter' : 'mantle', topName: e.counter ? 'countertop' : 'mantle top', L, R, slope, rise, span };
     const yOfAff = f => refNow == null ? null : f + e.ff - refNow;
     const under = e.bar ? barUnder(e.bar, r.ref, yOfAff) : null;
 
@@ -326,7 +328,7 @@
       r.ref.gapR = W ? y.bottom - at(W / 2) : null;
       const gap = y.bottom - rise;
       r.ref.gap = gap;
-      if (gap < -EPS) r.warnings.push('TV bottom is ' + T(-gap) + ' below the mantle top.');
+      if (gap < -EPS) r.warnings.push('TV bottom is ' + T(-gap) + ' below the ' + r.ref.topName + '.');
     }
     if (kind === 'ceiling' && y.top != null) {
       r.ref.gap = -y.top;
@@ -522,6 +524,7 @@
 
   /* ---------- rows for the results card and the text copy ---------- */
 
+  const cap = s => s[0].toUpperCase() + s.slice(1);
   function side(x) { return Math.abs(x) < 1e-6 ? 'on center' : T(Math.abs(x)) + (x < 0 ? ' left' : ' right'); }
 
   function rowsFor(r) {
@@ -548,10 +551,10 @@
       rows.push({ id: 'tv', k: 'TV', s: (tv.w != null ? T(tv.w) : '?') + ' × ' + (tv.h != null ? T(tv.h) : '?'), sub: tv.est ? tv.size + '″ class, estimate' : (tv.model || 'measured'), cls: 'wide' });
     }
     if (ref.kind === 'mantle') {
-      if (ref.refNow != null && Math.abs(ref.slope) > EPS) rows.push({ id: 'mantle', k: 'Mantle', s: 'left ' + T(ref.L) + ' · right ' + T(ref.R), sub: 'measure up from the mantle at the center line, ' + T(ref.refNow) + ' above floor', cls: 'wide' });
+      if (ref.refNow != null && Math.abs(ref.slope) > EPS) rows.push({ id: 'mantle', k: cap(ref.noun), s: 'left ' + T(ref.L) + ' · right ' + T(ref.R), sub: 'measure up from the ' + ref.noun + ' at the center line, ' + T(ref.refNow) + ' above floor', cls: 'wide' });
       if (r.bar) { /* the soundbar row gives its gap over the mantle */ }
-      else if (ref.gapL != null && Math.abs(ref.slope) > EPS) rows.push({ id: 'gaps', k: 'Gap over mantle', s: 'left ' + T(ref.gapL) + ' · right ' + T(ref.gapR), sub: 'at the TV ends', cls: 'wide' });
-      else if (ref.gap != null && ref.edge !== 'bottom') rows.push({ id: 'gap', k: 'Gap over mantle', v: ref.gap, sub: 'TV bottom to mantle top' });
+      else if (ref.gapL != null && Math.abs(ref.slope) > EPS) rows.push({ id: 'gaps', k: 'Gap over ' + ref.noun, s: 'left ' + T(ref.gapL) + ' · right ' + T(ref.gapR), sub: 'at the TV ends', cls: 'wide' });
+      else if (ref.gap != null && ref.edge !== 'bottom') rows.push({ id: 'gap', k: 'Gap over ' + ref.noun, v: ref.gap, sub: 'TV bottom to ' + ref.topName });
     }
     if (ref.kind === 'ceiling' && ref.gap != null && ref.edge !== 'top') rows.push({ id: 'gap', k: 'Gap to ceiling', v: ref.gap, sub: 'TV top to ceiling' });
     if (r.bar) {
@@ -649,7 +652,7 @@
       const sp = ref.span || W + 8, s = ref.slope || 0;
       const th = 2.5;
       add({ t: 'poly', cls: 'mantle', pts: [[-sp / 2, -s * sp / 2], [sp / 2, s * sp / 2], [sp / 2, s * sp / 2 - th], [-sp / 2, -s * sp / 2 - th]] });
-      add({ t: 'label', cls: 'mantle', x: 0, y: -th / 2, top: 0, lines: ['Mantle'], anchor: 'middle', inside: true });
+      add({ t: 'label', cls: 'mantle', x: 0, y: -th / 2, top: 0, lines: [cap(r.ref.noun)], anchor: 'middle', inside: true });
     }
     if (ref.kind !== 'floor' && ref.refNow != null) {
       add({ t: 'line', cls: 'floor', x0, x1, y0: -ref.refNow, y1: -ref.refNow, hspan: true, text: 'Floor' });
@@ -668,8 +671,8 @@
     if (my != null) {
       const sp = W + 8, th = 2.5;
       add({ t: 'poly', cls: 'mantle', pts: [[-sp / 2, my], [sp / 2, my], [sp / 2, my - th], [-sp / 2, my - th]], room: true });
-      add({ t: 'label', cls: 'mantle', x: 0, y: my - th / 2, top: my, lines: ['Mantle'], anchor: 'middle', inside: true, room: true });
-      add({ t: 'dim', side: 'right', a: -ref.refNow, b: my, v: room.mantle, name: 'mantle', key: 'room', room: true });
+      add({ t: 'label', cls: 'mantle', x: 0, y: my - th / 2, top: my, lines: [cap(r.ref.noun)], anchor: 'middle', inside: true, room: true });
+      add({ t: 'dim', side: 'right', a: -ref.refNow, b: my, v: room.mantle, name: ref.short, key: 'room', room: true });
     }
     for (const [d, dir] of [[room.left, -1], [room.right, 1]]) {
       if (!isNum(d) || d <= 0) continue;
@@ -755,7 +758,7 @@
       }
     }
     add({ t: 'dim', side: 'right', a: y.bottom, b: y.top, v: tv.h, name: 'height', key: 'tv' });
-    if (ref.kind !== 'floor' && ref.refNow != null) add({ t: 'dim', side: 'right', a: -ref.refNow, b: 0, v: ref.refNow, name: ref.kind === 'mantle' ? 'mantle' : 'ceiling', ref: true });
+    if (ref.kind !== 'floor' && ref.refNow != null) add({ t: 'dim', side: 'right', a: -ref.refNow, b: 0, v: ref.refNow, name: ref.kind === 'mantle' ? ref.short : 'ceiling', ref: true });
     if (ref.kind === 'floor' && Math.abs(ref.ff) > EPS) crew({ t: 'dim', side: 'right', a: -ref.ff, b: 0, v: Math.abs(ref.ff), name: 'finish' });
     if (tv.w) add({ t: 'dim', side: 'top', a: x0, b: x1, v: tv.w, name: 'width', key: 'tv' });
     if (ref.kind === 'mantle' && ref.gapL != null && Math.abs(ref.slope) > EPS && !r.bar) {
