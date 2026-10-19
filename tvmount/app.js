@@ -761,7 +761,7 @@
     closeKeypad(); closeSheet();
     const el = document.createElement('div');
     el.className = 'shot';
-    el.innerHTML = '<div class="cap" id="shotCap"></div><svg class="sk" id="shotSk" role="img" aria-label="Wall sketch"></svg><button class="x" id="shotX" aria-label="Close screenshot mode">✕</button>'
+    el.innerHTML = '<div class="cap" id="shotCap"></div><div class="key" id="shotKey"></div><svg class="sk" id="shotSk" role="img" aria-label="Wall sketch"></svg><button class="x" id="shotX" aria-label="Close screenshot mode">✕</button>'
       + '<div class="seg vw" id="shotVw" role="group" aria-label="Screenshot for"><button data-v="client">Client</button><button data-v="crew">Installer</button></div>';
     document.body.appendChild(el);
     const x = el.querySelector('#shotX'), vw = el.querySelector('#shotVw');
@@ -794,6 +794,28 @@
     renderShot();
   }
   function closeShot() { if (!shot) return; shot.el.remove(); shot = null; }
+  // What each color means, for the installer view. Lists only what the sketch draws.
+  function colorKey(items) {
+    const has = f => items.some(f), dim = f => has(i => i.t === 'dim' && f(i));
+    const sw = s => `<svg class="sk sw" viewBox="0 0 22 12" aria-hidden="true">${s}</svg>`;
+    const ln = cls => `<line class="${cls}" x1="1" y1="6" x2="21" y2="6"/>`, bx = cls => `<rect class="${cls}" x="2" y="2" width="18" height="8"/>`;
+    const tx = c => `<rect x="1" y="4" width="20" height="4" rx="2" style="fill:var(--${c})"/>`;
+    const keys = [
+      [has(i => i.cls === 'drill' || i.cls === 'hole') || dim(i => i.key === 'hole'), ln('drill') + '<circle class="hole" cx="11" cy="6" r="3"/>', 'Drill holes'],
+      [has(i => i.cls === 'plate') || dim(i => i.key === 'chain'), bx('plate'), 'Wall plate and bracket'],
+      [has(i => i.cls === 'stud'), ln('stud'), 'Studs'],
+      [has(i => i.cls === 'center' || i.cls === 'markline') || dim(i => i.side === 'bottom'), ln('center'), 'Center line'],
+      [dim(i => i.input), tx('orange'), 'Height you set'],
+      [dim(i => i.key === 'tv'), tx('purple'), 'TV size'],
+      [has(i => i.cls === 'sbar') || dim(i => /^bar/.test(i.key)), bx('sbar'), 'Soundbar'],
+      [has(i => i.cls === 'mantle'), bx('mantle'), r.ref.kind === 'mantle' ? r.ref.noun[0].toUpperCase() + r.ref.noun.slice(1) : 'Mantle'],
+      [has(i => i.cls === 'box'), bx('box'), 'Box'],
+      [has(i => i.cls === 'zone'), bx('zone'), 'Room for the box'],
+      [has(i => i.cls === 'built'), bx('built'), 'As built'],
+      [has(i => i.cls === 'eye'), ln('eye'), 'Seated eye line']
+    ];
+    return keys.filter(k => k[0]).map(([, s, l]) => `<span>${sw(s)}${esc(l)}</span>`).join('');
+  }
   function renderShot() {
     if (!shot) return;
     const t = tab(), example = !r.sketch, view = doc.settings.shot;
@@ -817,6 +839,7 @@
       if (r.bar && r.bar.hole != null) cap += line('Soundbar holes ' + fmt(r.bar.m.hole), 'e');
     } else cap = line('Add the bracket to see where to drill');
     $('#shotCap').innerHTML = `<b>${esc(t.name)}</b>${cap}`;
+    $('#shotKey').innerHTML = view === 'crew' && !example ? colorKey(r.sketch.items.filter(SHOWS.crew)) : '';
     drawInto(shot.el.querySelector('#shotSk'), shot.zm, example ? G.compute(EXAMPLE, { mode: 'simple' }).sketch : r.sketch, { px: Math.max(13, Math.min(22, Math.min(innerWidth, innerHeight) / 29)), example, hid: 'hatchB', view });
   }
   $('#shotBtn').onclick = openShot;

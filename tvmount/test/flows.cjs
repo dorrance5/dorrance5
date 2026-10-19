@@ -157,13 +157,15 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   // the client view comes first: where the TV goes, without holes, studs or layout marks
   const shotCap = async () => (await page.textContent('#shotCap')).replace(/\u00a0/g, ' ');
   check('screenshot mode starts on the client view, on the left', await page.$eval('#shotVw', el => el.firstElementChild.dataset.v === 'client' && el.firstElementChild.classList.contains('on')));
-  const clientShot = { drill: (await page.$$('#shotSk line.drill')).length, holes: (await page.$$('#shotSk circle.hole')).length, cap: await shotCap() };
+  const clientShot = { drill: (await page.$$('#shotSk line.drill')).length, holes: (await page.$$('#shotSk circle.hole')).length, cap: await shotCap(), key: await page.textContent('#shotKey') };
   check('the client view has no drill lines or holes', clientShot.drill === 0 && clientShot.holes === 0, clientShot);
   check('the client caption gives the TV height, not the drill height', /^Living room\s*TV center 42" above floor/.test(clientShot.cap) && !/Drill|holes/.test(clientShot.cap), clientShot.cap);
   await page.tap('#shotVw [data-v="crew"]');
   const crewShot = { drill: (await page.$$('#shotSk line.drill')).length, cap: await shotCap() };
   check('the installer view shows the drill line and height', crewShot.drill === 1 && /Drill top holes 53 7\/8"/.test(crewShot.cap), crewShot);
   check('the view choice is saved', await page.evaluate(() => TVM.doc.settings.shot) === 'crew');
+  check('the installer view has a color key', /Drill holes/.test(await page.textContent('#shotKey')));
+  check('the client view has no color key', clientShot.key === '');
   await page.tap('#shotX');
   await page.tap('[data-shot]');
   check('and it opens on the last view', await page.$eval('#shotVw .on', el => el.dataset.v) === 'crew' && (await page.$$('#shotSk line.drill')).length === 1);
