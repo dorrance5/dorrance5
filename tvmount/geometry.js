@@ -99,7 +99,7 @@
   function newTab(name) {
     return {
       name: name || 'TV',
-      tv: { src: 'size', w: null, h: null, size: null, model: '', vesaTop: null, vesaLeft: null, vesaRight: null },
+      tv: { src: 'size', w: null, h: null, size: null, model: '', vesaTop: null, vesaW: null, vesaH: null },
       mount: {
         model: '', holesFrom: 'top', holesToTop: null, holesToBottom: null, chain: 'measured', hookDrop: null, armDrop: null, sag: null,
         plateW: null, plateH: null, holeDown: null, rowGap: null, lagSpan: null, slide: null,
@@ -141,7 +141,7 @@
     return {
       mode: pro ? 'pro' : 'simple',
       tvSrc: tv.src === 'size' ? 'size' : 'measured', w: n(tv.w), h: n(tv.h), size: n(tv.size), model: pro ? (tv.model || '') : '',
-      vesaTop: p(tv.vesaTop), vesaLeft: p(tv.vesaLeft), vesaRight: p(tv.vesaRight),
+      vesaTop: p(tv.vesaTop), vesaW: p(tv.vesaW), vesaH: p(tv.vesaH),
       chain: pro && m.chain === 'split' ? 'split' : 'measured',
       holesFrom: m.holesFrom === 'bottom' ? 'bottom' : 'top', holesToTop: n(m.holesToTop), holesToBottom: n(m.holesToBottom), hookDrop: p(m.hookDrop), armDrop: p(m.armDrop), sag: p(m.sag, DEFAULTS.sag),
       mountModel: pro ? (m.model || '') : '',
@@ -338,9 +338,8 @@
     /* horizontal */
     const ct = centerTool(e.center);
     r.center = ct;
-    const vesaKnown = isNum(e.vesaLeft) && isNum(e.vesaRight);
-    const vesaX = vesaKnown ? (e.vesaLeft - e.vesaRight) / 2 : 0;   // VESA center relative to TV center (+ = right)
-    r.vesa = vesaKnown ? { x: vesaX, w: W ? W - e.vesaLeft - e.vesaRight : null, left: e.vesaLeft, right: e.vesaRight } : null;
+    const vesaX = 0;   // VESA holes are always centered left to right on the TV
+    r.vesa = isNum(e.vesaW) ? { x: 0, w: e.vesaW, h: e.vesaH } : null;
 
     let studs = [];
     if (e.studs.length) {
@@ -554,7 +553,6 @@
       rows.push({ id: 'centerline', k: 'Center line', v: c.pos, sub: c.mode === 'half' ? 'from either end' : 'from the ' + c.from + ' edge', alt: c.mode === 'two' ? 'between ' + T(c.a) + ' and ' + T(c.b) + ', ' + T(c.half) + ' each way' : 'half of ' + T(c.d) });
     }
     if (r.mode === 'pro') {
-      if (r.vesa && Math.abs(r.vesa.x) > EPS) rows.push({ id: 'vesa', k: 'VESA center', s: side(r.vesa.x), sub: 'of the TV center', cls: 'wide' });
       if (r.studs.length) rows.push({ id: 'studs', k: 'Studs', s: r.studs.map(s => (s < 0 ? 'L ' : s > 0 ? 'R ' : '') + T(Math.abs(s))).join(' · '), sub: 'from the center line', cls: 'wide' });
       if (r.slide) {
         const s = r.slide;

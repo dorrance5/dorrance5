@@ -28,7 +28,7 @@
   /* ---------- field labels: [label, placeholder] ---------- */
   const F = {
     'tv.w': ['Width'], 'tv.h': ['Height'],
-    'tv.vesaTop': ['To TV top'], 'tv.vesaLeft': ['To left edge'], 'tv.vesaRight': ['To right edge'],
+    'tv.vesaTop': ['To TV top'], 'tv.vesaW': ['Width'], 'tv.vesaH': ['Height'],
     'mount.holesToTop': ['Top holes → TV top'], 'mount.holesToBottom': ['Top holes → TV bottom'],
     'mount.hookDrop': ['Top holes → hook'], 'mount.armDrop': ['Arm hook → VESA'], 'mount.sag': ['Sag once hung', 0],
     'mount.plateW': ['Plate width'], 'mount.plateH': ['Plate height'], 'mount.holeDown': ['Plate top → holes', 0], 'mount.rowGap': ['Hole rows apart'],
@@ -238,8 +238,8 @@
       b += hint(est ? `About ${fmt(est.w)} wide × ${fmt(est.h)} tall. An estimate: measure the real TV when you can.` : 'Pick the class size, 43″ to 98″.');
     } else b += `<div class="grid2">${fld('tv.w')}${fld('tv.h')}</div>`;
     if (P) {
-      b += `<div class="label">VESA holes</div><div class="grid3">${fld('tv.vesaTop')}${fld('tv.vesaLeft')}${fld('tv.vesaRight')}</div>`;
-      b += hint('Left and right as you face the screen. From the back of the TV they swap.') + libButtons('tv');
+      b += `<div class="label">VESA holes</div><div class="grid3">${fld('tv.vesaW')}${fld('tv.vesaH')}${fld('tv.vesaTop')}</div>`;
+      b += hint('Hole spacing, and top holes up to the TV top. The holes sit centered on the TV.') + libButtons('tv');
     }
     h += card('tv', 'TV', b);
 
@@ -933,7 +933,7 @@
     const t = tab(), cur = kind === 'tv' ? t.tv.model : t.mount.model;
     const el = sheet(`<h2>Save ${kind === 'tv' ? 'TV' : 'mount'}</h2>
       <input class="input" id="modelIn" value="${esc(cur || '')}" placeholder="Model number" maxlength="60" autocomplete="off" autocapitalize="characters" enterkeyhint="done">
-      <p class="hint">${kind === 'tv' ? 'Saves the measured width, height and VESA offsets.' : 'Saves the bracket chain, sag and plate values.'} An existing entry with the same model number is updated.</p>
+      <p class="hint">${kind === 'tv' ? 'Saves the measured width, height and VESA holes.' : 'Saves the bracket chain, sag and plate values.'} An existing entry with the same model number is updated.</p>
       <div class="stack"><button class="primary" data-act="save">Save</button></div>`);
     const inp = el.querySelector('#modelIn');
     setTimeout(() => inp.focus(), 60);

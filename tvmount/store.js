@@ -21,7 +21,7 @@
   };
 
   const SETTINGS = { mode: 'simple', prec: 16, dec: false, shot: 'client' };
-  const TV_ITEM = { model: '', w: null, h: null, vesaTop: null, vesaLeft: null, vesaRight: null };
+  const TV_ITEM = { model: '', w: null, h: null, vesaTop: null, vesaW: null, vesaH: null };
   const MOUNT_ITEM = {
     model: '', holesFrom: 'top', holesToTop: null, holesToBottom: null, hookDrop: null, armDrop: null, sag: null, plateW: null, plateH: null,
     holeDown: null, rowGap: null, lagSpan: null, slide: null, adjUp: null, adjDown: null, studsNeeded: null

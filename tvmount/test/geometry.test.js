@@ -238,16 +238,16 @@ test('studs measured from the edge convert to the center line', () => {
   assert.deepEqual(G.compute(t, { mode: 'simple' }).studs, []);
 });
 
-test('VESA offset and drill points on two rows', () => {
-  const t = tab(BASE, { tv: { w: 57.125, h: 32.75, vesaLeft: 20, vesaRight: 17.125 }, mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1, rowGap: 8, lagSpan: 24, slide: 0 }, studs: { list: [-8, 8] } });
+test('VESA centered and drill points on two rows', () => {
+  const t = tab(BASE, { tv: { w: 57.125, h: 32.75, vesaW: 15.75, vesaH: 11.75 }, mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1, rowGap: 8, lagSpan: 24, slide: 0 }, studs: { list: [-8, 8] } });
   const r = G.compute(t, { mode: 'pro' });
-  near(r.vesa.x, 1.4375);
-  near(r.vesa.w, 20);
-  near(r.plateX, 1.4375);
+  near(r.vesa.x, 0);
+  near(r.vesa.w, 15.75);
+  near(r.plateX, 0);
   assert.equal(r.drill.length, 4);
   near(r.drill[1].y, 53.875 - 8);
   near(r.plate.y1, 54.875);
-  near(r.plate.x0, 1.4375 - 13);
+  near(r.plate.x0, -13);
 });
 
 test('adjustment left after drilling', () => {

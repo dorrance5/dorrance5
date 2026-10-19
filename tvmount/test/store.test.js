@@ -116,7 +116,7 @@ test('tab add, duplicate, delete', () => {
 
 test('saved TVs and mounts by model number', () => {
   const d = S.blank(), t = d.tabs[0];
-  Object.assign(t.tv, { model: 'QN65Q80C', w: 57.1, h: 32.7, vesaTop: 7.25, vesaLeft: 18.5, vesaRight: 18.6 });
+  Object.assign(t.tv, { model: 'QN65Q80C', w: 57.1, h: 32.7, vesaTop: 7.25, vesaW: 15.75, vesaH: 11.75 });
   const item = S.upsert(d.lib.tvs, S.tvFromTab(t));
   assert.equal(d.lib.tvs.length, 1);
   S.upsert(d.lib.tvs, Object.assign(S.tvFromTab(t), { model: 'qn65q80c ', h: 32.75 }));
