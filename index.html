@@ -144,12 +144,6 @@ dialog::backdrop{background:transparent}
   <h2>Photos</h2>
   <div class="photos">
     <figure style="margin:0">
-      <button class="photo" data-full="photos/wife.jpg" data-orig="DSCF0170.jpg" data-title="My wife">
-        <img src="photos/wife-thumb.jpg" alt="My wife" loading="lazy">
-      </button>
-      <figcaption class="caption">My wife</figcaption>
-    </figure>
-    <figure style="margin:0">
       <button class="photo" data-full="mycat.jpeg" data-orig="mycat.jpeg" data-title="Billie, my cat">
         <img src="photos/cat-thumb.jpg" alt="Billie, my cat" loading="lazy">
       </button>
@@ -210,6 +204,7 @@ function show(n){
   document.getElementById('orig').href=p.orig;
 }
 photos.forEach((b,n)=>b.addEventListener('click',()=>{show(n);dlg.showModal()}));
+if(photos.length<2)document.querySelectorAll('.nav').forEach(b=>b.hidden=true);
 document.getElementById('close').onclick=()=>dlg.close();
 document.getElementById('prev').onclick=()=>show(i-1);
 document.getElementById('next').onclick=()=>show(i+1);
