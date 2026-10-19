@@ -901,6 +901,64 @@
     if (kind === 'tv') return [x.w != null && x.h != null ? fmt(x.w) + ' × ' + fmt(x.h) : null, x.vesaTop != null ? 'VESA to top ' + fmt(x.vesaTop) : null].filter(Boolean).join(' · ');
     return [x.holesToTop != null ? 'holes to top ' + fmt(x.holesToTop) : null, x.holesToBottom != null ? 'holes to bottom ' + fmt(x.holesToBottom) : null, x.hookDrop != null ? 'hook ' + fmt(x.hookDrop) : null, x.armDrop != null ? 'arm ' + fmt(x.armDrop) : null, x.sag ? 'sag ' + fmt(x.sag) : null, x.slide != null ? 'slide ' + fmt(x.slide) : null].filter(Boolean).join(' · ');
   }
+  /* ---------- shared library (Cloudflare Worker at /api/tvmount/lib) ----------
+     doc.lib is the phone's copy. Items flagged local are not on the server yet. */
+  const API = '/api/tvmount/lib', PASS = 'tvmount.pass', LISTS = ['tvs', 'mounts'];
+  const norm = s => String(s || '').trim().toLowerCase();
+  const getPass = () => { try { return localStorage.getItem(PASS) || ''; } catch (e) { return ''; } };
+  const setPass = v => { try { v ? localStorage.setItem(PASS, v) : localStorage.removeItem(PASS); } catch (e) {} };
+  async function api(method, path = '', body) {
+    const res = await fetch(API + path, { method, cache: 'no-store', headers: Object.assign({ 'x-passcode': getPass() }, body ? { 'content-type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined });
+    if (res.status === 403) { setPass(''); throw Object.assign(new Error('passcode'), { pass: true }); }
+    const j = await res.json().catch(() => null);
+    if (!res.ok || !j) throw new Error('server');
+    return j;
+  }
+  // Server list plus local items it does not have. Before the first sync every item is local.
+  function setLib(srv) {
+    if (!doc.lib.synced) for (const k of LISTS) doc.lib[k].forEach(x => { x.local = true; });
+    const out = { synced: true };
+    for (const k of LISTS) {
+      const tpl = k === 'tvs' ? S.TV_ITEM : S.MOUNT_ITEM, list = Array.isArray(srv[k]) ? srv[k] : [];
+      out[k] = list.filter(x => x && x.id).map(x => Object.assign({ id: String(x.id) }, S.conform(tpl, x)))
+        .concat(doc.lib[k].filter(x => x.local && !list.some(y => norm(y.model) === norm(x.model))));
+    }
+    doc.lib = out; persist();
+  }
+  function askPass() {
+    return new Promise(done => {
+      const el = sheet(`<h2>Passcode</h2>
+        <input class="input" id="passIn" type="password" placeholder="Passcode" autocomplete="current-password" enterkeyhint="done">
+        <p class="hint">Saved TVs and mounts are shared with everyone who uses this site. The passcode lets this phone change them.</p>
+        <div class="stack"><button class="primary" data-act="ok">OK</button></div>`);
+      const inp = el.querySelector('#passIn');
+      setTimeout(() => inp.focus(), 60);
+      const ok = () => { const v = inp.value.trim(); if (!v) return; setPass(v); closeSheet(); done(true); };
+      el.addEventListener('click', e => { if (e.target.closest('[data-act="ok"]')) ok(); });
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
+      new MutationObserver((_, o) => { if (!el.isConnected) { o.disconnect(); done(!!getPass()); } }).observe(document.body, { childList: true });
+    });
+  }
+  // Send local items to the server. Asks for the passcode once if this phone has none.
+  async function pushLocal(ask) {
+    const pending = () => LISTS.flatMap(k => doc.lib[k].filter(x => x.local).map(x => [k, x]));
+    if (!pending().length) return true;
+    if (!getPass() && !(ask && await askPass())) return false;
+    try {
+      for (const [k, x] of pending()) {
+        const item = Object.assign({}, x); delete item.local;
+        setLib((await api('PUT', '/' + (k === 'tvs' ? 'tv' : 'mount'), item)).lib);
+      }
+      return true;
+    } catch (e) {
+      toast(e.pass ? 'Wrong passcode' : 'Saved on this phone. It shares when the site can be reached.');
+      return false;
+    } finally { render(); }
+  }
+  async function syncLib() {
+    try { setLib(await api('GET')); render(); await pushLocal(false); return true; } catch (e) { return false; }
+  }
+
   function libSheet(kind) {
     const kinds = kind === 'all' ? ['tv', 'mount'] : [kind];
     const listFor = k => doc.lib[k === 'tv' ? 'tvs' : 'mounts'];
@@ -910,8 +968,9 @@
         ? `<div class="libl">${list.map(x => `<div class="libi"><button class="use" data-use="${k}:${x.id}"><b>${esc(x.model || 'No model number')}</b><span>${esc(itemSummary(k, x))}</span></button><button class="del" data-del="${k}:${x.id}" aria-label="Delete">✕</button></div>`).join('')}</div>`
         : `<p class="hint">None saved yet. Fill in a ${k === 'tv' ? 'TV' : 'mount'} in Pro mode and tap Save.</p>`);
     }).join('');
-    const el = sheet(`<h2>${kind === 'tv' ? 'Saved TVs' : kind === 'mount' ? 'Saved mounts' : 'Saved TVs and mounts'}</h2><div id="libBody">${html()}</div><p class="hint">Tap one to use it in “${esc(tab().name)}”.</p>`);
+    const el = sheet(`<h2>${kind === 'tv' ? 'Saved TVs' : kind === 'mount' ? 'Saved mounts' : 'Saved TVs and mounts'}</h2><div id="libBody">${html()}</div><p class="hint">Shared with everyone who uses this site.</p><p class="hint">Tap one to use it in “${esc(tab().name)}”.</p>`);
     const armed = new Set();
+    syncLib().then(() => { if (el.isConnected && !armed.size) el.querySelector('#libBody').innerHTML = html(); });
     el.addEventListener('click', e => {
       const u = e.target.closest('[data-use]'), d = e.target.closest('[data-del]');
       if (u) {
@@ -923,9 +982,16 @@
       }
       if (d) {
         if (!armed.has(d.dataset.del)) { armed.add(d.dataset.del); d.textContent = 'Delete?'; d.style.width = 'auto'; d.style.padding = '0 10px'; return; }
-        const [k, id] = d.dataset.del.split(':'), list = listFor(k);
-        list.splice(list.findIndex(i => i.id === id), 1);
-        persist(); render(); el.querySelector('#libBody').innerHTML = html();
+        const [k, id] = d.dataset.del.split(':'), list = listFor(k), x = list.find(i => i.id === id);
+        if (!x) return;
+        const done = () => { render(); if (el.isConnected) el.querySelector('#libBody').innerHTML = html(); };
+        if (x.local) { list.splice(list.indexOf(x), 1); persist(); done(); return; }
+        (async () => {
+          if (!getPass() && !await askPass()) return;
+          try { setLib((await api('DELETE', '/' + k + '/' + encodeURIComponent(id))).lib); toast('Deleted for everyone'); }
+          catch (err) { toast(err.pass ? 'Wrong passcode' : 'Couldn’t reach the site. Not deleted.'); }
+          done();
+        })();
       }
     });
   }
@@ -940,9 +1006,11 @@
     const save = () => {
       const model = inp.value.trim();
       if (!model) { toast('Add the model number'); return; }
-      if (kind === 'tv') { t.tv.model = model; S.upsert(doc.lib.tvs, S.tvFromTab(t)); }
-      else { t.mount.model = model; S.upsert(doc.lib.mounts, S.mountFromTab(t)); }
-      update(); closeSheet(); toast(model + ' saved');
+      if (kind === 'tv') { t.tv.model = model; S.upsert(doc.lib.tvs, S.tvFromTab(t)).local = true; }
+      else { t.mount.model = model; S.upsert(doc.lib.mounts, S.mountFromTab(t)).local = true; }
+      update(); closeSheet();
+      api('GET').then(srv => { setLib(srv); return pushLocal(true); })
+        .then(ok => { if (ok) toast(model + ' saved for everyone'); }, () => toast(model + ' saved on this phone. It shares when the site can be reached.'));
     };
     el.addEventListener('click', e => { if (e.target.closest('[data-act="save"]')) save(); });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
@@ -1004,5 +1072,6 @@
   else if (loaded.from != null) toast('Saved data updated');
   if ('caches' in window) caches.keys().then(k => { const v = k.find(x => x.startsWith('tvmount-')); $('#ver').textContent = 'Saved on this device' + (v ? ' · ' + v : ''); }).catch(() => {});
   else $('#ver').textContent = 'Saved on this device';
+  syncLib();
   window.TVM = { get doc() { return doc; }, get r() { return r; }, render, text: () => tabText() };   // for checks from the console
 })();

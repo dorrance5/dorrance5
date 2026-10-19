@@ -29,6 +29,18 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   const base = `http://127.0.0.1:${server.address().port}/tvmount/`;
   const browser = await webkit.launch();
   const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+  // a stand-in for the Cloudflare Worker that holds the shared library; passcode "abc"
+  const shared = { tvs: [{ id: 'l1', model: 'SHARED65', w: 57, h: 32.5, vesaTop: 7, vesaW: 15.75, vesaH: 11.75 }], mounts: [] };
+  await ctx.route('**/api/tvmount/lib**', async route => {
+    const req = route.request(), m = new URL(req.url()).pathname.match(/lib(?:\/(tv|mount)(?:\/(.+))?)?$/);
+    const reply = (b, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
+    if (req.method() === 'GET') return reply(shared);
+    if (req.headers()['x-passcode'] !== 'abc') return reply({ error: 'passcode' }, 403);
+    const list = shared[m[1] === 'tv' ? 'tvs' : 'mounts'];
+    if (req.method() === 'PUT') { const it = JSON.parse(req.postData()); const i = list.findIndex(x => x.model.toLowerCase() === it.model.toLowerCase()); if (i >= 0) list[i] = { ...it, id: list[i].id }; else list.push({ ...it, id: 's' + list.length }); }
+    if (req.method() === 'DELETE') { const i = list.findIndex(x => x.id === m[2]); if (i >= 0) list.splice(i, 1); }
+    return reply({ lib: shared });
+  });
   const page = await ctx.newPage();
   const errors = [];
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
@@ -278,6 +290,29 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.waitForTimeout(700);
   await page.tap('#shotX');
   check('tap shows close, close exits', !(await page.isVisible('.shot')));
+
+  // shared library: loads from the site, saving asks once for the passcode, delete is for everyone
+  await page.waitForFunction(() => TVM.doc.lib.synced);
+  check('shared TVs load from the site', await page.evaluate(() => TVM.doc.lib.tvs.some(x => x.model === 'SHARED65' && !x.local)));
+  await page.evaluate(() => { TVM.doc.settings.mode = 'pro'; TVM.render(); });
+  await page.tap('[data-libsave="tv"]');
+  await page.fill('#modelIn', 'NEW55');
+  await page.tap('.sheet [data-act="save"]');
+  await page.waitForSelector('#passIn');
+  await page.fill('#passIn', 'abc');
+  await page.tap('.sheet [data-act="ok"]');
+  await page.waitForFunction(() => TVM.doc.lib.tvs.some(x => x.model === 'NEW55' && !x.local));
+  check('a saved TV goes to the site', shared.tvs.some(x => x.model === 'NEW55'));
+  check('the passcode is kept on this phone', await page.evaluate(() => localStorage.getItem('tvmount.pass')) === 'abc');
+  await page.tap('[data-lib="tv"]');
+  const del = `.sheet [data-del^="tv:"]`;
+  const ids = await page.$$eval(del, b => b.map(x => x.dataset.del));
+  const sharedId = ids.find(x => x.endsWith(':l1'));
+  await page.tap(`.sheet [data-del="${sharedId}"]`); await page.tap(`.sheet [data-del="${sharedId}"]`);
+  await page.waitForFunction(() => !TVM.doc.lib.tvs.some(x => x.model === 'SHARED65'));
+  check('delete removes it from the site', !shared.tvs.some(x => x.model === 'SHARED65'));
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { TVM.doc.settings.mode = 'simple'; TVM.render(); });
 
   // restore a backup file
   const backup = await page.evaluate(() => Store.exportText(Object.assign(Store.blank(), { tabs: [Object.assign(Store.newTab('Den'), {})] })));

@@ -1,0 +1,8 @@
+name = "dorrance-api"
+main = "index.js"
+compatibility_date = "2026-09-01"
+routes = [{ pattern = "dorrance.me/api/*", zone_name = "dorrance.me" }]
+
+[[kv_namespaces]]
+binding = "LIB"
+id = "PASTE_KV_ID_HERE"
