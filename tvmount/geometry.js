@@ -666,6 +666,7 @@
     if (cy != null) {
       add({ t: 'line', cls: 'ceiling', x0, x1, y0: cy, y1: cy, hspan: true, text: 'Ceiling', room: true });
       add({ t: 'dim', side: 'right', a: -ref.refNow, b: cy, v: room.ceil, name: 'ceiling', key: 'room', room: true });
+      if (y.top != null && cy > y.top + EPS) add({ t: 'dim', side: 'right', a: y.top, b: cy, v: cy - y.top, name: 'to ceiling', key: 'room', room: true });
     }
     const my = ref.kind !== 'mantle' ? fromFloor(room.mantle) : null;
     if (my != null) {

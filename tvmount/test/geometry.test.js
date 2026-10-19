@@ -400,6 +400,7 @@ test('room items are sketch only, placed from the floor and the center line', ()
   const it = r.sketch.items.filter(i => i.room);
   near(it.find(i => i.t === 'line' && i.cls === 'ceiling').y0, 95.25);   // 96 from today's floor, 3/4 below the finished floor
   near(it.find(i => i.t === 'dim' && i.name === 'ceiling').v, 96);
+  near(it.find(i => i.t === 'dim' && i.name === 'to ceiling').v, 95.25 - 58.375);   // TV top up to the ceiling
   near(it.find(i => i.t === 'label' && i.cls === 'mantle').top, 19.25);
   const walls = it.filter(i => i.cls === 'wall').map(i => i.x0);
   assert.deepEqual(walls, [-60, 40]);
