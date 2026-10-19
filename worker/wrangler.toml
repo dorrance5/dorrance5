@@ -5,4 +5,4 @@ routes = [{ pattern = "dorrance.me/api/*", zone_name = "dorrance.me" }]
 
 [[kv_namespaces]]
 binding = "LIB"
-id = "PASTE_KV_ID_HERE"
+id = "6c9a192e26a4485fb1e730651ae0d9e5"
