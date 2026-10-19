@@ -95,6 +95,7 @@ function withBar(d, bar, on = 0) {
       if (seed) localStorage.setItem('tvmount.data', seed);
       if (theme) localStorage.setItem('theme', theme);
     }, [sc.seed ? JSON.stringify(sc.seed) : null, sc.theme || null]);
+    await ctx.route('**/api/tvmount/lib**', r => r.fulfill({ contentType: 'application/json', body: '{"tvs":[],"mounts":[]}' }));
     const page = await ctx.newPage();
     page.on('console', m => { if (m.type() === 'error') problems.push(`${sc.name}: console: ${m.text()}`); });
     page.on('pageerror', e => problems.push(`${sc.name}: page error: ${e.message}`));
