@@ -245,6 +245,7 @@
     return `<div class="seg${cls ? ' ' + cls : ''}" data-seg="${path}">${opts.map(([v, l]) => `<button data-v="${v}" class="${cur === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   }
   const CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  const PENCIL = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>';
   // Each card has a color: its icon, its selected buttons and the field being typed in use it,
   // and so does its part of the sketch. The five Simple cards get five different colors.
   const ICON = {
@@ -1064,14 +1065,19 @@
     const html = () => kinds.map(k => {
       const list = listFor(k);
       return `<div class="label">${k === 'tv' ? 'TVs' : 'Mounts'}</div>` + (list.length
-        ? `<div class="libl">${list.map(x => `<div class="libi"><button class="use" data-use="${k}:${x.id}"><b>${esc(x.model || 'No model number')}</b><span>${esc(itemSummary(k, x))}</span></button><button class="del" data-del="${k}:${x.id}" aria-label="Delete">✕</button></div>`).join('')}</div>`
+        ? `<div class="libl">${list.map(x => `<div class="libi"><button class="use" data-use="${k}:${x.id}"><b>${esc(x.model || 'No model number')}</b><span>${esc(itemSummary(k, x))}</span></button><button class="ed" data-ren="${k}:${x.id}" aria-label="Rename">${PENCIL}</button><button class="del" data-del="${k}:${x.id}" aria-label="Delete">✕</button></div>`).join('')}</div>`
         : `<p class="hint">None saved yet. Fill in a ${k === 'tv' ? 'TV' : 'mount'} in Pro mode and tap Save.</p>`);
     }).join('');
     const el = sheet(`<h2>${kind === 'tv' ? 'Saved TVs' : kind === 'mount' ? 'Saved mounts' : 'Saved TVs and mounts'}</h2><div id="libBody">${html()}</div><p class="hint">Shared with everyone who uses this site.</p><p class="hint">Tap one to use it in “${esc(tab().name)}”.</p>`);
     const armed = new Set();
     syncLib().then(() => { if (el.isConnected && !armed.size) el.querySelector('#libBody').innerHTML = html(); });
     el.addEventListener('click', e => {
-      const u = e.target.closest('[data-use]'), d = e.target.closest('[data-del]');
+      const u = e.target.closest('[data-use]'), d = e.target.closest('[data-del]'), rn = e.target.closest('[data-ren]');
+      if (rn) {
+        const [k, id] = rn.dataset.ren.split(':'), x = listFor(k).find(i => i.id === id);
+        if (x) renameSheet(k, x, kind);
+        return;
+      }
       if (u) {
         const [k, id] = u.dataset.use.split(':'), x = listFor(k).find(i => i.id === id);
         if (!x) return;
@@ -1093,6 +1099,35 @@
         })();
       }
     });
+  }
+  // A new model number for a saved TV or mount. On the site that deletes the old entry and saves
+  // the new one, so it takes the passcode. Tabs that use the old name get the new one.
+  function renameSheet(k, x, back) {
+    const what = k === 'tv' ? 'TV' : 'mount', key = k === 'tv' ? 'tvs' : 'mounts';
+    const el = sheet(`<h2>Rename ${what}</h2>
+      <input class="input" id="modelIn" value="${esc(x.model || '')}" placeholder="Model number" maxlength="60" autocomplete="off" autocapitalize="characters" enterkeyhint="done">
+      <p class="hint">Changes the name for everyone who uses this site.</p>
+      <div class="stack"><button class="primary" data-act="save">Rename</button></div>`);
+    const inp = el.querySelector('#modelIn');
+    setTimeout(() => { inp.focus(); inp.select(); }, 60);
+    const save = async () => {
+      const model = inp.value.trim(), old = x.model;
+      if (!model) { toast('Add the model number'); return; }
+      if (model === old) { libSheet(back); return; }
+      if (doc.lib[key].some(y => y !== x && norm(y.model) === norm(model))) { toast(model + ' is already saved'); return; }
+      if (x.local) doc.lib[key].splice(doc.lib[key].indexOf(x), 1);
+      else {
+        if (!getPass() && !await askPass()) return;
+        try { setLib((await api('DELETE', '/' + k + '/' + encodeURIComponent(x.id))).lib); }
+        catch (err) { toast(err.pass ? 'Wrong passcode' : 'Couldn’t reach the site. Not renamed.'); return; }
+      }
+      // saved on this phone first; the list sends it to the site
+      S.upsert(doc.lib[key], Object.assign({}, x, { model })).local = true;
+      for (const t of doc.tabs) { const o = k === 'tv' ? t.tv : t.mount; if (norm(o.model) === norm(old)) o.model = model; }
+      update(); libSheet(back); toast('Renamed to ' + model);
+    };
+    el.addEventListener('click', e => { if (e.target.closest('[data-act="save"]')) save(); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
   }
   function libSaveSheet(kind) {
     const t = tab(), cur = kind === 'tv' ? t.tv.model : t.mount.model;

@@ -317,6 +317,20 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.waitForFunction(() => TVM.doc.lib.tvs.some(x => x.model === 'NEW55' && !x.local));
   check('a saved TV goes to the site', shared.tvs.some(x => x.model === 'NEW55' && x.vesaW === 400));
   check('the passcode is kept on this phone', await page.evaluate(() => localStorage.getItem('tvmount.pass')) === 'abc');
+  // rename: a new model number for everyone, and for the tab that uses it
+  await page.tap('[data-lib="tv"]');
+  const newId = await page.evaluate(() => TVM.doc.lib.tvs.find(x => x.model === 'NEW55').id);
+  await page.tap(`.sheet [data-ren="tv:${newId}"]`);
+  await page.fill('#modelIn', 'shared65');
+  await page.tap('.sheet [data-act="save"]');
+  check('a rename to a name already saved is refused', !!(await page.$('#modelIn')) && shared.tvs.some(x => x.model === 'NEW55'));
+  await page.fill('#modelIn', 'NEW55B');
+  await page.tap('.sheet [data-act="save"]');
+  await page.waitForFunction(() => TVM.doc.lib.tvs.some(x => x.model === 'NEW55B' && !x.local));
+  check('a rename changes it on the site', shared.tvs.some(x => x.model === 'NEW55B') && !shared.tvs.some(x => x.model === 'NEW55'));
+  check('the tab that used the old name gets the new one', (await tab0()).tv.model === 'NEW55B');
+  check('the list is back after a rename', !!(await page.$('.sheet #libBody')));
+  await page.keyboard.press('Escape');
   await page.tap('[data-lib="tv"]');
   const del = `.sheet [data-del^="tv:"]`;
   const ids = await page.$$eval(del, b => b.map(x => x.dataset.del));

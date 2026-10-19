@@ -43,6 +43,12 @@ function jobDoc(mode) {
   d.current = t.id;
   return d;
 }
+// Saved TVs and mounts like the ones on the site.
+function withLib(d) {
+  d.lib.tvs.push({ id: 'v1', model: 'QN80H', w: 56.8125, h: 32.75, vesaTop: 10.5, vesaW: 300, vesaH: 300 });
+  d.lib.mounts.push({ id: 'm1', model: 'Kanto RCAD590', hookDrop: 6.5, armDrop: -4.125, slide: 11 });
+  return d;
+}
 
 const scenes = [
   { name: '01-first-run', seed: null },
@@ -77,6 +83,8 @@ const scenes = [
   { name: '33-box-corner-drawing', seed: boxSet(jobDoc('pro')), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="box"] .plate-fig').scrollIntoView({ block: 'center' })); } },
   { name: '34-vesa-mm-keypad', seed: jobDoc('pro'), act: async p => { await p.evaluate(() => document.querySelector('[data-k="tv.vesaW"]').scrollIntoView({ block: 'center' })); await p.click('[data-k="tv.vesaW"]'); await p.waitForTimeout(400); } },
   { name: '35-whole-distance-ends', seed: (() => { const d = jobDoc('pro'); Object.assign(d.tabs[0].center, { mode: 'half', d: 108 }); return d; })() },
+  { name: '36-saved-list', seed: withLib(jobDoc('pro')), act: async p => { await p.click('[data-lib="tv"]'); await p.waitForTimeout(500); } },
+  { name: '37-rename', seed: withLib(jobDoc('pro')), act: async p => { await p.click('[data-lib="tv"]'); await p.waitForTimeout(400); await p.click('.sheet [data-ren]'); await p.waitForTimeout(400); } },
   { name: '31-countertop', seed: (() => { const d = jobDoc('simple'); d.tabs[0].ref.mantle.what = 'counter'; Object.assign(d.tabs[0].ref.mantle, { h: 36, value: 18 }); return d; })() },
   { name: '32-countertop-form', seed: (() => { const d = jobDoc('simple'); d.tabs[0].ref.mantle.what = 'counter'; Object.assign(d.tabs[0].ref.mantle, { h: 36, value: 18 }); return d; })(), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="place"]').scrollIntoView()); } },
   { name: '22-soundbar-form', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="bar"]').scrollIntoView()); } }
