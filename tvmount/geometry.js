@@ -701,7 +701,7 @@
         }
       } else {
         const xo = xe - dir * c.d;
-        crew({ t: 'line', cls: 'edge', x0: xo, x1: xo, y0: y.bottom, y1: y.top, vspan: true, far: Math.abs(xo) > Math.max(W, 48), text: 'Other end' });
+        crew({ t: 'line', cls: 'edge', x0: xo, x1: xo, y0: y.bottom, y1: y.top, vspan: true, far: Math.abs(xo) > Math.max(W, 48), text: (c.from === 'left' ? 'Right' : 'Left') + ' edge' });
         crew({ t: 'dim', side: 'bottom', a: xe, b: xo, v: c.d, name: 'total', far: true });
       }
       crew({ t: 'dim', side: 'bottom', a: xe, b: 0, v: c.pos, name: 'center', far });

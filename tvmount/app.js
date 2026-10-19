@@ -551,6 +551,12 @@
       tiers[s] = rows.length;
     }
     const reach = n => n ? pad + (n - 1) * gap + f * 0.9 : 0;
+    // the floor's name sits at the right end on the row of the edge names: leave it room past them
+    const endName = items.find(i => i.t === 'line' && i.hspan && i.text && i.cls !== 'ceiling' && i.cls !== 'eye' && Math.abs(i.y0 + f * 0.8 - edgeRow) < f * 0.5);
+    if (endName) for (const it of items) {
+      if (it.t === 'line' && it.vspan && it.text && it.cls !== 'stud' && !it.far)
+        B.x1 = Math.max(B.x1, it.x0 + textW(it.text, f * 0.85) / 2 + f * 0.4 + textW(endName.text, f * 0.9) - reach(tiers.right));
+    }
     const E = { x0: B.x0 - reach(tiers.left), x1: B.x1 + reach(tiers.right), y0: B.y0 - reach(tiers.bottom), y1: B.y1 + reach(tiers.top) };
 
     const back = [], mid = [], front = [], text = [];

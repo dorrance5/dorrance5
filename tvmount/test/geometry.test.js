@@ -235,6 +235,8 @@ test('studs measured from the edge convert to the center line', () => {
   // half a distance has no left or right: studs count from the left end
   const half = G.compute(tab(BASE, { center: { mode: 'half', from: 'right', d: 124 }, studs: { from: 'edge', list: [51.25] } }), { mode: 'pro' });
   assert.deepEqual(half.studs, [-10.75]);
+  // the sketch names both ends of the whole distance
+  assert.deepEqual(half.sketch.items.filter(i => i.cls === 'edge').map(i => i.text), ['Left edge', 'Right edge']);
   assert.deepEqual(G.compute(t, { mode: 'simple' }).studs, []);
 });
 
