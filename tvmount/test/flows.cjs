@@ -333,7 +333,10 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.lo
   await page.evaluate(() => { const t = TVM.doc.tabs.find(x => x.id === TVM.doc.current); t.box.on = true; TVM.render(); });
   check('Find a spot comes first', await page.$eval('[data-seg="box.place"] button', b => b.textContent === 'Find a spot' && b.classList.contains('on')));
   await page.tap('[data-seg="box.place"] [data-v="set"]');
-  check('box bottom and center line fields', !!await page.$('[data-k="box.bottom"]') && !!await page.$('[data-k="box.x"]') && !await page.$('[data-k="box.margin"]'));
+  check('box corner fields', !!await page.$('[data-k="box.cornerH"]') && !!await page.$('[data-k="box.cornerX"]') && !await page.$('[data-k="box.margin"]'));
+  check('Bottom left and Left of center line come first', await page.$eval('[data-seg="box.corner"] button', b => b.dataset.v === 'bl' && b.classList.contains('on')) && await page.$eval('[data-seg="box.side"] button', b => b.dataset.v === 'left' && b.classList.contains('on')));
+  await page.tap('[data-seg="box.corner"] [data-v="tr"]');
+  check('the drawing marks the chosen corner', (await tab0()).box.corner === 'tr' && !!await page.$('[data-sec="box"] svg circle.cn'));
   await page.evaluate(() => { const t = TVM.doc.tabs.find(x => x.id === TVM.doc.current); t.box.on = false; t.box.place = 'auto'; TVM.render(); });
   await page.evaluate(() => { TVM.doc.settings.mode = 'simple'; TVM.render(); });
 

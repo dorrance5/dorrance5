@@ -256,29 +256,37 @@ test('adjustment left after drilling', () => {
   assert.deepEqual(r.adjust, { up: 0.5, down: 1, left: 5, right: 1 });
 });
 
-test('a box already in the wall: behind the TV, partly behind the plate', () => {
+test('a box already in the wall, measured to a corner', () => {
   const mount = { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1 };
-  const r = G.compute(tab(BASE, { mount, box: { on: true, place: 'set', w: 8, h: 8, bottom: 40, x: -3 } }), { mode: 'pro' });
+  const set = o => G.compute(tab(BASE, { mount, box: Object.assign({ on: true, place: 'set', w: 8, h: 8 }, o) }), { mode: 'pro' });
+  const r = set({ corner: 'bl', side: 'left', cornerH: 40, cornerX: 7 });
   assert.ok(r.box.set);
-  near(r.box.at.y0, 40); near(r.box.at.x0, -7);
+  near(r.box.at.y0, 40); near(r.box.at.x0, -7); near(r.box.at.x1, 1);
   assert.equal(r.box.shows.length, 0);
-  assert.equal(r.box.plate, 'partly behind');
-  assert.ok(!r.warnings.some(w => /box/.test(w)));
-  const low = G.compute(tab(BASE, { mount, box: { on: true, place: 'set', w: 8, h: 8, bottom: 20 } }), { mode: 'pro' });
+  assert.ok(!r.warnings.some(w => /box/.test(w)));   // behind the plate is fine
+  // the same box, measured to its top right corner
+  const tr = set({ corner: 'tr', side: 'right', cornerH: 48, cornerX: 1 });
+  near(tr.box.at.y0, 40); near(tr.box.at.x0, -7);
+  const low = set({ cornerH: 20 });
   assert.equal(low.box.shows[0].k, 'below');
   assert.ok(low.warnings.some(w => /box shows/.test(w)));
-  const stud = G.compute(tab(BASE, { mount, box: { on: true, place: 'set', w: 8, h: 8, bottom: 40 }, studs: { list: [2] } }), { mode: 'pro' });
+  const stud = G.compute(tab(BASE, { mount, box: { on: true, place: 'set', w: 8, h: 8, cornerH: 40, cornerX: 2 }, studs: { list: [-1] } }), { mode: 'pro' });
   assert.ok(stud.warnings.some(w => /crosses a stud/.test(w)));
 });
 
-test('recessed box zone below the plate', () => {
+test('recessed box: behind the TV, half below the plate', () => {
   const t = tab(BASE, { mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1 }, box: { on: true, w: 8, h: 8 } });
   const r = G.compute(t, { mode: 'pro' });
-  const below = r.box.zones.find(z => z.where === 'below');
-  near(below.y0, 27.625); near(below.y1, 42.875);
-  near(below.x0, -26.5625);
+  assert.equal(r.box.zones.length, 1);
+  const z = r.box.zones[0];
+  near(z.y0, 27.625); near(z.y1, 56.375);
+  near(z.x0, -26.5625);
   assert.ok(r.box.fits);
-  near(r.box.at.y1, 42.875); near(r.box.at.y0, 34.875); near(r.box.at.x, 0);
+  near(r.box.at.cy, 44.875); assert.equal(r.box.at.half, 'below');   // centered on the plate bottom
+  near(r.box.at.x, 0);
+  // too tall to hang half below the plate: half above it
+  const tall = G.compute(tab(BASE, { mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1 }, box: { on: true, w: 8, h: 22 } }), { mode: 'pro' });
+  near(tall.box.at.cy, 44.875 - 0); assert.ok(tall.box.fits);
   const one = G.compute(tab(BASE, { mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1 }, box: { on: true, w: 8, h: 8 }, studs: { list: [0] } }), { mode: 'pro' });
   near(Math.abs(one.box.at.x), 4.75);
   const big = G.compute(tab(BASE, { mount: { holesToTop: 4.5, plateW: 26, plateH: 10, holeDown: 1 }, box: { on: true, w: 8, h: 30 } }), { mode: 'pro' });

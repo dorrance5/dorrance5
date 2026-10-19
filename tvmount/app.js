@@ -42,6 +42,25 @@
     </svg>`;
   })();
 
+  // The box in the wall with the corner it is measured to, drawn from the choices in its card.
+  function boxFig(t) {
+    const kind = t.ref.kind, c = t.box.corner || 'bl', left = t.box.side !== 'right', ceil = kind === 'ceiling';
+    const refY = ceil ? 12 : 140, top = ceil ? 70 : 34, w = 60, h = 40;
+    const cx = left ? 80 : 220, cy = c[0] === 'b' ? top + h : top;
+    const x0 = c[1] === 'l' ? cx : cx - w, out = c[1] === 'l' ? -1 : 1;   // the side of the box the corner is on
+    const vx = cx + out * 14, hy = cy + (c[0] === 'b' ? 14 : -14);       // dimensions sit outside the box
+    const dim = (x1, y1, x2, y2) => { const v = x1 === x2, k = (x, y) => v ? `M${x - 4} ${y}h8` : `M${x} ${y - 4}v8`; return `<path class="dm" d="M${x1} ${y1}L${x2} ${y2}${k(x1, y1)}${k(x2, y2)}"/>`; };
+    const ref = kind === 'floor' ? 'Floor' : kind === 'ceiling' ? 'Ceiling' : surface(t) === 'mantle' ? 'Mantle' : 'Countertop';
+    return `<svg class="plate-fig" viewBox="0 0 300 152" role="img" aria-label="Where to measure the box">
+      <path class="ref" d="M8 ${refY}H292"/><text x="10" y="${ceil ? refY + 14 : refY - 6}">${ref}</text>
+      <path class="cl" d="M150 4V148"/><text x="154" y="${ceil ? 148 : 12}" class="clt">center line</text>
+      <rect class="pl" x="${x0}" y="${top}" width="${w}" height="${h}" rx="3"/><text x="${x0 + w / 2}" y="${top + h / 2 + 4}" text-anchor="middle">Box</text>
+      <path class="ex" d="M${cx} ${cy}H${vx}M${cx} ${cy}V${hy}M150 ${cy}V${hy}"/>
+      ${dim(vx, refY, vx, cy)}${dim(cx, hy, 150, hy)}
+      <circle class="cn" cx="${cx}" cy="${cy}" r="4.5"/>
+    </svg>`;
+  }
+
   /* ---------- field labels: [label, placeholder] ---------- */
   const F = {
     'tv.w': ['Width'], 'tv.h': ['Height'],
@@ -54,7 +73,7 @@
     'ref.mantle.h': ['Mantle height'], 'ref.mantle.hR': ['Right end', 'same'], 'ref.mantle.len': ['Mantle length', 'TV width'],
     'ref.ceiling.h': ['Ceiling height'], 'ref.ff': ['Finished floor adds', 0],
     'center.a': ['First mark'], 'center.b': ['Second mark'], 'center.d': ['Whole distance'],
-    'box.w': ['Box width'], 'box.h': ['Box height'], 'box.margin': ['Keep in from edges', 2], 'box.bottom': ['Box bottom'], 'box.x': ['Center line → box', 0],
+    'box.w': ['Box width'], 'box.h': ['Box height'], 'box.margin': ['Keep in from edges', 2], 'box.cornerH': ['Corner height'], 'box.cornerX': ['Center line → corner', 0],
     'view.eye': ['Seated eye height', 40], 'view.dist': ['Eyes to wall'],
     'built.top': ['TV top'], 'built.bottom': ['TV bottom'],
     'bar.w': ['Bar width', 'for the sketch'], 'bar.h': ['Bar height'], 'bar.gap': ['TV bottom → bar top'],
@@ -72,7 +91,7 @@
     if (path === 'ref.mantle.h') return pro() ? 'Left end height' : Noun + ' height';
     if (path === 'ref.mantle.len') return Noun + ' length';
     if (path === 'room.mantle') return 'Floor to ' + (noun === 'mantle' ? 'mantle top' : noun);
-    if (path === 'box.bottom') return 'Bottom ' + (kind === 'floor' ? 'above floor' : kind === 'mantle' ? 'above ' + noun : 'below ceiling');
+    if (path === 'box.cornerH') return 'Corner ' + (kind === 'floor' ? 'above floor' : kind === 'mantle' ? 'above ' + noun : 'below ceiling');
     if (/^studs\.list\./.test(path)) return tab().studs.from === 'edge' ? 'Stud from the ' + (t.center.mode !== 'half' && t.center.from === 'right' ? 'right' : 'left') + ' edge' : 'Stud from center (− is left)';
     return (F[path] || [path])[0];
   }
@@ -355,8 +374,14 @@
       b = seg('box.on', [[false, 'No box'], [true, 'Recessed box']]);
       if (t.box.on) {
         b += seg('box.place', [['auto', 'Find a spot'], ['set', 'Already in the wall']]);
-        if (t.box.place === 'set') b += `<div class="grid2">${fld('box.w')}${fld('box.h')}${fld('box.bottom')}${fld('box.x')}</div>` + hint('Box center from the center line. Left is negative: tap ± on the keypad. The box can sit behind the plate.');
-        else b += `<div class="grid3">${fld('box.w')}${fld('box.h')}${fld('box.margin', { label: 'Keep in' })}</div>` + hint('Finds room behind the TV, clear of the plate and between studs, for a recessed power and low-voltage box.');
+        if (t.box.place === 'set') {
+          b += `<div class="grid2">${fld('box.w')}${fld('box.h')}</div>`;
+          b += `<div class="label">Measure to this corner</div>` + seg('box.corner', [['bl', 'Bottom left'], ['br', 'Bottom right'], ['tl', 'Top left'], ['tr', 'Top right']], 'two');
+          b += `<div class="label">The corner is</div>` + seg('box.side', [['left', 'Left of center line'], ['right', 'Right of center line']]);
+          b += boxFig(t) + `<div class="grid2">${fld('box.cornerH')}${fld('box.cornerX')}</div>`;
+          b += hint('Left and right as you face the wall. The box can sit behind the plate.');
+        }
+        else b += `<div class="grid3">${fld('box.w')}${fld('box.h')}${fld('box.margin', { label: 'Keep in' })}</div>` + hint('Finds room behind the TV and between studs for a recessed power and low-voltage box. Half the box sits past the plate edge.');
       }
       h += card('box', 'Rough-in box', b, true);
 

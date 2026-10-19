@@ -74,12 +74,13 @@ const scenes = [
   { name: '28-client-sideways', landscape: true, seed: (() => { const d = jobDoc('pro'); Object.assign(d.tabs[0].room, { ceil: 110, left: 60, right: 66 }); return d; })(), act: async p => { await p.click('#shotBtn'); await p.waitForTimeout(3400); } },
   { name: '29-box-in-wall', seed: boxSet(jobDoc('pro')) },
   { name: '30-box-in-wall-form', seed: boxSet(jobDoc('pro')), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="box"]').scrollIntoView()); } },
+  { name: '33-box-corner-drawing', seed: boxSet(jobDoc('pro')), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="box"] .plate-fig').scrollIntoView({ block: 'center' })); } },
   { name: '31-countertop', seed: (() => { const d = jobDoc('simple'); d.tabs[0].ref.mantle.what = 'counter'; Object.assign(d.tabs[0].ref.mantle, { h: 36, value: 18 }); return d; })() },
   { name: '32-countertop-form', seed: (() => { const d = jobDoc('simple'); d.tabs[0].ref.mantle.what = 'counter'; Object.assign(d.tabs[0].ref.mantle, { h: 36, value: 18 }); return d; })(), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="place"]').scrollIntoView()); } },
   { name: '22-soundbar-form', seed: withBar(jobDoc('simple'), { kind: 'wall', w: 45, h: 3.25, gap: 2.5, holesToTop: 1.5 }, 1), act: async p => { await p.evaluate(() => document.querySelector('[data-sec="bar"]').scrollIntoView()); } }
 ];
 // The same job with the box already in the wall, partly behind the plate.
-function boxSet(d) { Object.assign(d.tabs[0].box, { place: 'set', bottom: 16, x: -4 }); return d; }
+function boxSet(d) { Object.assign(d.tabs[0].box, { place: 'set', corner: 'bl', side: 'left', cornerH: 16, cornerX: 7.75 }); return d; }
 // The same job with a soundbar, on the tab at index `on` (0 = the mantle job, 1 = the floor job).
 function withBar(d, bar, on = 0) {
   Object.assign(d.tabs[on].bar, bar);
