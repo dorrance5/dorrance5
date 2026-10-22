@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Family Recipe Book</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<script>
+// Follow the site theme setting (key "theme": auto | light | dark | aurora). Aurora shows as dark.
+try{const t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;else if(t==='aurora')document.documentElement.dataset.theme='dark'}catch(e){}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: single column of recipe cards under a sticky search bar, two columns on wide screens */
+:root {
+  --bg: #f3f5f2;
+  --surface: #ffffff;
+  --ink: #1d2620;
+  --muted: #5f6b63;
+  --line: #d9e0db;
+  --accent: #2f6b45;
+  --accent-soft: #e2efe6;
+  --mark: #fff0b3;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141a16; --surface: #1c2420; --ink: #e6ece8; --muted: #9aa8a0;
+    --line: #2e3a33; --accent: #7fc79a; --accent-soft: #23362a; --mark: #5a4d14;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141a16; --surface: #1c2420; --ink: #e6ece8; --muted: #9aa8a0;
+  --line: #2e3a33; --accent: #7fc79a; --accent-soft: #23362a; --mark: #5a4d14;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  -webkit-text-size-adjust: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.5;
+}
+.wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 16px;
+  padding-block: 20px 48px;
+}
+header h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(2rem, 7vw, 2.8rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 8px 0 4px;
+  text-wrap: balance;
+}
+header p { margin: 0; color: var(--muted); }
+.searchbar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 2;
+  background: var(--bg);
+  padding-block: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.searchbar input {
+  width: 100%;
+  font: inherit;
+  font-size: 17px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+.searchbar input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.count { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 18px 16px;
+  min-width: 0;
+}
+.card h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.35rem;
+  line-height: 1.2;
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.tag {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tag.plain { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 12px 0 6px;
+}
+.label:first-of-type { margin-top: 0; }
+ul.ing { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+ul.ing li {
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+}
+ul.ing li:last-child { border-bottom: 0; }
+ol.steps { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+.note { margin: 0; color: var(--ink); }
+.empty-ing { color: var(--muted); font-style: italic; margin: 0; }
+mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 2px; }
+.none { color: var(--muted); padding: 24px 0; text-align: center; }
+footer { margin-top: 28px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Family Recipe Book</h1>
+    <p>Search a meal or an ingredient, like "red onion" or "crock pot".</p>
+  </header>
+
+  <div class="searchbar">
+    <input id="q" type="search" placeholder="Search meals or ingredients" autocomplete="off" aria-label="Search meals or ingredients">
+    <div class="count" id="count"></div>
+  </div>
+
+  <main class="grid" id="grid"></main>
+  <p class="none" id="none" hidden>No meals match that search.</p>
+
+  <footer>Updated October 22, 2026.</footer>
+</div>
+
+<script>
+const RECIPES = [
+  { name: "White chicken chili", ingredients: ["Chicken","Chicken broth","White beans","Chickpeas","Green chilies","Poblano peppers","White onion","Salsa verde","Cilantro","Chives","Cream cheese"] },
+  { name: "Salmon bowls", ingredients: ["Salmon","Rice","Mayo","Sriracha","Cucumbers"] },
+  { name: "Grilled chicken and potatoes", ingredients: ["Grilled chicken","Potatoes"] },
+  { name: "Pulled pork sandwiches", ingredients: ["Pulled pork (Costco)","Buns"] },
+  { name: "Madi's pasta salad", ingredients: ["Iceberg lettuce","Provolone cheese","Banana peppers","Pasta","Mayo","Salami or pepperoni","Red onion"] },
+  { name: "Jen's tortellini pasta salad", ingredients: [] },
+  { name: "Sheet pan breakfast burritos", ingredients: ["Eggs","Red bell pepper","Red onion","Milk","Bacon","Large tortillas"] },
+  { name: "Pepperoncini roast", tags: ["Crock pot"],
+    ingredients: ["1 chuck roast","1 packet au jus gravy mix","1 packet ranch seasoning","1 jar pepperoncinis (2 jars for more spice)","1 stick butter"],
+    steps: ["Put the roast in the crock pot.","Add the au jus packet, ranch packet, and pepperoncinis.","Cut the butter into slices and spread them over the top.","Cook on high for 6 hours or low for 8 hours."] },
+  { name: "Tacos and beans", ingredients: ["Ground beef","Refried beans","Taco seasoning","Tortillas"], notes: "Add any garnish wanted." },
+  { name: "Burgers and fries", ingredients: ["Burgers","Buns","Fries"] },
+  { name: "Megan's zuppa toscana", tags: ["Soup","Serves 6"],
+    ingredients: ["5 strips bacon (thick-cut)","1 lb Italian sausage (casings removed)","1 medium onion","5 cloves garlic","2 cups chicken broth","4 cups water","4 large red potatoes","1/4 tsp Italian seasoning","1 cup heavy cream","1 small bunch kale","Salt and pepper"],
+    steps: ["Cut the bacon into small pieces. Cook it in a pot on medium-high for 5 minutes.","Add the sausage. Cook about 15 minutes until browned and crispy, stirring now and then.","Spoon off most of the fat. Leave a few tablespoons.","Chop the onion and mince the garlic. Stir them in and cook 2 to 3 minutes.","Dice the potatoes with skins on. Add the broth, water, potatoes, and Italian seasoning.","Bring to a boil on high. Turn down to medium-low and simmer 10 to 15 minutes, until the potatoes are tender.","Remove the kale stems and tear the leaves into bite-size pieces.","Stir in the cream and kale. Cook about 5 minutes, until the kale wilts.","Season with salt and pepper."],
+    notes: "Hot Italian sausage or 1/4 tsp red pepper flakes adds heat. Half-and-half works in place of cream. Keeps 3 to 4 days in the fridge." }
+];
+
+const grid = document.getElementById("grid");
+const none = document.getElementById("none");
+const count = document.getElementById("count");
+const q = document.getElementById("q");
+
+function esc(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+function hl(text, term) {
+  const safe = esc(text);
+  if (!term) return safe;
+  const re = new RegExp("(" + term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
+  return safe.replace(re, "<mark>$1</mark>");
+}
+function haystack(r) {
+  return [r.name, ...(r.ingredients || []), ...(r.steps || []), r.notes || "", ...(r.tags || [])].join(" ").toLowerCase();
+}
+
+function render(term) {
+  const t = term.trim();
+  const tl = t.toLowerCase();
+  const list = RECIPES.filter(r => !tl || haystack(r).includes(tl));
+  grid.innerHTML = list.map(r => {
+    const n = r.ingredients.length;
+    const tags = [];
+    (r.tags || []).forEach(x => tags.push('<span class="tag">' + hl(x, t) + '</span>'));
+    if (r.steps) tags.push('<span class="tag">Full recipe</span>');
+    tags.push('<span class="tag plain">' + (n ? n + (n === 1 ? " ingredient" : " ingredients") : "Ingredients needed") + '</span>');
+    const ing = n
+      ? '<ul class="ing">' + r.ingredients.map(i => '<li>' + hl(i, t) + '</li>').join("") + '</ul>'
+      : '<p class="empty-ing">No ingredients yet. Send them in chat to fill this in.</p>';
+    const steps = r.steps ? '<div class="label">Steps</div><ol class="steps">' + r.steps.map(s => '<li>' + hl(s, t) + '</li>').join("") + '</ol>' : "";
+    const notes = r.notes ? '<div class="label">Notes</div><p class="note">' + hl(r.notes, t) + '</p>' : "";
+    return '<article class="card"><h2>' + hl(r.name, t) + '</h2><div class="tags">' + tags.join("") + '</div><div class="label">Ingredients</div>' + ing + steps + notes + '</article>';
+  }).join("");
+  none.hidden = list.length > 0;
+  count.textContent = t ? list.length + " of " + RECIPES.length + " meals" : RECIPES.length + " meals";
+}
+
+q.addEventListener("input", () => render(q.value));
+render("");
+</script>
+</body>
+</html>
