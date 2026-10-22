@@ -1,0 +1,152 @@
+{
+  "recipes": [
+    {
+      "id": "white-chicken-chili",
+      "name": "White chicken chili",
+      "ingredients": [
+        "Chicken",
+        "Chicken broth",
+        "White beans",
+        "Chickpeas",
+        "Green chilies",
+        "Poblano peppers",
+        "White onion",
+        "Salsa verde",
+        "Cilantro",
+        "Chives",
+        "Cream cheese"
+      ]
+    },
+    {
+      "id": "salmon-bowls",
+      "name": "Salmon bowls",
+      "ingredients": [
+        "Salmon",
+        "Rice",
+        "Mayo",
+        "Sriracha",
+        "Cucumbers"
+      ]
+    },
+    {
+      "id": "grilled-chicken-and-potatoes",
+      "name": "Grilled chicken and potatoes",
+      "ingredients": [
+        "Grilled chicken",
+        "Potatoes"
+      ]
+    },
+    {
+      "id": "pulled-pork-sandwiches",
+      "name": "Pulled pork sandwiches",
+      "ingredients": [
+        "Pulled pork (Costco)",
+        "Buns"
+      ]
+    },
+    {
+      "id": "madis-pasta-salad",
+      "name": "Madi's pasta salad",
+      "ingredients": [
+        "Iceberg lettuce",
+        "Provolone cheese",
+        "Banana peppers",
+        "Pasta",
+        "Mayo",
+        "Salami or pepperoni",
+        "Red onion"
+      ]
+    },
+    {
+      "id": "jens-tortellini-pasta-salad",
+      "name": "Jen's tortellini pasta salad",
+      "ingredients": []
+    },
+    {
+      "id": "sheet-pan-breakfast-burritos",
+      "name": "Sheet pan breakfast burritos",
+      "ingredients": [
+        "Eggs",
+        "Red bell pepper",
+        "Red onion",
+        "Milk",
+        "Bacon",
+        "Large tortillas"
+      ]
+    },
+    {
+      "id": "pepperoncini-roast",
+      "name": "Pepperoncini roast",
+      "tags": [
+        "Crock pot"
+      ],
+      "ingredients": [
+        "1 chuck roast",
+        "1 packet au jus gravy mix",
+        "1 packet ranch seasoning",
+        "1 jar pepperoncinis (2 jars for more spice)",
+        "1 stick butter"
+      ],
+      "steps": [
+        "Put the roast in the crock pot.",
+        "Add the au jus packet, ranch packet, and pepperoncinis.",
+        "Cut the butter into slices and spread them over the top.",
+        "Cook on high for 6 hours or low for 8 hours."
+      ]
+    },
+    {
+      "id": "tacos-and-beans",
+      "name": "Tacos and beans",
+      "ingredients": [
+        "Ground beef",
+        "Refried beans",
+        "Taco seasoning",
+        "Tortillas"
+      ],
+      "notes": "Add any garnish wanted."
+    },
+    {
+      "id": "burgers-and-fries",
+      "name": "Burgers and fries",
+      "ingredients": [
+        "Burgers",
+        "Buns",
+        "Fries"
+      ]
+    },
+    {
+      "id": "megans-zuppa-toscana",
+      "name": "Megan's zuppa toscana",
+      "servings": "6",
+      "tags": [
+        "Soup"
+      ],
+      "ingredients": [
+        "5 strips bacon (thick-cut)",
+        "1 lb Italian sausage (casings removed)",
+        "1 medium onion",
+        "5 cloves garlic",
+        "2 cups chicken broth",
+        "4 cups water",
+        "4 large red potatoes",
+        "1/4 tsp Italian seasoning",
+        "1 cup heavy cream",
+        "1 small bunch kale",
+        "Salt and pepper"
+      ],
+      "steps": [
+        "Cut the bacon into small pieces. Cook it in a pot on medium-high for 5 minutes.",
+        "Add the sausage. Cook about 15 minutes until browned and crispy, stirring now and then.",
+        "Spoon off most of the fat. Leave a few tablespoons.",
+        "Chop the onion and mince the garlic. Stir them in and cook 2 to 3 minutes.",
+        "Dice the potatoes with skins on. Add the broth, water, potatoes, and Italian seasoning.",
+        "Bring to a boil on high. Turn down to medium-low and simmer 10 to 15 minutes, until the potatoes are tender.",
+        "Remove the kale stems and tear the leaves into bite-size pieces.",
+        "Stir in the cream and kale. Cook about 5 minutes, until the kale wilts.",
+        "Season with salt and pepper."
+      ],
+      "notes": "Hot Italian sausage or 1/4 tsp red pepper flakes adds heat. Half-and-half works in place of cream. Keeps 3 to 4 days in the fridge.",
+      "source": "https://www.saltandlavender.com/sausage-bacon-potato-and-kale-soup/"
+    }
+  ]
+}
