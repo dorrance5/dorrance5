@@ -37,6 +37,15 @@ This is a static site of small phone apps. GitHub Pages deploys `main` with `.gi
 - Look at the screenshots before you push.
 - The browser scripts ask for WebKit. If only Chromium is installed, make a `playwright` module that exports `chromium` as `webkit`, and put it on `NODE_PATH`.
 
+## Recipes
+
+- `recipes/` is a standalone page, not one of the apps. It has no `manifest.json` and no `sw.js`, so there is no `CACHE` to increase. Do not add it to the home page.
+- `recipes/recipes.json` is the only copy of the recipes. The page saves to it with the GitHub contents API. `docs/recipes-handoff.md` has the data format.
+- Run the unit tests: `node --test recipes/test/*.test.js`
+- Run the browser checks: `NODE_PATH=<folder with playwright> node recipes/test/flows.cjs`
+- Make the screenshots: `NODE_PATH=<folder with playwright> node recipes/test/shots.cjs <output folder>`
+- Render the icons: `NODE_PATH=<folder with playwright> node docs/icons/render-recipes.cjs`
+
 ## Commits
 
 - Start the commit title with the app name, for example `TV Mount: measure to the soundbar bottom`.

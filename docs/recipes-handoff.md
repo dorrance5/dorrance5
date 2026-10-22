@@ -13,9 +13,11 @@ Make `recipes/` a mobile-first recipe book that the owner can edit on his phone.
 
 ## Current state
 
-- `recipes/index.html` is live. It is one file with its own styles and script. The recipe data is a `RECIPES` array in the script. There is no editing yet.
-- `recipes/recipes.json` has the same 11 recipes in the new data format (see below). The page does not read it yet.
-- The page design: green accent, Bricolage Grotesque for headings, Atkinson Hyperlegible for body text, a sticky search field, and one card for each recipe. Day and Night tokens are on `:root`, with `prefers-color-scheme` and `data-theme` overrides. Keep this design and its color tokens.
+This handoff is done. The page reads `recipes/recipes.json` and saves to it from the phone.
+
+- `recipes/index.html` has the markup and the styles. `recipes/app.js` runs the page. `recipes/data.js` has the data format, the search and the GitHub calls, and Node can test it.
+- The checks are in `recipes/test/`. `CLAUDE.md` has the commands.
+- The page design: green accent, Bricolage Grotesque for headings, Atkinson Hyperlegible for body text, a sticky search field, and one list of recipes. Day and Night tokens are on `:root`, with `prefers-color-scheme` and `data-theme` overrides. Keep this design and its color tokens.
 
 ## Data format
 
