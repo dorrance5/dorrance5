@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<!-- Recipes icon: a cream bowl with three steam lines on green, full bleed. recipes/favicon.svg is the same drawing with
+     rounded corners. Render the PNGs with docs/icons/render-recipes.cjs. -->
+<rect width="64" height="64" fill="#2f6b45"/>
+<g fill="none" stroke="#f6ecd4" stroke-width="3.6" stroke-linecap="round"><path d="M22.5 25.5c-2.6-2.6-2.6-4.9 0-7.5s2.6-4.9 0-7.5M32 25.5c-2.6-2.6-2.6-4.9 0-7.5s2.6-4.9 0-7.5M41.5 25.5c-2.6-2.6-2.6-4.9 0-7.5s2.6-4.9 0-7.5"/></g>
+<path fill="#f6ecd4" d="M11 31.5h42a2 2 0 0 1 2 2.1C54.3 43.7 46.5 51 37 51H27c-9.5 0-17.3-7.3-18-17.4a2 2 0 0 1 2-2.1z"/>
+<rect x="22" y="50" width="20" height="4.5" rx="2.25" fill="#f6ecd4"/>
+</svg>
