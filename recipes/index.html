@@ -3,74 +3,116 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Family Recipe Book</title>
+<title>Dorrance Family Recipe Book</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Recipes">
-<meta name="theme-color" content="#f3f5f2" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#141a16" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#eadcc2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#18130f" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script>
-// Follow the site theme setting (key "theme": auto | light | dark | aurora). Aurora shows as dark.
-try{const t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;else if(t==='aurora')document.documentElement.dataset.theme='dark'}catch(e){}
+// Follow the site theme setting (key "theme": auto | light | dark | aurora).
+try{const t=localStorage.getItem('theme');if(t==='light'||t==='dark'||t==='aurora')document.documentElement.dataset.theme=t}catch(e){}
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English&family=IM+Fell+English+SC&display=swap">
 <style>
-/* Layout: one list of recipes under a sticky search field. A recipe, the editor and Settings open in bottom sheets. */
+/* An old family recipe book: sepia paper, and each recipe on an index card with a red rule and blue lines.
+   The cards turn on a drum like a Rolodex as the list scrolls (app.js). A recipe, the editor and Settings
+   open in bottom sheets. Themes: Day (sepia), Night (warm dark), and the secret Aurora. */
 :root {
-  --bg: #f3f5f2;
-  --surface: #ffffff;
-  --ink: #1d2620;
-  --muted: #5f6b63;
-  --line: #d9e0db;
-  --accent: #2f6b45;
-  --accent-soft: #e2efe6;
-  --on-accent: #ffffff;
-  --mark: #fff0b3;
-  --danger: #b3261e;
-  --danger-soft: #fbe9e7;
-  --scrim: rgba(18, 26, 21, .42);
-  --lift: 0 8px 22px rgba(20, 45, 30, .22), 0 1px 3px rgba(0, 0, 0, .18);
-  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
-  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --bg: #eadcc2;
+  --card: #fbf4e3;
+  --surface: #f6ecd8;
+  --field: #fffaf0;
+  --ink: #3b2b1d;
+  --muted: #76604c;
+  --line: #d3bf9c;
+  --accent: #9c3b25;
+  --accent-soft: #f1ddcf;
+  --on-accent: #fff7ea;
+  --rule: rgba(64, 110, 165, .28);
+  --red-rule: rgba(176, 58, 40, .6);
+  --mark: rgba(236, 190, 70, .55);
+  --danger: #a3261a;
+  --danger-soft: #f6dcd3;
+  --scrim: rgba(45, 28, 12, .45);
+  --shade: 40, 24, 10;
+  --card-shadow: 0 1px 1px rgba(80, 52, 20, .14), 0 9px 18px -9px rgba(80, 52, 20, .5), 0 -3px 6px -3px rgba(80, 52, 20, .3);
+  --lift: 0 10px 24px rgba(70, 40, 15, .3), 0 1px 3px rgba(70, 40, 15, .25);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .19 0 0 0 0 .07 0 0 0 .5 -.17'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --age: radial-gradient(130% 85% at 50% 35%, transparent 55%, rgba(120, 75, 25, .2) 100%);
+  --title: "IM Fell English", "Iowan Old Style", Georgia, serif;
+  --serif: "Iowan Old Style", "Iowan", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #141a16; --surface: #1c2420; --ink: #e6ece8; --muted: #9aa8a0;
-    --line: #2e3a33; --accent: #7fc79a; --accent-soft: #23362a; --on-accent: #10251a; --mark: #5a4d14;
-    --danger: #ff9b8f; --danger-soft: #3b2220; --scrim: rgba(0, 0, 0, .6); --lift: 0 8px 22px rgba(0, 0, 0, .5);
+  :root:not([data-theme]) {
+    --bg: #18130f; --card: #261f19; --surface: #211b16; --field: #1a1511; --ink: #ecdfca; --muted: #a8977f; --line: #3f352a;
+    --accent: #e3906f; --accent-soft: #3b261e; --on-accent: #22140d; --rule: rgba(150, 175, 215, .14); --red-rule: rgba(227, 144, 111, .5);
+    --mark: rgba(170, 128, 40, .55); --danger: #ff9b8f; --danger-soft: #3b2220; --scrim: rgba(0, 0, 0, .6); --shade: 0, 0, 0;
+    --card-shadow: inset 0 1px 0 rgba(255, 240, 220, .05), 0 10px 20px -8px rgba(0, 0, 0, .75), 0 -4px 8px -4px rgba(0, 0, 0, .7); --lift: 0 10px 24px rgba(0, 0, 0, .55);
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .88 0 0 0 0 .75 0 0 0 .22 -.08'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    --age: radial-gradient(130% 85% at 50% 35%, transparent 50%, rgba(0, 0, 0, .4) 100%);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #141a16; --surface: #1c2420; --ink: #e6ece8; --muted: #9aa8a0;
-  --line: #2e3a33; --accent: #7fc79a; --accent-soft: #23362a; --on-accent: #10251a; --mark: #5a4d14;
-  --danger: #ff9b8f; --danger-soft: #3b2220; --scrim: rgba(0, 0, 0, .6); --lift: 0 8px 22px rgba(0, 0, 0, .5);
+  --bg: #18130f; --card: #261f19; --surface: #211b16; --field: #1a1511; --ink: #ecdfca; --muted: #a8977f; --line: #3f352a;
+  --accent: #e3906f; --accent-soft: #3b261e; --on-accent: #22140d; --rule: rgba(150, 175, 215, .14); --red-rule: rgba(227, 144, 111, .5);
+  --mark: rgba(170, 128, 40, .55); --danger: #ff9b8f; --danger-soft: #3b2220; --scrim: rgba(0, 0, 0, .6); --shade: 0, 0, 0;
+  --card-shadow: inset 0 1px 0 rgba(255, 240, 220, .05), 0 10px 20px -8px rgba(0, 0, 0, .75), 0 -4px 8px -4px rgba(0, 0, 0, .7); --lift: 0 10px 24px rgba(0, 0, 0, .55);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .88 0 0 0 0 .75 0 0 0 .22 -.08'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --age: radial-gradient(130% 85% at 50% 35%, transparent 50%, rgba(0, 0, 0, .4) 100%);
+  color-scheme: dark;
+}
+/* Aurora: a night sky with moving northern lights behind glass cards, as in the apps */
+:root[data-theme="aurora"] {
+  --bg: #0e0a1e; --card: rgba(255, 255, 255, .11); --surface: rgba(24, 17, 48, .96); --field: rgba(255, 255, 255, .08);
+  --ink: #fff; --muted: rgba(255, 255, 255, .64); --line: rgba(255, 255, 255, .2);
+  --accent: #ffc58a; --accent-soft: rgba(255, 166, 48, .2); --on-accent: #fff; --rule: rgba(255, 255, 255, .13); --red-rule: rgba(255, 176, 130, .55);
+  --mark: rgba(255, 190, 90, .4); --danger: #ffb0b0; --danger-soft: rgba(255, 92, 92, .22); --scrim: rgba(5, 3, 15, .5); --shade: 6, 3, 20;
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, .38), inset 0 -1px 0 rgba(255, 255, 255, .08), 0 8px 24px rgba(0, 0, 0, .25);
+  --lift: 0 8px 26px rgba(0, 0, 0, .4);
+  --grain: none; --age: none;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 html.locked, html.locked body { overflow: hidden; }
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--bg) var(--grain);
   color: var(--ink);
-  font-family: var(--body);
-  font-size: 16px;
+  font-family: var(--serif);
+  font-size: 17px;
   line-height: 1.5;
   overflow-x: hidden;
 }
+/* the page darkens toward its edges, like an old book */
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--age); }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 svg { display: block; }
 a { color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.aurora, .veil { display: none; }
+[data-theme="aurora"] .aurora { display: block; position: fixed; inset: -25%; z-index: -2; filter: blur(58px) saturate(150%); }
+[data-theme="aurora"] .veil { display: block; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(120% 80% at 50% 0%, rgba(0, 0, 0, .18), rgba(0, 0, 0, .6)); }
+.blob { position: absolute; border-radius: 50%; mix-blend-mode: screen; }
+.b1 { width: 74vw; height: 74vw; background: #6a3ce0; top: 2%; left: -12%; animation: d1 26s ease-in-out infinite; }
+.b2 { width: 66vw; height: 66vw; background: #1e9be0; top: 32%; right: -16%; animation: d2 31s ease-in-out infinite; }
+.b3 { width: 58vw; height: 58vw; background: #e0603c; bottom: 2%; left: 8%; animation: d3 24s ease-in-out infinite; }
+.b4 { width: 50vw; height: 50vw; background: #17b79a; bottom: 20%; right: 6%; animation: d1 35s ease-in-out infinite reverse; }
+@keyframes d1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(14%, 10%) scale(1.16); } }
+@keyframes d2 { 0%, 100% { transform: translate(0, 0) scale(1.1); } 50% { transform: translate(-16%, -9%) scale(.9); } }
+@keyframes d3 { 0%, 100% { transform: translate(0, 0) scale(.95); } 50% { transform: translate(11%, -13%) scale(1.2); } }
 
 /* ---- page ---- */
 .wrap {
@@ -78,18 +120,13 @@ a { color: var(--accent); }
   margin: 0 auto;
   padding: env(safe-area-inset-top, 0px) calc(16px + env(safe-area-inset-right, 0px)) calc(104px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
 }
-.top { display: flex; align-items: flex-start; gap: 12px; padding-top: 14px; }
-.top h1 {
-  flex: 1;
-  min-width: 0;
-  font-family: var(--display);
-  font-weight: 800;
-  font-size: clamp(28px, 7.4vw, 44px);
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  margin: 6px 0 0;
-  text-wrap: balance;
-}
+.top { position: relative; padding: 26px 46px 2px; text-align: center; }
+.top h1 { margin: 0; font-family: var(--title); font-weight: 400; line-height: 1; }
+.top .t1 { display: block; font-family: "IM Fell English SC", var(--title); font-size: 19px; letter-spacing: .16em; color: var(--accent); }
+.top .t2 { display: block; margin-top: 2px; font-size: clamp(42px, 12.5vw, 60px); letter-spacing: -.005em; }
+[data-theme="aurora"] .top h1 { text-shadow: 0 0 22px rgba(255, 200, 150, .35); }
+.orn { display: flex; align-items: center; gap: 12px; max-width: 230px; margin: 8px auto 0; color: var(--accent); font-family: "Zapf Dingbats", "Apple Symbols", serif; font-size: 20px; line-height: 1; }
+.orn::before, .orn::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: .55; }
 .icon-btn {
   flex: none;
   width: 44px; height: 44px;
@@ -99,19 +136,25 @@ a { color: var(--accent); }
   color: var(--ink);
 }
 .icon-btn svg { width: 24px; height: 24px; }
-.top .icon-btn { background: var(--surface); border: 1px solid var(--line); margin-right: -2px; }
+.top .icon-btn { position: absolute; top: 12px; right: -4px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--card-shadow); }
 .searchbar {
   position: sticky;
   top: env(safe-area-inset-top, 0px);
-  z-index: 2;
+  z-index: 3;
   margin: 0 -16px;
-  padding: 14px 16px 8px;
-  background: var(--bg);
-  transition: box-shadow .2s;
+  padding: 14px 16px 6px;
+  transition: background-color .2s, box-shadow .2s;
 }
 /* covers the status bar area above the stuck search field */
-.searchbar::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: env(safe-area-inset-top, 0px); background: var(--bg); }
+.searchbar::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: env(safe-area-inset-top, 0px); }
+.searchbar.stuck, .searchbar.stuck::before {
+  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  backdrop-filter: blur(14px) saturate(130%);
+}
 .searchbar.stuck { box-shadow: 0 1px 0 var(--line); }
+[data-theme="aurora"] .searchbar.stuck, [data-theme="aurora"] .searchbar.stuck::before { background: rgba(14, 10, 30, .5); }
 .search { position: relative; }
 .search svg { position: absolute; left: 13px; top: 50%; width: 20px; height: 20px; margin-top: -10px; color: var(--muted); pointer-events: none; }
 .search input {
@@ -119,57 +162,71 @@ a { color: var(--accent); }
   min-height: 48px;
   font-size: 17px;
   padding: 11px 14px 11px 42px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1.5px solid var(--line);
-  background: var(--surface);
+  background: var(--field);
   color: var(--ink);
   -webkit-appearance: none;
   appearance: none;
 }
+.search input::placeholder { color: var(--muted); font-style: italic; opacity: .9; }
 .search input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
-.count { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 6px; min-height: 19.5px; }
+.count { font-size: 15px; font-style: italic; color: var(--muted); font-variant-numeric: oldstyle-nums; margin-top: 4px; min-height: 22.5px; }
 .notice {
   margin: 6px 0 4px;
   padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--surface);
+  border-radius: 8px;
+  background: var(--card);
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 15px;
 }
-.list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  overflow: hidden;
-}
+
+/* ---- the recipe cards ---- */
+.list { position: relative; z-index: 1; list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
 .list:empty { display: none; }
-.list li + li .row::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: 1px solid var(--line); }
-.row {
+.card {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: block;
   width: 100%;
-  min-height: 66px;
-  padding: 11px 12px 11px 16px;
+  padding: 0 0 8px;
   border: 0;
-  background: transparent;
+  border-radius: 5px;
+  background: var(--card) var(--grain);
+  box-shadow: var(--card-shadow);
   text-align: left;
+  color: var(--ink);
+  transform-origin: 50% 0;
 }
-.row:active { background: var(--accent-soft); }
-@media (hover: hover) { .row:hover { background: var(--accent-soft); } }
-.row .txt { flex: 1; min-width: 0; }
-.row .nm { display: block; font-family: var(--display); font-weight: 600; font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; }
-.row .sub { display: block; margin-top: 2px; font-size: 14px; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
-.row .sub .tg { color: var(--accent); font-weight: 700; }
-.row .sub i { font-style: italic; }
-.row .chev { flex: none; width: 18px; height: 18px; color: var(--muted); opacity: .7; }
+.card.out { visibility: hidden; }
+.card > span { opacity: var(--fade, 1); }
+/* darkens a card as it goes deeper into the stack (app.js sets --turn) */
+.card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: rgb(var(--shade)); opacity: var(--turn, 0); }
+.card:active::after { opacity: calc(var(--turn, 0) + .07); }
+.card .nm { display: block; padding: 12px 16px 6px; border-bottom: 3px double var(--red-rule); font-weight: 700; font-size: 20px; line-height: 1.25; overflow-wrap: anywhere; }
+/* two ruled lines, like the lines on a recipe card */
+.card .lines {
+  display: block;
+  padding: 2px 16px 0;
+  font-size: 15px;
+  line-height: 28px;
+  color: var(--muted);
+  background: repeating-linear-gradient(to bottom, transparent 0 27px, var(--rule) 27px 28px);
+}
+.card .sub, .card .pre { display: block; min-height: 28px; overflow-wrap: anywhere; }
+.card .pre { font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .tg { color: var(--accent); font-variant-caps: all-small-caps; letter-spacing: .05em; font-size: 17px; font-weight: 700; }
+.card i { font-style: italic; }
+/* the two slots at the bottom of a Rolodex card */
+.card .notch { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; pointer-events: none;
+  background: radial-gradient(circle at 34% 100%, var(--bg) 6px, transparent 6.5px), radial-gradient(circle at 66% 100%, var(--bg) 6px, transparent 6.5px); }
+/* Aurora cards are darker glass than the apps' cards, so the names in the stack do not show through each other */
+[data-theme="aurora"] .card { background: rgba(34, 25, 70, .95); border: .5px solid rgba(255, 255, 255, .3); text-shadow: 0 1px 6px rgba(0, 0, 0, .3);
+  box-shadow: var(--card-shadow), 0 -4px 10px -4px rgba(0, 0, 0, .45); -webkit-backdrop-filter: blur(14px) saturate(150%); backdrop-filter: blur(14px) saturate(150%); }
+[data-theme="aurora"] .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(160deg, rgba(255, 255, 255, .26) 0%, rgba(255, 255, 255, .05) 34%, transparent 60%); }
+[data-theme="aurora"] .card .notch { display: none; }
 mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1px; }
-.none { color: var(--muted); padding: 28px 0; text-align: center; margin: 0; }
+.none { color: var(--muted); font-style: italic; padding: 28px 0; text-align: center; margin: 0; }
 
 .fab {
   position: fixed;
@@ -182,11 +239,15 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
   border: 0; border-radius: 27px;
   background: var(--accent);
   color: var(--on-accent);
-  font-weight: 700; font-size: 17px;
+  font-weight: 700; font-size: 18px;
   box-shadow: var(--lift);
 }
 .fab svg { width: 22px; height: 22px; }
 .fab:active { transform: scale(.97); }
+[data-theme="aurora"] .fab, [data-theme="aurora"] .btn.solid {
+  background: rgba(255, 166, 48, .42); color: #fff; border: .5px solid rgba(255, 206, 140, .55);
+  -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%);
+}
 
 .toast {
   position: fixed;
@@ -196,10 +257,10 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
   max-width: calc(100% - 32px);
   width: max-content;
   padding: 10px 16px;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--ink);
   color: var(--bg);
-  font-size: 15px;
+  font-size: 16px;
   text-align: center;
   box-shadow: var(--lift);
   opacity: 0;
@@ -208,6 +269,7 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
   pointer-events: none;
 }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
+[data-theme="aurora"] .toast { background: rgba(255, 255, 255, .9); color: #1a1230; }
 
 /* ---- sheets ---- */
 /* A layer follows the visual viewport, so a sheet stays above the phone keyboard. */
@@ -220,17 +282,23 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
   margin: 0 auto;
   max-height: calc(100% - 10px - env(safe-area-inset-top, 0px));
   display: flex; flex-direction: column;
-  background: var(--surface);
+  background: var(--surface) var(--grain);
   border-radius: 18px 18px 0 0;
-  box-shadow: 0 -6px 28px rgba(0, 0, 0, .18);
+  box-shadow: 0 -6px 28px rgba(0, 0, 0, .2);
   transform: translateY(100%);
   transition: transform .32s cubic-bezier(.2, .8, .2, 1);
   outline: none;
 }
+/* the recipe is a big index card */
+#view .sheet { background: var(--card) var(--grain); }
+[data-theme="aurora"] .sheet { background: var(--surface); -webkit-backdrop-filter: blur(30px) saturate(170%); backdrop-filter: blur(30px) saturate(170%); border-top: .5px solid rgba(255, 255, 255, .3); }
+[data-theme="aurora"] #view .sheet { background: rgba(30, 22, 62, .93); }
 .sheet.tall { height: calc(100% - 10px - env(safe-area-inset-top, 0px)); }
 .layer.open .scrim { opacity: 1; }
 .layer.open .sheet { transform: none; }
-.sheet.dragging { transition: none; }
+.sheet.dragging, .sheet.still { transition: none; }
+/* a card coming out of the list, or going back in (app.js) */
+.sheet.pulling { transition: transform .42s cubic-bezier(.2, .8, .2, 1), clip-path .42s cubic-bezier(.2, .8, .2, 1); }
 .bar {
   flex: none;
   position: relative;
@@ -241,12 +309,13 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
   min-height: 60px;
   padding: 10px 12px 6px;
   touch-action: none;
+  transition: box-shadow .2s;
 }
 .bar[data-drag]::before { content: ""; position: absolute; top: 6px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: var(--line); }
 .bar > :first-child { justify-self: start; }
 .bar > :last-child { justify-self: end; }
 .bar.edge { box-shadow: 0 1px 0 var(--line); }
-.bar h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 18px; text-align: center; white-space: nowrap; }
+.bar h2 { margin: 0; font-weight: 700; font-size: 19px; text-align: center; white-space: nowrap; }
 .sheet .body {
   flex: 1;
   min-height: 0;
@@ -266,8 +335,8 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
   padding: 0 18px;
   border-radius: 22px;
   border: 1.5px solid var(--line);
-  background: var(--surface);
-  font-weight: 700; font-size: 16px;
+  background: var(--field);
+  font-weight: 700; font-size: 17px;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
 .btn.solid { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
@@ -275,93 +344,96 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 .btn:disabled { opacity: .55; cursor: default; }
 .btn.danger { width: 100%; margin-top: 28px; border-color: var(--danger); color: var(--danger); background: transparent; }
 .btn.danger.armed { background: var(--danger); color: var(--surface); }
+[data-theme="aurora"] .btn.danger.armed { color: #2a0d0d; }
 
 /* recipe */
-.v-name { font-family: var(--display); font-weight: 800; font-size: 28px; line-height: 1.1; letter-spacing: -0.015em; margin: 0 0 10px; text-wrap: balance; overflow-wrap: anywhere; }
-.v-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.v-name { margin: 0; padding-bottom: 10px; border-bottom: 3px double var(--red-rule); font-weight: 700; font-size: 29px; line-height: 1.15; text-wrap: balance; overflow-wrap: anywhere; }
+.v-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .chip {
-  font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
-  padding: 3px 9px; border-radius: 999px;
-  background: var(--accent-soft); color: var(--accent);
+  font-size: 16px; font-weight: 700; font-variant-caps: all-small-caps; letter-spacing: .06em; line-height: 1.5;
+  padding: 0 10px; border-radius: 999px;
+  border: 1px solid var(--red-rule); color: var(--accent);
 }
-.chip.plain { background: transparent; border: 1px solid var(--line); color: var(--muted); }
-.v-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 22px 0 4px; }
+.chip.plain { border-color: var(--line); color: var(--muted); }
+.v-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 22px 0 2px; }
 .v-head h3, .label {
   margin: 0;
-  font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--muted);
+  font-size: 18px; font-weight: 700; font-variant-caps: all-small-caps; letter-spacing: .1em;
+  color: var(--accent);
 }
-.v-head .hint { font-size: 13px; color: var(--muted); }
-.checks { list-style: none; margin: 0; padding: 0; }
-.checks li + li { border-top: 1px dashed var(--line); }
-.checks label { display: flex; align-items: flex-start; gap: 12px; min-height: 46px; padding: 11px 0; cursor: pointer; }
+.v-head .hint { font-size: 14px; font-style: italic; color: var(--muted); }
+.checks { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.checks li { border-bottom: 1px solid var(--rule); }
+.checks label { display: flex; align-items: flex-start; gap: 12px; min-height: 46px; padding: 10px 0; cursor: pointer; }
 .checks input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
 .checks .box {
-  flex: none; width: 24px; height: 24px; margin-top: -1px;
-  border-radius: 50%; border: 2px solid var(--line);
+  flex: none; width: 24px; height: 24px; margin-top: 1px;
+  border-radius: 50%; border: 1.5px solid var(--muted);
   display: grid; place-items: center; color: var(--on-accent);
 }
 .checks .box svg { width: 14px; height: 14px; opacity: 0; }
 .checks input:checked + .box { background: var(--accent); border-color: var(--accent); }
 .checks input:checked + .box svg { opacity: 1; }
-.checks input:checked ~ .t { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.checks input:checked ~ .t { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--accent); text-decoration-thickness: 1.5px; }
 .checks input:focus-visible + .box { outline: 2px solid var(--accent); outline-offset: 2px; }
 .empty { color: var(--muted); font-style: italic; margin: 8px 0 0; }
-.steps { list-style: none; margin: 8px 0 0; padding: 0; counter-reset: step; }
-.steps li { counter-increment: step; display: flex; gap: 12px; padding: 7px 0; }
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; border-top: 1px solid var(--rule); }
+.steps li { counter-increment: step; display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
 .steps li::before {
   content: counter(step);
-  flex: none; width: 28px; height: 28px; margin-top: -2px;
-  border-radius: 50%; background: var(--accent-soft); color: var(--accent);
-  font-weight: 700; font-size: 14px; display: grid; place-items: center;
-  font-variant-numeric: tabular-nums;
+  flex: none; width: 28px; height: 28px; margin-top: -1px;
+  border-radius: 50%; border: 1.5px solid var(--red-rule); color: var(--accent);
+  font-weight: 700; font-size: 16px; display: grid; place-items: center;
+  font-variant-numeric: lining-nums tabular-nums;
 }
-.notes { margin: 8px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
-.source { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 14px; font-weight: 700; text-decoration: none; overflow-wrap: anywhere; }
+/* notes sit on ruled lines */
+.notes { margin: 4px 0 0; line-height: 28px; white-space: pre-line; overflow-wrap: anywhere; background: repeating-linear-gradient(to bottom, transparent 0 27px, var(--rule) 27px 28px); }
+.source { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 6px; font-weight: 700; text-decoration: none; overflow-wrap: anywhere; }
 .source svg { width: 16px; height: 16px; flex: none; }
 
 /* editor and settings */
 .field { display: block; margin-top: 18px; }
-.field > span, .field > label { display: block; font-weight: 700; font-size: 15px; margin-bottom: 6px; }
-.field small { display: block; color: var(--muted); font-size: 13px; margin-top: 5px; }
-.field small b { color: var(--accent); white-space: nowrap; }
+.field > span, .field > label { display: block; font-weight: 700; font-size: 16px; margin-bottom: 6px; }
+.field small { display: block; color: var(--muted); font-size: 14px; font-style: italic; margin-top: 5px; }
+.field small b { color: var(--accent); font-style: normal; white-space: nowrap; }
 .field input, .field textarea {
   width: 100%;
   font-size: 17px;
   line-height: 1.45;
   padding: 11px 13px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1.5px solid var(--line);
-  background: var(--bg);
+  background: var(--field);
   color: var(--ink);
   -webkit-appearance: none;
   appearance: none;
 }
 .field input { min-height: 48px; }
 .field textarea { resize: none; min-height: 96px; overflow: hidden; display: block; }
-.field input:focus, .field textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); background: var(--surface); }
+.field input:focus, .field textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
 .field .bad { border-color: var(--danger); }
 .alert {
   margin: 10px 0 0;
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--danger-soft);
   color: var(--danger);
-  font-weight: 700; font-size: 15px;
+  font-weight: 700; font-size: 16px;
 }
 .alert.ok { background: var(--accent-soft); color: var(--accent); }
-.alert.info { background: var(--bg); color: var(--ink); font-weight: 400; border: 1px solid var(--line); }
+.alert.info { background: var(--field); color: var(--ink); font-weight: 400; border: 1px solid var(--line); }
 .alert .btn { margin-top: 10px; min-height: 40px; }
 
-.label { display: block; margin: 22px 0 8px; }
-.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); }
-.seg button { min-height: 44px; border: 0; border-radius: 10px; background: transparent; font-weight: 700; color: var(--muted); }
-.seg button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .14); }
-.status { margin: 0; color: var(--muted); font-size: 15px; }
+.label { display: block; margin: 22px 0 8px; -webkit-user-select: none; user-select: none; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--field); border: 1px solid var(--line); }
+.seg button { min-height: 44px; border: 0; border-radius: 9px; background: transparent; font-weight: 700; color: var(--muted); }
+.seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(60, 35, 10, .2); }
+[data-theme="aurora"] .seg button.on { background: rgba(255, 255, 255, .22); color: #fff; }
+.status { margin: 0; color: var(--muted); font-size: 16px; }
 .status b { color: var(--ink); }
 .row-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .row-btns .btn { flex: 1 1 auto; }
-.setup { margin: 10px 0 0; padding-left: 1.4em; font-size: 15px; color: var(--muted); }
+.setup { margin: 10px 0 0; padding-left: 1.4em; font-size: 16px; color: var(--muted); }
 .setup li { margin: 4px 0; }
 .setup b { color: var(--ink); }
 .ext { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; }
@@ -374,10 +446,13 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 </style>
 </head>
 <body>
+<div class="aurora" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
+<div class="veil" aria-hidden="true"></div>
 
 <div class="wrap" id="page">
   <header class="top">
-    <h1>Family Recipe Book</h1>
+    <h1><span class="t1">Dorrance Family</span> <span class="t2">Recipe Book</span></h1>
+    <div class="orn" aria-hidden="true">&#x2766;</div>
     <button class="icon-btn" id="menuBtn" type="button" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   </header>
 
@@ -443,9 +518,9 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
     </div>
     <div class="body">
       <div class="alert info" id="sNeed" hidden>Connect GitHub to add or edit recipes.</div>
-      <span class="label">Theme</span>
+      <span class="label" id="themeLabel">Theme</span>
       <div class="seg" id="themeSeg" role="group" aria-label="Theme">
-        <button type="button" data-t="auto">Auto</button><button type="button" data-t="light">Day</button><button type="button" data-t="dark">Night</button>
+        <button type="button" data-t="auto">Auto</button><button type="button" data-t="light">Day</button><button type="button" data-t="dark">Night</button><button type="button" data-t="aurora" hidden>Aurora</button>
       </div>
       <span class="label">GitHub</span>
       <p class="status" id="sStatus"></p>

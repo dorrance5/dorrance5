@@ -1,5 +1,6 @@
 // Drives the Recipes page in WebKit at 390 × 844 against a stand-in for the GitHub contents API:
-// search, the recipe sheet, theme, token, add, edit, delete, a 409, 401/403/offline errors and the back button.
+// search, the stack of cards, the recipe sheet, theme and Aurora, token, add, edit, delete, a 409, 401/403/offline errors
+// and the back button.
 // Exits 1 on a failed check or a console error.
 //   NODE_PATH=/path/to/node_modules node recipes/test/flows.cjs
 const { webkit, devices } = require('playwright');
@@ -83,11 +84,11 @@ async function api(route) {
   let answer = null;   // the reply to the next confirm()
   page.on('dialog', d => { (answer ? d.accept() : d.dismiss()).catch(() => {}); answer = null; });
 
-  const names = () => page.$$eval('#list .row .nm', els => els.map(e => e.textContent));
+  const names = () => page.$$eval('#list .card .nm', els => els.map(e => e.textContent));
   const tap = sel => page.tap(sel);
   const opened = id => page.waitForSelector(`#${id}.open`);
   const closed = id => page.waitForSelector(`#${id}`, { state: 'hidden' });
-  const openRecipe = async name => { await page.tap(`#list .row:has-text("${name}")`); await opened('view'); };
+  const openRecipe = async name => { await page.tap(`#list .card:has-text("${name}")`); await opened('view'); };
   const paste = (sel, text) => page.evaluate(([sel, text]) => {
     const ta = document.querySelector(sel);
     ta.focus();
@@ -115,30 +116,63 @@ async function api(route) {
 
   /* ---- reading, no token ---- */
   await page.goto(base);
-  await page.waitForSelector('#list .row');
+  await page.waitForSelector('#list .card');
   const first = await names();
   check('11 recipes from the site file, sorted by name', first.length === 11 && first.join() === [...first].sort((a, b) => a.localeCompare(b)).join(), first);
   check('count line', (await page.textContent('#count')) === '11 recipes');
-  check('a recipe with no ingredients says so', (await page.textContent('.row:has-text("Jen") .sub')).includes('No ingredients yet'));
-  check('the zuppa row shows its tag and ingredient count', (await page.textContent('.row:has-text("zuppa") .sub')) === 'Soup · 11 ingredients');
+  check('a recipe with no ingredients says so', (await page.textContent('.card:has-text("Jen") .sub')).includes('No ingredients yet'));
+  check('the zuppa card shows its tag and ingredient count', (await page.textContent('.card:has-text("zuppa") .sub')) === 'Soup · 11 ingredients');
   check('API not called without a token', gh.gets === 0);
   await phoneRules('list');
   const addBtn = await page.$eval('#addBtn', b => { const r = b.getBoundingClientRect(); return { right: innerWidth - r.right, bottom: innerHeight - r.bottom }; });
   check('Add recipe floats at the bottom right', addBtn.right >= 16 && addBtn.bottom >= 16, addBtn);
   await page.evaluate(() => scrollTo(0, document.body.scrollHeight));
   const lastClear = await page.evaluate(() => document.querySelector('#list li:last-child').getBoundingClientRect().bottom <= document.getElementById('addBtn').getBoundingClientRect().top);
-  check('the last row scrolls clear of the Add button', lastClear);
+  check('the last card scrolls clear of the Add button', lastClear);
+
+  /* ---- the cards stack up under the search field as the list scrolls ---- */
+  // Each card: its place on screen, the height of its name, and which card a tap on its name or its body would reach.
+  const deck = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const cards = [...document.querySelectorAll('#list .card')];
+    const at = (x, y) => { const c = document.elementFromPoint(x, y)?.closest('.card'); return c ? cards.indexOf(c) : -1; };
+    r(cards.map(c => {
+      const b = c.getBoundingClientRect(), nm = c.querySelector('.nm').offsetHeight;
+      return { top: b.top, moved: !!c.style.transform, nm, onName: at(b.left + 60, b.top + nm / 2), onBody: at(b.left + 60, b.top + nm + 20) };
+    }));
+  }))));
+  await page.evaluate(() => scrollTo(0, 0));
+  let cards = await deck();
+  check('at the top of the page the cards lie as usual', cards.every(c => !c.moved), cards);
+  await page.evaluate(() => scrollTo(0, 560));
+  cards = await deck();
+  const stacked = cards.map((c, i) => ({ ...c, i })).filter(c => c.moved && c.top > 100);
+  const T = await page.evaluate(() => document.getElementById('searchbar').getBoundingClientRect().bottom);
+  const names2 = stacked.slice(0, -1).filter(c => Math.abs(cards[c.i + 1].top - c.top - c.nm) < 1);
+  check('stacked cards show only their names', names2.length >= 2, stacked.map(c => [c.i, Math.round(c.top), c.nm]));
+  check('a lower card lies on top of the one above', names2.every(c => c.onName === c.i && c.onBody === c.i + 1), names2);
+  check('older cards tuck in under the top of the stack', cards.some(c => c.moved && c.top < T + 10) && cards.every(c => c.top >= T - 9 || c.top > 844), { T, tops: cards.map(c => Math.round(c.top)) });
+  const below = cards.filter(c => c.top > 400 && c.top < 844);
+  check('below the stack the cards come up as usual', below.length >= 3 && below.every(c => !c.moved), below);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  cards = await deck();
+  check('with reduced motion the cards do not stack', cards.every(c => !c.moved), cards.filter(c => c.moved));
+  await openRecipe('Salmon bowls');
+  check('with reduced motion the card is not pulled out', (await page.$$('#list .card.out')).length === 0);
+  await page.goBack();
+  await closed('view');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.evaluate(() => scrollTo(0, 0));
 
   await page.fill('#q', 'red onion');
   check('search for an ingredient', (await names()).join() === "Madi's pasta salad,Sheet pan breakfast burritos", await names());
-  check('the matching ingredient shows and is marked', (await page.innerHTML('.row:has-text("Madi") .sub')) === '<mark>Red onion</mark>');
+  check('the matching ingredient shows and is marked', (await page.innerHTML('.card:has-text("Madi") .sub')) === '<mark>Red onion</mark>');
   await page.fill('#q', 'garnish');
-  check('a match in the notes shows a piece of the note', (await page.innerHTML('.row:has-text("Tacos") .sub')).includes('<mark>garnish</mark>'));
+  check('a match in the notes shows a piece of the note', (await page.innerHTML('.card:has-text("Tacos") .pre')).includes('<mark>garnish</mark>'));
   await page.fill('#q', 'zzz');
   check('no match says so', await page.isVisible('#none') && (await page.textContent('#count')) === '0 of 11 recipes');
   await page.fill('#q', '');
 
+  const wake0 = await page.evaluate(() => __wake.requests);
   await openRecipe("Megan's zuppa toscana");
   const v = await page.evaluate(() => ({
     name: document.getElementById('vName').textContent,
@@ -150,17 +184,23 @@ async function api(route) {
     srcTarget: document.querySelector('#vBody a.source')?.target
   }));
   check('the recipe sheet shows everything', v.name === "Megan's zuppa toscana" && v.chips.join() === 'Serves 6,Soup' && v.ings === 11 && v.steps === 9 && v.notes && v.src === 'saltandlavender.com' && v.srcTarget === '_blank', v);
+  check('the tapped card is out of the list while its recipe is open', (await page.$$eval('#list .card.out', cs => cs.map(c => c.dataset.id))).join() === 'megans-zuppa-toscana');
+  await page.waitForTimeout(500);
+  const full = await page.evaluate(() => { const s = document.querySelector('#view .sheet'), b = s.getBoundingClientRect(); return { clip: s.style.clipPath, transform: s.style.transform, bottom: Math.round(b.bottom), cls: s.className }; });
+  check('the card grows into the full recipe sheet', full.clip === '' && full.transform === '' && full.bottom === 844 && full.cls === 'sheet', full);
   await tap('#vBody .checks li:nth-child(2) label');
   check('tap an ingredient to check it off', await page.isChecked('#vBody .checks li:nth-child(2) input'));
-  check('a wake lock is asked for, and a refusal is fine', (await page.evaluate(() => __wake.requests)) === 1);
+  check('a wake lock is asked for, and a refusal is fine', (await page.evaluate(() => __wake.requests)) === wake0 + 1);
   check('the page behind the sheet is inert', await page.evaluate(() => document.getElementById('page').inert && document.getElementById('addBtn').inert));
   await phoneRules('recipe');
   await page.goBack();
   await closed('view');
   check('the back button closes the sheet', !(await page.evaluate(() => document.documentElement.classList.contains('locked'))));
+  const backIn = await page.evaluate(() => ({ out: document.querySelectorAll('#list .card.out').length, sheet: document.querySelector('#view .sheet').getAttribute('style') }));
+  check('the card goes back into the list', backIn.out === 0 && !backIn.sheet, backIn);
   await openRecipe("Megan's zuppa toscana");
   check('checks are not saved', !(await page.isChecked('#vBody .checks li:nth-child(2) input')));
-  await tap('#view [data-close]');
+  await tap('#view button[data-close]');
   await closed('view');
   check('the close button leaves no extra history', await page.evaluate(() => !history.state || !history.state.sheets));
 
@@ -185,14 +225,14 @@ async function api(route) {
   await phoneRules('settings');
 
   /* ---- theme ---- */
-  const seg = await page.$$eval('#themeSeg button', bs => bs.map(b => b.textContent + (b.classList.contains('on') ? '*' : '')));
-  check('theme row is Auto, Day, Night with Auto on the left and on', seg.join() === 'Auto*,Day,Night', seg);
+  const seg = await page.$$eval('#themeSeg button', bs => bs.filter(b => !b.hidden).map(b => b.textContent + (b.classList.contains('on') ? '*' : '')));
+  check('theme row is Auto, Day, Night with Auto on the left and on; Aurora is hidden', seg.join() === 'Auto*,Day,Night', seg);
   await tap('#themeSeg [data-t="dark"]');
   let th = await page.evaluate(() => ({ key: localStorage.getItem('theme'), attr: document.documentElement.dataset.theme, meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content), bg: getComputedStyle(document.body).backgroundColor }));
-  check('Night writes "dark" and colors the browser bar with the page', th.key === 'dark' && th.attr === 'dark' && th.meta.every(c => c === th.bg) && th.bg === 'rgb(20, 26, 22)', th);
+  check('Night writes "dark" and colors the browser bar with the page', th.key === 'dark' && th.attr === 'dark' && th.meta.every(c => c === th.bg) && th.bg === 'rgb(24, 19, 15)', th);
   await tap('#themeSeg [data-t="auto"]');
   th = await page.evaluate(() => ({ key: localStorage.getItem('theme'), attr: document.documentElement.dataset.theme, meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content) }));
-  check('Auto writes "auto" and follows the phone', th.key === 'auto' && th.attr === undefined && th.meta.join() === '#f3f5f2,#141a16', th);
+  check('Auto writes "auto" and follows the phone', th.key === 'auto' && th.attr === undefined && th.meta.join() === '#eadcc2,#18130f', th);
 
   /* ---- token ---- */
   await page.fill('#tok', BAD);
@@ -272,7 +312,7 @@ async function api(route) {
   check('409: both changes are in the file', recipeIn(gh.text, 'salmon-bowls').notes === 'Use the good soy sauce.' && recipeIn(gh.text, 'burgers-and-fries').ingredients.includes('Ketchup'));
   await page.goBack();
   await closed('view');
-  check('409: the list has the other change too', (await page.textContent('.row:has-text("Burgers") .sub')) === '4 ingredients');
+  check('409: the list has the other change too', (await page.textContent('.card:has-text("Burgers") .sub')) === '4 ingredients');
 
   /* ---- errors keep the editor open ---- */
   await openRecipe('Tacos and beans');
@@ -318,7 +358,7 @@ async function api(route) {
   await tap('#eDelete');
   await closed('view');
   check('delete: one PUT with the recipe gone', gh.puts.at(-1).message === 'Recipes: delete Tacos and beans' && !recipeIn(gh.text, 'tacos-and-beans') && JSON.parse(gh.text).recipes.length === 11);
-  check('delete: both sheets close and the row is gone', await page.isHidden('#editor') && !(await names()).includes('Tacos and beans') && await page.evaluate(() => !history.state || !history.state.sheets));
+  check('delete: both sheets close and the card is gone', await page.isHidden('#editor') && !(await names()).includes('Tacos and beans') && await page.evaluate(() => !history.state || !history.state.sheets));
 
   /* ---- with a token the file comes from the API ---- */
   gh.text = gh.text.replace('"name": "Burgers and fries"', '"name": "Burgers and fries (from chat)"');
@@ -326,14 +366,31 @@ async function api(route) {
   await page.waitForFunction(() => [...document.querySelectorAll('#list .nm')].some(e => e.textContent.includes('from chat')));
   check('with a token, a change from chat shows at once', true);
 
-  /* ---- Aurora shows as Night ---- */
+  /* ---- Aurora: a secret theme, as in the apps ---- */
+  const aurora = () => page.evaluate(() => {
+    const b = document.querySelector('#themeSeg [data-t="aurora"]');
+    return { key: localStorage.getItem('theme'), attr: document.documentElement.dataset.theme, shown: !b.hidden, on: document.querySelector('#themeSeg .on')?.textContent,
+      bg: getComputedStyle(document.body).backgroundColor, meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content), blobs: getComputedStyle(document.querySelector('.aurora')).display };
+  });
   await page.evaluate(() => localStorage.setItem('theme', 'aurora'));
   await page.reload();
-  await page.waitForSelector('#list .row');
+  await page.waitForSelector('#list .card');
+  th = await aurora();
+  check('a saved "aurora" shows the Aurora theme, not Night', th.attr === 'aurora' && th.bg === 'rgb(14, 10, 30)' && th.meta.every(c => c === th.bg) && th.blobs !== 'none', th);
   await tap('#menuBtn');
   await opened('settings');
-  th = await page.evaluate(() => ({ attr: document.documentElement.dataset.theme, on: document.querySelector('#themeSeg .on')?.textContent, key: localStorage.getItem('theme') }));
-  check('Aurora shows as Night and is left alone', th.attr === 'dark' && th.on === 'Night' && th.key === 'aurora', th);
+  th = await aurora();
+  check('Settings shows the Aurora button, picked', th.shown && th.on === 'Aurora', th);
+  await tap('#themeSeg [data-t="light"]');
+  th = await aurora();
+  check('picking Day hides the Aurora button again', th.key === 'light' && th.attr === 'light' && !th.shown && th.blobs === 'none', th);
+  for (let i = 0; i < 4; i++) await tap('#themeLabel');
+  th = await aurora();
+  check('four taps on "Theme" do nothing', th.key === 'light' && !th.shown, th);
+  await tap('#themeLabel');
+  th = await aurora();
+  check('the fifth tap turns Aurora on and shows its button', th.key === 'aurora' && th.attr === 'aurora' && th.shown && th.on === 'Aurora' && (await page.textContent('#toast')) === 'Aurora', th);
+  await phoneRules('settings in Aurora');
   await tap('#tokOff');
   check('Disconnect removes the token', !(await page.evaluate(() => localStorage.getItem('recipes-token'))) && (await page.textContent('#sStatus')).startsWith('Not connected'));
 

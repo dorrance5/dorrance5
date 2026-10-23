@@ -15,28 +15,40 @@
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const ICON = {
-    chev: '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
     tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
     out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>'
   };
 
-  /* ---- theme: the site setting, key "theme" = auto | light | dark | aurora. Aurora shows as Night. ---- */
+  /* ---- theme: the site setting, key "theme" = auto | light | dark | aurora ---- */
+  // Aurora is secret, as in the apps: five taps on "Theme" in Settings within 2 seconds turn it on, and an
+  // Aurora button shows, picked, until another theme is picked.
   const metas = document.querySelectorAll('meta[name="theme-color"]');
-  const shownTheme = () => { const t = store.get('theme'); return t === 'aurora' ? 'dark' : t === 'light' || t === 'dark' ? t : 'auto'; };
+  const shownTheme = () => { const t = store.get('theme'); return ['light', 'dark', 'aurora'].includes(t) ? t : 'auto'; };
   function applyTheme() {
     const t = shownTheme();
     if (t === 'auto') delete root.dataset.theme; else root.dataset.theme = t;
     // a forced theme colors the browser bar with the page background
     const bg = getComputedStyle(document.body).backgroundColor;
-    metas.forEach(m => { m.content = t === 'auto' ? (m.media.includes('dark') ? '#141a16' : '#f3f5f2') : bg; });
+    metas.forEach(m => { m.content = t === 'auto' ? (m.media.includes('dark') ? '#18130f' : '#eadcc2') : bg; });
     document.querySelectorAll('#themeSeg [data-t]').forEach(b => {
       b.classList.toggle('on', b.dataset.t === t);
       b.setAttribute('aria-pressed', b.dataset.t === t);
+      if (b.dataset.t === 'aurora') b.hidden = t !== 'aurora';
     });
   }
+  function setTheme(t) { store.set('theme', t); applyTheme(); }
   $('themeSeg').addEventListener('click', e => {
     const b = e.target.closest('[data-t]');
-    if (b) { store.set('theme', b.dataset.t); applyTheme(); }
+    if (b) setTheme(b.dataset.t);
+  });
+  let taps = [];
+  $('themeLabel').addEventListener('click', () => {
+    const now = Date.now();
+    taps = taps.filter(x => now - x < 2000).concat(now);
+    if (taps.length < 5) return;
+    taps = [];
+    setTheme('aurora');
+    toast('Aurora');
   });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   addEventListener('storage', e => { if (e.key === 'theme') applyTheme(); });
@@ -78,45 +90,90 @@
     if (!data) $('none').hidden = true;
   }
 
-  /* ---- list ---- */
+  /* ---- list: one index card for each recipe ---- */
   const list = $('list'), q = $('q');
-  function sub(r, m, t) {
-    if (m && m.ingredients.length) return m.ingredients.map(i => D.hl(i, t)).join(', ');
-    const bits = r.tags.map(x => `<span class="tg">${D.hl(x, t)}</span>`);
-    bits.push(r.ingredients.length ? plural(r.ingredients.length, 'ingredient') : '<i>No ingredients yet</i>');
-    if (m && m.snippet) bits.push(D.hl(m.snippet, t));
-    return bits.join(' · ');
+  // Two ruled lines under the name. Usually the tags and count, then the first ingredients.
+  // A search shows the ingredients that match on the first line, or the piece of a step or note that matches.
+  function lines(r, m, t) {
+    const meta = r.tags.map(x => `<span class="tg">${D.hl(x, t)}</span>`);
+    meta.push(r.ingredients.length ? plural(r.ingredients.length, 'ingredient') : '<i>No ingredients yet</i>');
+    if (m && m.ingredients.length) return [m.ingredients.map(i => D.hl(i, t)).join(', '), meta.join(' · ')];
+    return [meta.join(' · '), m && m.snippet ? D.hl(m.snippet, t) : D.esc(r.ingredients.join(', '))];
   }
   function renderList() {
     const t = q.value.trim();
-    const rows = [];
+    const cards = [];
     for (const r of recipes) {
       const m = t ? D.match(r, t) : null;
-      if (!t || m) rows.push(`<li><button class="row" type="button" data-id="${D.esc(r.id)}"><span class="txt"><span class="nm">${D.hl(r.name, t)}</span><span class="sub">${sub(r, m, t)}</span></span>${ICON.chev}</button></li>`);
+      if (t && !m) continue;
+      const [a, b] = lines(r, m, t);
+      cards.push(`<li><button class="card${r.id === pulledId ? ' out' : ''}" type="button" data-id="${D.esc(r.id)}"><span class="nm">${D.hl(r.name, t)}</span><span class="lines"><span class="sub">${a}</span><span class="pre">${b}</span></span><span class="notch"></span></button></li>`);
     }
-    list.innerHTML = rows.join('');
-    $('count').textContent = t ? `${rows.length} of ${plural(recipes.length, 'recipe')}` : plural(recipes.length, 'recipe');
-    $('none').hidden = rows.length > 0;
+    list.innerHTML = cards.join('');
+    $('count').textContent = t ? `${cards.length} of ${plural(recipes.length, 'recipe')}` : plural(recipes.length, 'recipe');
+    $('none').hidden = cards.length > 0;
     $('none').textContent = recipes.length ? 'No recipes match that search.' : 'No recipes yet. Tap Add recipe.';
+    deck();
   }
   q.addEventListener('input', renderList);
   q.addEventListener('keydown', e => {
     if (e.key === 'Enter') q.blur();
     if (e.key === 'Escape' && q.value) { q.value = ''; renderList(); }
   });
-  list.addEventListener('click', e => { const b = e.target.closest('.row'); if (b) openView(b.dataset.id); });
+  list.addEventListener('click', e => { const b = e.target.closest('.card'); if (b) openView(b.dataset.id, b); });
 
-  // a line under the search field once it sticks to the top
+  // The cards stack up under the search field like a deck. Each card comes up as usual until it reaches its place
+  // in the stack, just under the names of the cards before it; the next card then slides up over it until only its
+  // name shows. Once three names show, the stack slides up as each new card comes in, and the oldest cards tuck in
+  // under the top of the stack, a little smaller. A card lower in the list always lies on top.
   const searchbar = $('searchbar');
-  let ticking = false;
-  addEventListener('scroll', () => {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(() => {
-      ticking = false;
-      searchbar.classList.toggle('stuck', scrollY > 0 && searchbar.getBoundingClientRect().top <= parseFloat(getComputedStyle(searchbar).top) + 0.5);
-    });
-  }, { passive: true });
+  const NAMES = 3, GAP = 14;
+  function deck() {
+    const cards = [...list.querySelectorAll('.card')];
+    if (reduceMotion.matches) {
+      cards.forEach(c => { c.style.transform = ''; c.style.removeProperty('--turn'); c.style.removeProperty('--fade'); });
+      return;
+    }
+    const base = list.getBoundingClientRect().top;   // the list itself never moves; offsetTop counts from it
+    const k = cards.map(c => ({ c, n: base + c.offsetTop, h: c.querySelector('.nm').offsetHeight, y: 0, scale: 1, depth: 0, under: 0 }));
+    const T = searchbar.offsetHeight + (parseFloat(getComputedStyle(searchbar).top) || 0) + 10;   // the top of the stack
+    // card i stops at T, below the names of up to three cards before it
+    const place = i => { let y = T; for (let j = Math.max(0, i - NAMES); j < i; j++) y += k[j].h; return y; };
+    let b = -1;   // the newest card in the stack
+    k.forEach((x, i) => { x.y = x.n; if (x.n < place(i)) b = i; });
+    if (b >= 0) {
+      // From the time card b stops until card b + 1 stops, card b moves from its place up to just above the
+      // place of card b + 1 (it stays still while the stack still has room), and pushes the cards above it along.
+      const at = place(b), next = place(b + 1);
+      const pitch = k[b + 1] ? k[b + 1].n - k[b].n : k[b].c.offsetHeight + GAP;
+      const u = Math.min(1, (at - k[b].n) / (pitch + at - next));
+      let y = at + u * (next - k[b].h - at);
+      for (let i = b; i >= 0; i--) {
+        if (i < b) y -= k[i].h;
+        const under = Math.min(2, Math.max(0, (T - y) / k[i].h));   // how far under the top of the stack
+        k[i].y = y >= T ? y : T - 4 * under;
+        k[i].scale = 1 - 0.03 * under;
+        k[i].under = under;
+        k[i].depth = b - i + u;
+      }
+    }
+    for (const x of k) {
+      const dy = x.y - x.n;
+      x.c.style.transform = Math.abs(dy) < 0.05 ? '' : `translateY(${dy.toFixed(1)}px)${x.scale < 1 ? ` scale(${x.scale.toFixed(3)})` : ''}`;
+      x.c.style.setProperty('--turn', Math.min(0.2, x.depth * 0.05).toFixed(3));
+      x.c.style.setProperty('--fade', Math.max(0, 1 - x.under).toFixed(3));   // a name fades as it tucks in
+    }
+  }
+  // a line under the search field once it sticks to the top
+  function stick() {
+    searchbar.classList.toggle('stuck', scrollY > 0 && searchbar.getBoundingClientRect().top <= (parseFloat(getComputedStyle(searchbar).top) || 0) + 0.5);
+  }
+  let frame = 0;
+  const onScroll = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; stick(); deck(); }); };
+  addEventListener('scroll', onScroll, { passive: true });
+  addEventListener('resize', onScroll);
+  reduceMotion.addEventListener('change', deck);
+  if (document.fonts) document.fonts.ready.then(deck);
 
   /* ---- sheets ---- */
   // Each open sheet is one history entry, so the Android back button closes the top sheet.
@@ -142,13 +199,81 @@
   }
   function hide(l, refocus = true) {
     const sheet = l.querySelector('.sheet');
-    sheet.style.transform = '';
+    const card = l === view ? putBack(sheet) : null;
+    if (!card) sheet.style.transform = '';
     l.classList.remove('open');
     setInert();
-    const done = () => { if (!l.classList.contains('open')) l.hidden = true; };
-    if (reduceMotion.matches) done(); else setTimeout(done, 340);
-    if (refocus && l.opener && l.opener.matches('button, a') && document.contains(l.opener)) l.opener.focus({ preventScroll: true });
+    const opener = refocus && l.opener && l.opener.matches('button, a') ? l.opener : null;
+    const focus = () => { if (opener && document.contains(opener)) opener.focus({ preventScroll: true }); };
+    const done = () => {
+      if (l.classList.contains('open')) return;
+      l.hidden = true;
+      if (card) { settle(sheet); focus(); }
+    };
+    if (reduceMotion.matches) done(); else setTimeout(done, card ? 440 : 340);
+    if (!card) focus();   // a card that is still going back cannot take the focus yet
     if (l === view) wake(false);
+  }
+
+  // The recipe sheet grows out of the card that was tapped, and shrinks back into it when it closes.
+  // The card stays hidden (class "out") while its recipe is open.
+  let pulledId = null, pullT = 0;
+  const cardFor = id => id ? list.querySelector(`.card[data-id="${CSS.escape(id)}"]`) : null;
+  // the part of a card that shows: in the stack, the card below covers all but its name
+  function shown(card) {
+    const r = card.getBoundingClientRect(), li = card.parentElement.nextElementSibling;
+    const below = li ? li.firstElementChild.getBoundingClientRect().top : Infinity;
+    return below < r.bottom ? { top: r.top, left: r.left, right: r.right, bottom: below, height: Math.max(0, below - r.top) } : r;
+  }
+  // the clip that leaves only the part of the sheet over the card r
+  const clipTo = (s, r) => `inset(0 ${Math.max(0, s.right - r.right)}px ${Math.max(0, s.height - r.height)}px ${Math.max(0, r.left - s.left)}px round 5px)`;
+  function pullOut(card) {
+    list.querySelectorAll('.card.out').forEach(c => c.classList.remove('out'));
+    pulledId = null;
+    if (reduceMotion.matches) return;
+    const sheet = view.querySelector('.sheet');
+    clearTimeout(pullT);
+    sheet.classList.remove('pulling');
+    sheet.classList.add('still');
+    sheet.style.transform = sheet.style.clipPath = '';
+    const s = sheet.getBoundingClientRect(), r = shown(card);
+    sheet.style.transform = `translateY(${r.top - s.top}px)`;
+    sheet.style.clipPath = clipTo(s, r);
+    card.classList.add('out');
+    pulledId = card.dataset.id;
+    void sheet.offsetWidth;
+    sheet.classList.replace('still', 'pulling');
+    sheet.style.transform = '';
+    sheet.style.clipPath = `inset(0 round ${getComputedStyle(sheet).borderRadius})`;
+    pullT = setTimeout(() => { sheet.classList.remove('pulling'); sheet.style.clipPath = ''; }, 460);
+  }
+  // Starts the sheet back toward its card. Returns the card, or null when the sheet slides down as usual
+  // (the recipe was deleted, the search hides it, or the card is off the screen).
+  function putBack(sheet) {
+    const card = reduceMotion.matches ? null : cardFor(pulledId);
+    const r = card && shown(card);
+    if (!card || r.bottom < 0 || r.top > innerHeight) { settle(sheet); return null; }
+    clearTimeout(pullT);
+    sheet.classList.remove('pulling');
+    sheet.classList.add('still');
+    const dragged = sheet.style.transform;
+    sheet.style.transform = 'none';
+    const s = sheet.getBoundingClientRect();
+    sheet.style.transform = dragged;
+    sheet.style.clipPath = `inset(0 round ${getComputedStyle(sheet).borderRadius})`;
+    void sheet.offsetWidth;
+    sheet.classList.replace('still', 'pulling');
+    sheet.style.transform = `translateY(${r.top - s.top}px)`;
+    sheet.style.clipPath = clipTo(s, r);
+    return card;
+  }
+  function settle(sheet) {
+    clearTimeout(pullT);
+    sheet.classList.remove('pulling', 'still');
+    sheet.style.transform = sheet.style.clipPath = '';
+    const card = cardFor(pulledId);
+    if (card) card.classList.remove('out');
+    pulledId = null;
   }
   function open(l) {
     if (isOpen(l)) return;
@@ -275,9 +400,10 @@
     vBody.innerHTML = html;
     return true;
   }
-  function openView(id) {
+  function openView(id, card) {
     if (!renderView(id)) return;
     open(view);
+    if (card) pullOut(card);
     vBody.scrollTop = 0;
     wake(true);
   }
