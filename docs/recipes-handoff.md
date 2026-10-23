@@ -90,7 +90,7 @@ The site is static, so the page saves directly to GitHub with the contents API.
 
 ## Icon
 
-- Draw it as an SVG: a cream bowl with three steam lines on the green accent (`#2f6b45`).
+- Draw it as an SVG: a cream bowl (`#f4e5c6`) with three steam lines on sepia brown, a radial gradient from `#8d643b` in the middle to `#5c3d21` at the edges, like the aged page. The owner chose sepia over the first green.
 - `recipes/favicon.svg`: a rounded square (radius 14 on a 64 viewBox).
 - `recipes/favicon-32.png`: render it from the SVG.
 - `recipes/apple-touch-icon.png`: 180 × 180, full bleed, no rounded corners. iOS rounds the corners.
