@@ -122,12 +122,15 @@
   });
   list.addEventListener('click', e => { const b = e.target.closest('.card'); if (b) openView(b.dataset.id, b); });
 
-  // The cards stack up under the search field like a deck. Each card comes up as usual until it reaches its place
-  // in the stack, just under the names of the cards before it; the next card then slides up over it until only its
-  // name shows. Once three names show, the stack slides up as each new card comes in, and the oldest cards tuck in
-  // under the top of the stack, a little smaller. A card lower in the list always lies on top.
+  // The cards stack up under the search field like cards in a recipe box. Each card comes up as usual until it
+  // reaches its place in the stack, just under the names of the cards before it. As the next card slides up over it,
+  // it leans back, narrower at the bottom than at the top, until only its name shows. Once four names show, the stack
+  // slides up as each new card comes in, and the oldest cards lean further back and tuck in under the top of the stack.
+  // A card lower in the list always lies on top.
   const searchbar = $('searchbar');
-  const NAMES = 3, GAP = 14;
+  const NAMES = 4, GAP = 14, LEAN = 36, LENS = 400;   // degrees a stacked card leans back; px of perspective
+  // how tall the top d px of a card look when it leans back by deg
+  const lean = (d, deg) => { const a = deg * Math.PI / 180; return d * Math.cos(a) * LENS / (LENS + d * Math.sin(a)); };
   function deck() {
     const cards = [...list.querySelectorAll('.card')];
     if (reduceMotion.matches) {
@@ -135,32 +138,39 @@
       return;
     }
     const base = list.getBoundingClientRect().top;   // the list itself never moves; offsetTop counts from it
-    const k = cards.map(c => ({ c, n: base + c.offsetTop, h: c.querySelector('.nm').offsetHeight, y: 0, scale: 1, depth: 0, under: 0 }));
+    const k = cards.map(c => ({ c, n: base + c.offsetTop, full: c.offsetHeight + GAP, s: lean(c.querySelector('.nm').offsetHeight, LEAN), y: 0, tilt: 0, scale: 1, depth: 0, under: 0 }));
     const T = searchbar.offsetHeight + (parseFloat(getComputedStyle(searchbar).top) || 0) + 10;   // the top of the stack
-    // card i stops at T, below the names of up to three cards before it
-    const place = i => { let y = T; for (let j = Math.max(0, i - NAMES); j < i; j++) y += k[j].h; return y; };
+    // card i stops at T, below the leaning names of up to four cards before it
+    const place = i => { let y = T; for (let j = Math.max(0, i - NAMES); j < i; j++) y += k[j].s; return y; };
     let b = -1;   // the newest card in the stack
     k.forEach((x, i) => { x.y = x.n; if (x.n < place(i)) b = i; });
     if (b >= 0) {
       // From the time card b stops until card b + 1 stops, card b moves from its place up to just above the
       // place of card b + 1 (it stays still while the stack still has room), and pushes the cards above it along.
       const at = place(b), next = place(b + 1);
-      const pitch = k[b + 1] ? k[b + 1].n - k[b].n : k[b].c.offsetHeight + GAP;
+      const pitch = k[b + 1] ? k[b + 1].n - k[b].n : k[b].full;
       const u = Math.min(1, (at - k[b].n) / (pitch + at - next));
-      let y = at + u * (next - k[b].h - at);
+      let y = at + u * (next - k[b].s - at);
+      // card b leans back as card b + 1 covers it: not at all while they are apart, all the way once only its name shows
+      const apart = (k[b + 1] ? k[b + 1].n : y + k[b].full) - y;
+      const t = Math.min(1, Math.max(0, (k[b].full - apart) / (k[b].full - k[b].s)));
       for (let i = b; i >= 0; i--) {
-        if (i < b) y -= k[i].h;
-        const under = Math.min(2, Math.max(0, (T - y) / k[i].h));   // how far under the top of the stack
-        k[i].y = y >= T ? y : T - 4 * under;
+        if (i < b) y -= k[i].s;
+        const under = Math.min(2, Math.max(0, (T - y) / k[i].s));   // how far under the top of the stack
+        k[i].y = y >= T ? y : T - 3 * under;
+        k[i].tilt = under ? LEAN + (70 - LEAN) * Math.min(1, under) : i === b ? LEAN * t : LEAN;
         k[i].scale = 1 - 0.03 * under;
         k[i].under = under;
-        k[i].depth = b - i + u;
+        k[i].depth = i === b ? t : b - i + u;
       }
     }
     for (const x of k) {
       const dy = x.y - x.n;
-      x.c.style.transform = Math.abs(dy) < 0.05 ? '' : `translateY(${dy.toFixed(1)}px)${x.scale < 1 ? ` scale(${x.scale.toFixed(3)})` : ''}`;
-      x.c.style.setProperty('--turn', Math.min(0.2, x.depth * 0.05).toFixed(3));
+      let tf = Math.abs(dy) < 0.05 ? '' : `translateY(${dy.toFixed(1)}px)`;
+      if (x.tilt > 0.05) tf += ` perspective(${LENS}px) rotateX(${(-x.tilt).toFixed(2)}deg)`;
+      if (x.scale < 1) tf += ` scale(${x.scale.toFixed(3)})`;
+      x.c.style.transform = tf.trim();
+      x.c.style.setProperty('--turn', Math.min(0.32, x.depth * 0.09).toFixed(3));   // darker the further back
       x.c.style.setProperty('--fade', Math.max(0, 1 - x.under).toFixed(3));   // a name fades as it tucks in
     }
   }

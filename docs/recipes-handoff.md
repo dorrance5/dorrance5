@@ -20,7 +20,7 @@ This handoff is done. The page reads `recipes/recipes.json` and saves to it from
 - The page design is an aged recipe book. Day is sepia paper with a fine grain and darker edges. Night is warm brown. Aurora is a night sky with moving northern lights behind dark glass cards. Color tokens are on `:root`, with `prefers-color-scheme` and `data-theme` overrides. Keep this design and its tokens.
 - The title "Dorrance Family Recipe Book" uses IM Fell English from Google Fonts. The other text uses Iowan Old Style, the Apple Books font, with Palatino and Georgia as fallbacks.
 - Each recipe is an index card: the name over a red double rule, then two blue ruled lines.
-- As the list scrolls, the cards stack up under the search field like a deck. Each card slides up over the one above it until only that card's name shows. Three names stay in view, and older cards tuck in under them. Below the stack, the cards come up as usual. A card lower in the list always lies on top.
+- As the list scrolls, the cards stack up under the search field like cards in a recipe box. As each card slides up over the one above it, that card leans back, narrower at the bottom than at the top, until only its name shows. Four names stay in view, each a little darker than the one in front of it, and older cards lean further back and tuck in under them. Below the stack, the cards come up as usual. A card lower in the list always lies on top. Each card has a thin edge and a shadow on its top edge, so the cards stand apart.
 - The recipe sheet grows out of the tapped card and goes back into it when it closes. With reduced motion, the cards do not stack and the sheet slides up as usual.
 
 ## Data format

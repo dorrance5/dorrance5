@@ -131,13 +131,16 @@ async function api(route) {
   check('the last card scrolls clear of the Add button', lastClear);
 
   /* ---- the cards stack up under the search field as the list scrolls ---- */
-  // Each card: its place on screen, the height of its name, and which card a tap on its name or its body would reach.
+  // Each card: its place on screen, how far it leans back, the height of its name, how much of it shows above the
+  // next card, and which card a tap on the part that shows, or just below it, would reach.
   const deck = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => {
     const cards = [...document.querySelectorAll('#list .card')];
     const at = (x, y) => { const c = document.elementFromPoint(x, y)?.closest('.card'); return c ? cards.indexOf(c) : -1; };
-    r(cards.map(c => {
-      const b = c.getBoundingClientRect(), nm = c.querySelector('.nm').offsetHeight;
-      return { top: b.top, moved: !!c.style.transform, nm, onName: at(b.left + 60, b.top + nm / 2), onBody: at(b.left + 60, b.top + nm + 20) };
+    r(cards.map((c, i) => {
+      const b = c.getBoundingClientRect(), nm = c.querySelector('.nm').offsetHeight, m = /rotateX\((-?[\d.]+)deg\)/.exec(c.style.transform);
+      const shows = cards[i + 1] ? Math.min(b.height, cards[i + 1].getBoundingClientRect().top - b.top) : b.height;
+      return { top: b.top, height: b.height, flat: c.offsetHeight, lean: m ? -m[1] : 0, moved: !!c.style.transform, nm, shows,
+        onName: at(b.left + 60, b.top + shows / 2), onNext: at(b.left + 60, b.top + shows + 6) };
     }));
   }))));
   await page.evaluate(() => scrollTo(0, 0));
@@ -145,11 +148,11 @@ async function api(route) {
   check('at the top of the page the cards lie as usual', cards.every(c => !c.moved), cards);
   await page.evaluate(() => scrollTo(0, 560));
   cards = await deck();
-  const stacked = cards.map((c, i) => ({ ...c, i })).filter(c => c.moved && c.top > 100);
   const T = await page.evaluate(() => document.getElementById('searchbar').getBoundingClientRect().bottom);
-  const names2 = stacked.slice(0, -1).filter(c => Math.abs(cards[c.i + 1].top - c.top - c.nm) < 1);
-  check('stacked cards show only their names', names2.length >= 2, stacked.map(c => [c.i, Math.round(c.top), c.nm]));
-  check('a lower card lies on top of the one above', names2.every(c => c.onName === c.i && c.onBody === c.i + 1), names2);
+  const names2 = cards.map((c, i) => ({ ...c, i })).filter(c => c.lean === 36);   // in the stack, not tucking in
+  check('stacked cards lean back like cards in a box', names2.length >= 3 && names2.every(c => c.height < c.flat * 0.8) && cards.some(c => c.lean > 36), names2.map(c => [c.i, c.lean, Math.round(c.height), c.flat]));
+  check('stacked cards show only their names', names2.every(c => c.shows > 28 && c.shows < c.nm), names2.map(c => [c.i, Math.round(c.shows), c.nm]));
+  check('a lower card lies on top of the one above', names2.every(c => c.onName === c.i && c.onNext === c.i + 1), names2.map(c => [c.i, c.onName, c.onNext]));
   check('older cards tuck in under the top of the stack', cards.some(c => c.moved && c.top < T + 10) && cards.every(c => c.top >= T - 9 || c.top > 844), { T, tops: cards.map(c => Math.round(c.top)) });
   const below = cards.filter(c => c.top > 400 && c.top < 844);
   check('below the stack the cards come up as usual', below.length >= 3 && below.every(c => !c.moved), below);

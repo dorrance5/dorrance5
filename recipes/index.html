@@ -42,7 +42,8 @@ try{const t=localStorage.getItem('theme');if(t==='light'||t==='dark'||t==='auror
   --danger-soft: #f6dcd3;
   --scrim: rgba(45, 28, 12, .45);
   --shade: 40, 24, 10;
-  --card-shadow: 0 1px 1px rgba(80, 52, 20, .14), 0 9px 18px -9px rgba(80, 52, 20, .5), 0 -3px 6px -3px rgba(80, 52, 20, .3);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 1px 1px rgba(80, 52, 20, .14), 0 9px 18px -9px rgba(80, 52, 20, .5), 0 -4px 8px -3px rgba(80, 52, 20, .42);
+  --edge: rgba(110, 76, 36, .3);
   --lift: 0 10px 24px rgba(70, 40, 15, .3), 0 1px 3px rgba(70, 40, 15, .25);
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .19 0 0 0 0 .07 0 0 0 .5 -.17'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   --age: radial-gradient(130% 85% at 50% 35%, transparent 55%, rgba(120, 75, 25, .2) 100%);
@@ -55,7 +56,7 @@ try{const t=localStorage.getItem('theme');if(t==='light'||t==='dark'||t==='auror
     --bg: #18130f; --card: #261f19; --surface: #211b16; --field: #1a1511; --ink: #ecdfca; --muted: #a8977f; --line: #3f352a;
     --accent: #e3906f; --accent-soft: #3b261e; --on-accent: #22140d; --rule: rgba(150, 175, 215, .14); --red-rule: rgba(227, 144, 111, .5);
     --mark: rgba(170, 128, 40, .55); --danger: #ff9b8f; --danger-soft: #3b2220; --scrim: rgba(0, 0, 0, .6); --shade: 0, 0, 0;
-    --card-shadow: inset 0 1px 0 rgba(255, 240, 220, .05), 0 10px 20px -8px rgba(0, 0, 0, .75), 0 -4px 8px -4px rgba(0, 0, 0, .7); --lift: 0 10px 24px rgba(0, 0, 0, .55);
+    --card-shadow: inset 0 1px 0 rgba(255, 240, 220, .09), 0 10px 20px -8px rgba(0, 0, 0, .75), 0 -5px 10px -4px rgba(0, 0, 0, .8); --edge: rgba(255, 225, 190, .12); --lift: 0 10px 24px rgba(0, 0, 0, .55);
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .88 0 0 0 0 .75 0 0 0 .22 -.08'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     --age: radial-gradient(130% 85% at 50% 35%, transparent 50%, rgba(0, 0, 0, .4) 100%);
     color-scheme: dark;
@@ -65,7 +66,7 @@ try{const t=localStorage.getItem('theme');if(t==='light'||t==='dark'||t==='auror
   --bg: #18130f; --card: #261f19; --surface: #211b16; --field: #1a1511; --ink: #ecdfca; --muted: #a8977f; --line: #3f352a;
   --accent: #e3906f; --accent-soft: #3b261e; --on-accent: #22140d; --rule: rgba(150, 175, 215, .14); --red-rule: rgba(227, 144, 111, .5);
   --mark: rgba(170, 128, 40, .55); --danger: #ff9b8f; --danger-soft: #3b2220; --scrim: rgba(0, 0, 0, .6); --shade: 0, 0, 0;
-  --card-shadow: inset 0 1px 0 rgba(255, 240, 220, .05), 0 10px 20px -8px rgba(0, 0, 0, .75), 0 -4px 8px -4px rgba(0, 0, 0, .7); --lift: 0 10px 24px rgba(0, 0, 0, .55);
+  --card-shadow: inset 0 1px 0 rgba(255, 240, 220, .09), 0 10px 20px -8px rgba(0, 0, 0, .75), 0 -5px 10px -4px rgba(0, 0, 0, .8); --edge: rgba(255, 225, 190, .12); --lift: 0 10px 24px rgba(0, 0, 0, .55);
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .88 0 0 0 0 .75 0 0 0 .22 -.08'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   --age: radial-gradient(130% 85% at 50% 35%, transparent 50%, rgba(0, 0, 0, .4) 100%);
   color-scheme: dark;
@@ -190,13 +191,13 @@ a { color: var(--accent); }
   display: block;
   width: 100%;
   padding: 0 0 8px;
-  border: 0;
+  border: 1px solid var(--edge);
   border-radius: 5px;
   background: var(--card) var(--grain);
   box-shadow: var(--card-shadow);
   text-align: left;
   color: var(--ink);
-  transform-origin: 50% 0;
+  transform-origin: 50% 0;   /* a card leans back from its top edge (app.js) */
 }
 .card.out { visibility: hidden; }
 .card > span { opacity: var(--fade, 1); }
