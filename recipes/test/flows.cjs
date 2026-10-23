@@ -1,5 +1,5 @@
 // Drives the Recipes page in WebKit at 390 × 844 against a stand-in for the GitHub contents API:
-// search, the stack of cards, the recipe sheet, theme and Aurora, token, add, edit, delete, a 409, 401/403/offline errors
+// search, the deck of cards and the pile, the recipe sheet, theme and Aurora, token, add, edit, delete, a 409, 401/403/offline errors
 // and the back button.
 // Exits 1 on a failed check or a console error.
 //   NODE_PATH=/path/to/node_modules node recipes/test/flows.cjs
@@ -120,8 +120,11 @@ async function api(route) {
   const first = await names();
   check('11 recipes from the site file, sorted by name', first.length === 11 && first.join() === [...first].sort((a, b) => a.localeCompare(b)).join(), first);
   check('count line', (await page.textContent('#count')) === '11 recipes');
-  check('a recipe with no ingredients says so', (await page.textContent('.card:has-text("Jen") .sub')).includes('No ingredients yet'));
-  check('the zuppa card shows its tag and ingredient count', (await page.textContent('.card:has-text("zuppa") .sub')) === 'Soup · 11 ingredients');
+  check('without a search each card shows only its name', await page.$$eval('#list .card .face', fs => fs.every(f => f.children.length === 1 && f.firstElementChild.className === 'nm')));
+  await openRecipe('Jen');
+  check('a recipe with no ingredients says so', (await page.textContent('#vBody')).includes('No ingredients yet'));
+  await page.goBack();
+  await closed('view');
   check('API not called without a token', gh.gets === 0);
   await phoneRules('list');
   const addBtn = await page.$eval('#addBtn', b => { const r = b.getBoundingClientRect(); return { right: innerWidth - r.right, bottom: innerHeight - r.bottom }; });
@@ -130,35 +133,57 @@ async function api(route) {
   const lastClear = await page.evaluate(() => document.querySelector('#list li:last-child').getBoundingClientRect().bottom <= document.getElementById('addBtn').getBoundingClientRect().top);
   check('the last card scrolls clear of the Add button', lastClear);
 
-  /* ---- the cards stack up under the search field as the list scrolls ---- */
-  // Each card: its place on screen, how far it leans back, the height of its name, how much of it shows above the
+  /* ---- the cards are a deck of name strips, and they pile up under the search field as the list scrolls ---- */
+  // Each card: its place on screen, its transform, how tall its name is on screen, how much of it shows above the
   // next card, and which card a tap on the part that shows, or just below it, would reach.
-  const deck = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => {
+  const deck = (p = page) => p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => {
     const cards = [...document.querySelectorAll('#list .card')];
     const at = (x, y) => { const c = document.elementFromPoint(x, y)?.closest('.card'); return c ? cards.indexOf(c) : -1; };
-    r(cards.map((c, i) => {
-      const b = c.getBoundingClientRect(), nm = c.querySelector('.nm').offsetHeight, m = /rotateX\((-?[\d.]+)deg\)/.exec(c.style.transform);
-      const shows = cards[i + 1] ? Math.min(b.height, cards[i + 1].getBoundingClientRect().top - b.top) : b.height;
-      return { top: b.top, height: b.height, flat: c.offsetHeight, lean: m ? -m[1] : 0, moved: !!c.style.transform, nm, shows,
-        onName: at(b.left + 60, b.top + shows / 2), onNext: at(b.left + 60, b.top + shows + 6) };
-    }));
+    const T = document.getElementById('searchbar').getBoundingClientRect().bottom + 16;   // where the pile is
+    r({ T, cards: cards.map((c, i) => {
+      const b = c.getBoundingClientRect(), nm = c.querySelector('.nm').getBoundingClientRect().height;
+      const shows = cards[i + 1] ? cards[i + 1].getBoundingClientRect().top - b.top : b.height;
+      const f = c.style.getPropertyValue('--fade'), fade = f === '' ? 1 : +f;
+      return { i, top: b.top, height: b.height, transform: c.style.transform, nm, shows, fade,
+        onName: at(b.left + 60, b.top + shows / 2), onNext: at(b.left + 60, b.top + shows + 4) };
+    }) });
   }))));
+  const flat = c => c.transform === 'scaleY(0.86)';   // tipped back, but not in the pile
   await page.evaluate(() => scrollTo(0, 0));
-  let cards = await deck();
-  check('at the top of the page the cards lie as usual', cards.every(c => !c.moved), cards);
-  await page.evaluate(() => scrollTo(0, 560));
-  cards = await deck();
-  const T = await page.evaluate(() => document.getElementById('searchbar').getBoundingClientRect().bottom);
-  const names2 = cards.map((c, i) => ({ ...c, i })).filter(c => c.lean === 36);   // in the stack, not tucking in
-  check('stacked cards lean back like cards in a box', names2.length >= 3 && names2.every(c => c.height < c.flat * 0.8) && cards.some(c => c.lean > 36), names2.map(c => [c.i, c.lean, Math.round(c.height), c.flat]));
-  check('stacked cards show only their names', names2.every(c => c.shows > 28 && c.shows < c.nm), names2.map(c => [c.i, Math.round(c.shows), c.nm]));
-  check('a lower card lies on top of the one above', names2.every(c => c.onName === c.i && c.onNext === c.i + 1), names2.map(c => [c.i, c.onName, c.onNext]));
-  check('older cards tuck in under the top of the stack', cards.some(c => c.moved && c.top < T + 10) && cards.every(c => c.top >= T - 9 || c.top > 844), { T, tops: cards.map(c => Math.round(c.top)) });
-  const below = cards.filter(c => c.top > 400 && c.top < 844);
-  check('below the stack the cards come up as usual', below.length >= 3 && below.every(c => !c.moved), below);
+  let { cards } = await deck();
+  const strips = cards.slice(0, -1).filter(c => c.top + c.shows < 844);
+  check('at the top of the page every card tips back in its place', cards.every(flat), cards.filter(c => !flat(c)));
+  check('each card shows only its name, never its bottom edge', strips.length >= 6 && strips.every(c => c.shows >= 44 && c.shows < c.nm + 14 && c.shows < c.height - 1), strips.map(c => [c.i, Math.round(c.shows), Math.round(c.nm), Math.round(c.height)]));
+  check('a lower card lies on top of the one above', strips.every(c => c.onName === c.i && c.onNext === c.i + 1), strips.map(c => [c.i, c.onName, c.onNext]));
+
+  // a second phone with 30 recipes, so the list scrolls far enough to pile up
+  const many = require('./many.cjs');
+  const ctx2 = await browser.newContext({ ...devices['iPhone 13'], viewport: { width: 390, height: 844 } });
+  await ctx2.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: '' }));
+  await ctx2.route('**/recipes/recipes.json', r => r.fulfill({ contentType: 'application/json', body: many(FILE) }));
+  const page2 = await ctx2.newPage();
+  page2.on('pageerror', e => errors.push(e.message));
+  await page2.goto(base);
+  await page2.waitForSelector('#list .card');
+  check('the long list has 30 recipes', (await page2.$$('#list .card')).length === 30);
+  await page2.evaluate(() => scrollTo(0, 900));
+  let pile = await deck(page2);
+  const piled = pile.cards.filter(c => !flat(c)), on = pile.cards.filter(c => flat(c) && c.top < 844);
+  check('cards that go past the search field pile up under it', piled.length >= 8 && piled.every(c => c.top >= pile.T - 16 && c.top <= pile.T + 0.5), { T: pile.T, tops: piled.map(c => Math.round(c.top)) });
+  check('names in the pile fade out', piled.slice(0, -1).every(c => c.fade < 1) && piled.some(c => c.fade === 0), piled.map(c => c.fade));
+  check('below the pile the cards come up as usual', on.length >= 6 && on.every(c => c.top > pile.T), on.map(c => Math.round(c.top)));
+  const pileTop = await page2.evaluate(y => {
+    const cards = [...document.querySelectorAll('#list .card')];
+    const under = cards.filter(c => { const b = c.getBoundingClientRect(); return b.top <= y && b.bottom > y; });
+    return { hit: cards.indexOf(document.elementFromPoint(100, y)?.closest('.card')), newest: cards.indexOf(under.at(-1)), under: under.length };
+  }, pile.T - 6);
+  check('in the pile a lower card lies on top too', pileTop.under >= 2 && pileTop.hit === pileTop.newest, pileTop);
+  await page2.emulateMedia({ reducedMotion: 'reduce' });
+  pile = await deck(page2);
+  check('with reduced motion the cards do not pile up', pile.cards.every(flat), pile.cards.filter(c => !flat(c)).map(c => c.transform));
+  await ctx2.close();
+
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  cards = await deck();
-  check('with reduced motion the cards do not stack', cards.every(c => !c.moved), cards.filter(c => c.moved));
   await openRecipe('Salmon bowls');
   check('with reduced motion the card is not pulled out', (await page.$$('#list .card.out')).length === 0);
   await page.goBack();
@@ -168,9 +193,9 @@ async function api(route) {
 
   await page.fill('#q', 'red onion');
   check('search for an ingredient', (await names()).join() === "Madi's pasta salad,Sheet pan breakfast burritos", await names());
-  check('the matching ingredient shows and is marked', (await page.innerHTML('.card:has-text("Madi") .sub')) === '<mark>Red onion</mark>');
+  check('the matching ingredient shows and is marked', (await page.innerHTML('.card:has-text("Madi") .hit')) === '<mark>Red onion</mark>');
   await page.fill('#q', 'garnish');
-  check('a match in the notes shows a piece of the note', (await page.innerHTML('.card:has-text("Tacos") .pre')).includes('<mark>garnish</mark>'));
+  check('a match in the notes shows a piece of the note', (await page.innerHTML('.card:has-text("Tacos") .hit')).includes('<mark>garnish</mark>'));
   await page.fill('#q', 'zzz');
   check('no match says so', await page.isVisible('#none') && (await page.textContent('#count')) === '0 of 11 recipes');
   await page.fill('#q', '');
@@ -315,7 +340,10 @@ async function api(route) {
   check('409: both changes are in the file', recipeIn(gh.text, 'salmon-bowls').notes === 'Use the good soy sauce.' && recipeIn(gh.text, 'burgers-and-fries').ingredients.includes('Ketchup'));
   await page.goBack();
   await closed('view');
-  check('409: the list has the other change too', (await page.textContent('.card:has-text("Burgers") .sub')) === '4 ingredients');
+  await openRecipe('Burgers');
+  check('409: the page has the other change too', (await page.textContent('#vBody .checks')).includes('Ketchup'));
+  await page.goBack();
+  await closed('view');
 
   /* ---- errors keep the editor open ---- */
   await openRecipe('Tacos and beans');

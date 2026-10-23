@@ -19,9 +19,9 @@ This handoff is done. The page reads `recipes/recipes.json` and saves to it from
 - The checks are in `recipes/test/`. `CLAUDE.md` has the commands.
 - The page design is an aged recipe book. Day is sepia paper with a fine grain and darker edges. Night is warm brown. Aurora is a night sky with moving northern lights behind dark glass cards. Color tokens are on `:root`, with `prefers-color-scheme` and `data-theme` overrides. Keep this design and its tokens.
 - The title "Dorrance Family Recipe Book" uses IM Fell English from Google Fonts. The other text uses Iowan Old Style, the Apple Books font, with Palatino and Georgia as fallbacks.
-- Each recipe is an index card: the name over a red double rule, then two blue ruled lines.
-- As the list scrolls, the cards stack up under the search field like cards in a recipe box. As each card slides up over the one above it, that card leans back, narrower at the bottom than at the top, until only its name shows. Four names stay in view, each a little darker than the one in front of it, and older cards lean further back and tuck in under them. Below the stack, the cards come up as usual. A card lower in the list always lies on top. Each card has a thin edge and a shadow on its top edge, so the cards stand apart.
-- The recipe sheet grows out of the tapped card and goes back into it when it closes. With reduced motion, the cards do not stack and the sheet slides up as usual.
+- The list is a deck of index cards leaning back in a recipe box, as in the owner's drawing. Each card shows only its name over a red double rule. The next card in the list lies on top of it and covers the rest, so the bottom of a card never shows in the list. Each card is drawn as a flat trapezoid, narrower at the bottom than at the top, with a thin edge and a shadow on its top edge, so the cards stand apart. Do not use 3D transforms for this: perspective makes the letters look italic.
+- As the list scrolls, the cards that go past the search field pile up under it. Each card in the pile is squashed further and darker, and its name fades out. Three edges stay in view. Below the pile, the cards come up as usual.
+- The recipe sheet is the whole card. It grows out of the strip that was tapped and goes back into it when it closes. With reduced motion, the cards do not pile up and the sheet slides up as usual.
 
 ## Data format
 
@@ -71,7 +71,7 @@ The site is static, so the page saves directly to GitHub with the contents API.
 
 ## Screens
 
-1. **List.** Large title, then a sticky search field. Show the recipes in one list of cards, sorted by name. Each card shows the name, a line with the tags and the ingredient count, and a line with the first ingredients. When a search matches an ingredient, show the matching ingredients on the first line and highlight the match. When it matches a step or a note, show that piece of text on the second line. Put a menu button in the header.
+1. **List.** Large title, then a sticky search field. Show the recipes in one list of cards, sorted by name. Each card shows only the name. When a search matches an ingredient, show the matching ingredients on a line under the name and highlight the match. When it matches a step or a note, show that piece of text on that line. When it matches only a tag, show the tag. Put a menu button in the header.
 2. **Recipe.** Tap a card to open the recipe in a bottom sheet. Show the name, servings, tags, ingredients, numbered steps, notes and a link to the source site. Tap an ingredient to check it off. Do not save this state. Put an Edit button in the sheet. While the sheet is open, request a screen wake lock, and accept a rejection.
 3. **Editor.** Fields: Name, Servings, Tags (comma-separated), Ingredients (a textarea with one item on each line), Steps (one step on each line), Notes, Source link. When the owner pastes text, remove leading `-`, `•`, `*`, `1.` and `1)` from each line. Buttons: Save, Cancel. For an existing recipe, add a Delete button that asks for a second tap.
 4. **Add button.** Put a floating "Add recipe" button at the bottom right. Keep it above the safe area. Leave space below the list so that the button does not cover the last card.

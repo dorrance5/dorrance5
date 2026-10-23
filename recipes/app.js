@@ -90,15 +90,15 @@
     if (!data) $('none').hidden = true;
   }
 
-  /* ---- list: one index card for each recipe ---- */
+  /* ---- list: a deck of index cards, one for each recipe ---- */
   const list = $('list'), q = $('q');
-  // Two ruled lines under the name. Usually the tags and count, then the first ingredients.
-  // A search shows the ingredients that match on the first line, or the piece of a step or note that matches.
-  function lines(r, m, t) {
-    const meta = r.tags.map(x => `<span class="tg">${D.hl(x, t)}</span>`);
-    meta.push(r.ingredients.length ? plural(r.ingredients.length, 'ingredient') : '<i>No ingredients yet</i>');
-    if (m && m.ingredients.length) return [m.ingredients.map(i => D.hl(i, t)).join(', '), meta.join(' · ')];
-    return [meta.join(' · '), m && m.snippet ? D.hl(m.snippet, t) : D.esc(r.ingredients.join(', '))];
+  // Under the name, a search shows why the recipe matched: the ingredients, a tag, or a piece of a step or note.
+  function why(r, m, t) {
+    if (!m) return '';
+    if (m.ingredients.length) return m.ingredients.map(i => D.hl(i, t)).join(', ');
+    if (m.snippet) return D.hl(m.snippet, t);
+    if (D.hl(r.name, t).includes('<mark>')) return '';
+    return r.tags.map(x => D.hl(x, t)).filter(x => x.includes('<mark>')).map(x => `<span class="tg">${x}</span>`).join(' · ');
   }
   function renderList() {
     const t = q.value.trim();
@@ -106,14 +106,14 @@
     for (const r of recipes) {
       const m = t ? D.match(r, t) : null;
       if (t && !m) continue;
-      const [a, b] = lines(r, m, t);
-      cards.push(`<li><button class="card${r.id === pulledId ? ' out' : ''}" type="button" data-id="${D.esc(r.id)}"><span class="nm">${D.hl(r.name, t)}</span><span class="lines"><span class="sub">${a}</span><span class="pre">${b}</span></span><span class="notch"></span></button></li>`);
+      const w = why(r, m, t);
+      cards.push(`<li><button class="card${r.id === pulledId ? ' out' : ''}" type="button" data-id="${D.esc(r.id)}"><span class="face"><span class="nm">${D.hl(r.name, t)}</span>${w ? `<span class="hit">${w}</span>` : ''}</span></button></li>`);
     }
     list.innerHTML = cards.join('');
     $('count').textContent = t ? `${cards.length} of ${plural(recipes.length, 'recipe')}` : plural(recipes.length, 'recipe');
     $('none').hidden = cards.length > 0;
     $('none').textContent = recipes.length ? 'No recipes match that search.' : 'No recipes yet. Tap Add recipe.';
-    deck();
+    measure();
   }
   q.addEventListener('input', renderList);
   q.addEventListener('keydown', e => {
@@ -122,57 +122,35 @@
   });
   list.addEventListener('click', e => { const b = e.target.closest('.card'); if (b) openView(b.dataset.id, b); });
 
-  // The cards stack up under the search field like cards in a recipe box. Each card comes up as usual until it
-  // reaches its place in the stack, just under the names of the cards before it. As the next card slides up over it,
-  // it leans back, narrower at the bottom than at the top, until only its name shows. Once four names show, the stack
-  // slides up as each new card comes in, and the oldest cards lean further back and tuck in under the top of the stack.
-  // A card lower in the list always lies on top.
+  // The deck: index cards leaning back in a box, seen from above, as in the owner's drawing. Each card shows only
+  // its top, the name; the next card covers the rest, and a card lower in the list always lies on top. The cards come
+  // up from the bottom as the list scrolls. At the top they fall onto each other: each card stops under the search
+  // field, the next one slides over it, and older cards pile up behind as thin edges, tipped further back.
+  // A card looks tipped back because it is squashed (SQUASH) and drawn narrower at the bottom (the CSS).
   const searchbar = $('searchbar');
-  const NAMES = 4, GAP = 14, LEAN = 36, LENS = 400;   // degrees a stacked card leans back; px of perspective
-  // how tall the top d px of a card look when it leans back by deg
-  const lean = (d, deg) => { const a = deg * Math.PI / 180; return d * Math.cos(a) * LENS / (LENS + d * Math.sin(a)); };
-  function deck() {
+  const SQUASH = 0.86, EDGE = 5, PILE = 3;   // the height a card keeps, px of each edge in the pile, edges in the pile
+  // Each list item is as tall as its squashed card, less 2 px, so the next card's top edge lies on this card's bottom edge.
+  function measure() {
     const cards = [...list.querySelectorAll('.card')];
-    if (reduceMotion.matches) {
-      cards.forEach(c => { c.style.transform = ''; c.style.removeProperty('--turn'); c.style.removeProperty('--fade'); });
-      return;
-    }
+    const tall = cards.map(c => c.offsetHeight);
+    cards.forEach((c, i) => { c.parentElement.style.height = (tall[i] * SQUASH - 2).toFixed(1) + 'px'; });
+    deck();
+  }
+  function deck() {
+    const items = [...list.children];
     const base = list.getBoundingClientRect().top;   // the list itself never moves; offsetTop counts from it
-    const k = cards.map(c => ({ c, n: base + c.offsetTop, full: c.offsetHeight + GAP, s: lean(c.querySelector('.nm').offsetHeight, LEAN), y: 0, tilt: 0, scale: 1, depth: 0, under: 0 }));
-    const T = searchbar.offsetHeight + (parseFloat(getComputedStyle(searchbar).top) || 0) + 10;   // the top of the stack
-    // card i stops at T, below the leaning names of up to four cards before it
-    const place = i => { let y = T; for (let j = Math.max(0, i - NAMES); j < i; j++) y += k[j].s; return y; };
-    let b = -1;   // the newest card in the stack
-    k.forEach((x, i) => { x.y = x.n; if (x.n < place(i)) b = i; });
-    if (b >= 0) {
-      // From the time card b stops until card b + 1 stops, card b moves from its place up to just above the
-      // place of card b + 1 (it stays still while the stack still has room), and pushes the cards above it along.
-      const at = place(b), next = place(b + 1);
-      const pitch = k[b + 1] ? k[b + 1].n - k[b].n : k[b].full;
-      const u = Math.min(1, (at - k[b].n) / (pitch + at - next));
-      let y = at + u * (next - k[b].s - at);
-      // card b leans back as card b + 1 covers it: not at all while they are apart, all the way once only its name shows
-      const apart = (k[b + 1] ? k[b + 1].n : y + k[b].full) - y;
-      const t = Math.min(1, Math.max(0, (k[b].full - apart) / (k[b].full - k[b].s)));
-      for (let i = b; i >= 0; i--) {
-        if (i < b) y -= k[i].s;
-        const under = Math.min(2, Math.max(0, (T - y) / k[i].s));   // how far under the top of the stack
-        k[i].y = y >= T ? y : T - 3 * under;
-        k[i].tilt = under ? LEAN + (70 - LEAN) * Math.min(1, under) : i === b ? LEAN * t : LEAN;
-        k[i].scale = 1 - 0.03 * under;
-        k[i].under = under;
-        k[i].depth = i === b ? t : b - i + u;
-      }
-    }
-    for (const x of k) {
-      const dy = x.y - x.n;
-      let tf = Math.abs(dy) < 0.05 ? '' : `translateY(${dy.toFixed(1)}px)`;
-      if (x.tilt > 0.05) tf += ` perspective(${LENS}px) rotateX(${(-x.tilt).toFixed(2)}deg)`;
-      if (x.scale < 1) tf += ` scale(${x.scale.toFixed(3)})`;
-      x.c.style.transform = tf.trim();
-      x.c.style.setProperty('--turn', Math.min(0.32, x.depth * 0.09).toFixed(3));   // darker the further back
-      x.c.style.setProperty('--fade', Math.max(0, 1 - x.under).toFixed(3));   // a name fades as it tucks in
-    }
+    const T = searchbar.offsetHeight + (parseFloat(getComputedStyle(searchbar).top) || 0) + 16;   // where cards stop
+    const at = items.map(li => base + li.offsetTop), tall = items.map(li => li.offsetHeight);   // read everything first
+    items.forEach((li, i) => {
+      // how many cards' worth this card has gone up past the stop; with reduced motion the cards do not pile up
+      const k = reduceMotion.matches ? 0 : Math.max(0, (T - at[i]) / tall[i]), deep = Math.min(PILE, k);
+      const c = li.firstElementChild;
+      c.style.transform = k
+        ? `translateY(${(T - EDGE * deep - at[i]).toFixed(1)}px) scale(${(1 - 0.02 * deep).toFixed(3)}, ${(SQUASH * (1 - 0.2 * deep)).toFixed(3)})`
+        : `scaleY(${SQUASH})`;
+      c.style.setProperty('--turn', Math.min(0.3, 0.1 * k).toFixed(3));
+      c.style.setProperty('--fade', Math.max(0, 1 - k).toFixed(3));   // a name fades as the next card covers it
+    });
   }
   // a line under the search field once it sticks to the top
   function stick() {
@@ -181,9 +159,9 @@
   let frame = 0;
   const onScroll = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; stick(); deck(); }); };
   addEventListener('scroll', onScroll, { passive: true });
-  addEventListener('resize', onScroll);
+  addEventListener('resize', () => requestAnimationFrame(() => { stick(); measure(); }));
   reduceMotion.addEventListener('change', deck);
-  if (document.fonts) document.fonts.ready.then(deck);
+  if (document.fonts) document.fonts.ready.then(measure);
 
   /* ---- sheets ---- */
   // Each open sheet is one history entry, so the Android back button closes the top sheet.

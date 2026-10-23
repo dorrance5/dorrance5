@@ -10,6 +10,7 @@ const root = path.join(__dirname, '..', '..');
 const out = path.resolve(process.argv[2] || path.join(__dirname, 'shots'));
 fs.mkdirSync(out, { recursive: true });
 const FILE = fs.readFileSync(path.join(root, 'recipes', 'recipes.json'), 'utf8');
+const MANY = require('./many.cjs')(FILE);   // 30 recipes, for the scenes with "many"
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const server = http.createServer((req, res) => {
@@ -26,9 +27,9 @@ const scroll = y => async p => { await p.evaluate(y => scrollTo(0, y), y); };
 const settings = async p => { await p.click('#menuBtn'); await p.waitForSelector('#settings.open'); };
 const scenes = [
   { name: '01-list-day' },
-  { name: '02-list-stacked-day', act: scroll(560) },
-  { name: '03-list-night', theme: 'dark', act: scroll(420) },
-  { name: '04-list-aurora', theme: 'aurora', act: scroll(420) },
+  { name: '02-pile-day', many: true, act: scroll(900) },
+  { name: '03-pile-night', theme: 'dark', many: true, act: scroll(900) },
+  { name: '04-pile-aurora', theme: 'aurora', many: true, act: scroll(900) },
   { name: '05-search-day', act: async p => { await p.fill('#q', 'red onion'); } },
   { name: '06-search-night', theme: 'dark', act: async p => { await p.fill('#q', 'onion'); } },
   { name: '07-list-end-day', act: async p => { await p.evaluate(() => scrollTo(0, document.body.scrollHeight)); } },
@@ -72,6 +73,7 @@ const scenes = [
       sc.loaded = true;
       return r.fulfill({ headers: cors, contentType: 'application/json', body: JSON.stringify({ sha: 's0', content: Buffer.from(FILE).toString('base64') }) });
     });
+    if (sc.many) await ctx.route('**/recipes/recipes.json', r => r.fulfill({ contentType: 'application/json', body: MANY }));
     const page = await ctx.newPage();
     page.on('console', m => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) problems.push(`${sc.name}: console: ${m.text()}`); });
     page.on('pageerror', e => problems.push(`${sc.name}: page error: ${e.message}`));
