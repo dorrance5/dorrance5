@@ -6,12 +6,22 @@ const path = require('node:path');
 const GITHUB_TOKEN = 'github_pat_TEST_good';
 const ADMIN = 'Mitchell', ADMIN_PASSWORD = 'admin-test-password';
 
+// KV in memory. `puts` lists the keys written, in order; a message in `kvFail` makes the next put throw it, as KV does
+// for a second write to one key in a second ("429 Too Many Requests") or past the day's free writes.
 function memoryKV() {
   const m = new Map();   // key -> { value, metadata }
+  const puts = [], kvFail = [];
   return {
-    m,
-    async get(k, type) { const e = m.get(k); return e ? (type === 'json' ? JSON.parse(e.value) : e.value) : null; },
-    async put(k, v, o = {}) { m.set(k, { value: String(v), metadata: o.metadata }); },
+    m, puts, kvFail,
+    async get(k, o) {
+      const e = m.get(k), type = typeof o === 'string' ? o : o && o.type;
+      return e ? (type === 'json' ? JSON.parse(e.value) : e.value) : null;
+    },
+    async put(k, v, o = {}) {
+      if (kvFail.length) throw new Error(kvFail.shift());
+      puts.push(k);
+      m.set(k, { value: String(v), metadata: o.metadata });
+    },
     async delete(k) { m.delete(k); },
     async list({ prefix = '' } = {}) {
       const keys = [...m.keys()].filter(k => k.startsWith(prefix)).sort().map(name => ({ name, metadata: m.get(name).metadata }));

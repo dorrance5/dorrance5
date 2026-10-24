@@ -48,7 +48,7 @@ function cleanName(s) {
   return /^[\p{L}\p{N}][\p{L}\p{N} .'’_-]{1,23}$/u.test(name) ? name : null;
 }
 const keyOf = name => name.toLowerCase();
-const adminName = env => cleanName(env.ADMIN) || 'Mitchell';
+export const adminName = env => cleanName(env.ADMIN) || 'Mitchell';
 const isAdminName = (env, name) => keyOf(name) === keyOf(adminName(env));
 
 async function body(req) {
@@ -72,7 +72,8 @@ async function users(env) {
 }
 const saveUser = (env, key, u) => env.LIB.put(USER + key, JSON.stringify(u), { metadata: { name: u.name, status: u.status, created: u.created } });
 
-// The person signed in on this request, { sid, name, admin }, or null. Only approved accounts and the admin sign in.
+// The person signed in on this request, { sid, key, id, name, admin }, or null. Only approved accounts and the admin
+// sign in. `key` is the account's KV key; `id` changes when an account is removed and its name is taken again.
 export async function who(req, env) {
   const m = /^Bearer ([\w-]{20,100})$/.exec(req.headers.get('authorization') || '');
   if (!m) return null;
@@ -81,10 +82,10 @@ export async function who(req, env) {
   if (!s) return null;
   if (s.admin) {
     const ok = env.ADMIN_PASSWORD && s.key === keyOf(adminName(env)) && s.pw === await sha256('pw:' + env.ADMIN_PASSWORD);
-    return ok ? { sid, name: adminName(env), admin: true } : null;
+    return ok ? { sid, key: s.key, name: adminName(env), admin: true } : null;
   }
   const u = await env.LIB.get(USER + s.key, 'json');
-  return u && u.id === s.id && u.status === 'approved' ? { sid, name: u.name, admin: false } : null;
+  return u && u.id === s.id && u.status === 'approved' ? { sid, key: s.key, id: u.id, name: u.name, admin: false } : null;
 }
 
 async function signup(req, env) {
