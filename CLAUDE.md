@@ -10,6 +10,17 @@ This is a static site of small phone apps. GitHub Pages deploys `main` with `.gi
 - Do not rewrite the history of `main`. Fast-forward it or add commits.
 - After the push, check that the "Deploy static content to Pages" run starts.
 
+## Costs
+
+- The site must cost nothing to run. The only bill is the yearly renewal of the domain `dorrance.me` at Cloudflare Registrar.
+- Use only free services on free plans. Do not start a trial, a paid plan or a paid API, and do not add a payment method.
+- Ask the owner before you add a service, an API key or a Cloudflare binding. Today the site uses only GitHub Pages, GitHub Actions, the GitHub API (from the Worker), Cloudflare DNS, one Cloudflare Worker with one KV namespace, Google Fonts (Recipes) and the owner's Google Apps Script (Parking).
+- GitHub: keep the repository public. Pages and Actions are free for public repositories. In workflows, use only standard runners such as `ubuntu-latest`. Larger runners cost money even for public repositories. Do not use Git LFS.
+- Keep the published site under 1 GB. Put photos in as small JPEGs.
+- Cloudflare: the account stays on the Workers Free plan. On that plan, a request over a limit fails with an error. It is never billed. Do not move to Workers Paid.
+- The Worker must fit the free limits: 100,000 requests a day and 10 ms of CPU for each request. For KV: 100,000 reads, 1,000 writes, 1,000 deletes and 1,000 lists a day, and 1 GB stored. Do not put a KV write, delete or list on a request that runs often, such as loading a page.
+- If a change does not fit a free limit, change the design so it fits. Do not upgrade a plan.
+
 ## Layout
 
 - Each app is a folder with its own `index.html`, `manifest.json` and `sw.js`.
