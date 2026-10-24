@@ -108,6 +108,9 @@
     {
       "id": "burgers-and-fries",
       "name": "Burgers and fries",
+      "tags": [
+        "Grill"
+      ],
       "ingredients": [
         "Burgers",
         "Buns",
