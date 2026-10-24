@@ -1,7 +1,7 @@
 /* Recipes — the data file and the calls to the API Worker. Plain functions, no DOM.
    recipes/recipes.json is the only copy of the recipes. The page reads it, and saves one change at a time to GitHub
-   through the Worker (worker/recipes.js), so edits that Claude makes to the file from chat are kept. The Worker
-   holds the GitHub token and the accounts; the page holds only a sign-in.
+   through the Worker (worker/recipes.js), so edits that Claude makes to the file from chat are kept. The Worker holds
+   the GitHub token; the page holds only a dorrance.me sign-in (shared/account.js).
    Browser: window.RecipeData. Node: require('./data.js'). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -162,19 +162,11 @@
   }
 
   /* ---- errors ---- */
-  // The words for each error code. The Worker answers with { error: CODE }.
+  // The words for each error code of a save. The Worker answers with { error: CODE }; shared/account.js has the
+  // words for the account codes.
   const PROBLEMS = {
     network: 'No connection.',
     signin: 'You are signed out. Sign in again.',
-    wrong: 'That name and password do not match.',
-    waiting: 'Your account is waiting for approval.',
-    tries: 'Too many tries. Wait 15 minutes, then try again.',
-    taken: 'That name is taken. Pick another one.',
-    name: 'Use 2 to 24 letters or numbers for your name.',
-    password: 'Use 8 characters or more for your password.',
-    full: 'Too many accounts are waiting for approval. Try again later.',
-    admin: 'Only the admin can do that.',
-    nobody: 'That account is gone already.',
     setup: 'Saving is not set up yet. The admin needs to finish the setup.',
     github: 'The recipe book cannot reach GitHub. The admin needs to check its GitHub token.',
     changed: 'recipes.json kept changing on GitHub during the save.',
@@ -196,7 +188,7 @@
   }
 
   /* ---- the API Worker ---- */
-  // `token` is the sign-in that login() gave; it goes only in the Authorization header. `fetchFn` is for tests.
+  // `token` is the dorrance.me sign-in; it goes only in the Authorization header. `fetchFn` is for tests.
   function api(token, fetchFn) {
     const f = fetchFn || ((url, opts) => fetch(url, opts));
     async function call(path, method = 'GET', body) {
@@ -232,17 +224,7 @@
         return out;
       }
     }
-    const at = key => 'users/' + encodeURIComponent(key);
-    return {
-      read, save,
-      signup: (name, password) => send('signup', 'POST', { name, password }),
-      login: (name, password) => send('login', 'POST', { name, password }),
-      me: () => send('me'),
-      logout: () => send('logout', 'POST'),
-      users: async () => (await send('users')).users,
-      approve: key => send(at(key) + '/approve', 'POST'),
-      remove: key => send(at(key), 'DELETE')
-    };
+    return { read, save };
   }
 
   return { REPO, API, slug, uniqueId, cleanLine, cleanPaste, lines, tagList, normUrl, safeUrl, fromForm, toForm, parse, serialize,

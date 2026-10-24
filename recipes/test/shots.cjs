@@ -1,5 +1,5 @@
 // Phone-size screenshots of the Recipes page in WebKit, Day, Night and Aurora; exits 1 on any console error or page error.
-// The API Worker runs in Node (api.cjs) with a stand-in for GitHub, so nothing is saved. The fonts load from Google
+// The API Worker runs in Node (worker/test/harness.cjs) with a stand-in for GitHub, so nothing is saved. The fonts load from Google
 // when there is a connection.
 //   NODE_PATH=/path/to/node_modules node recipes/test/shots.cjs [outdir]
 const { webkit, devices } = require('playwright');
@@ -56,10 +56,10 @@ let signOutAll;   // ends every sign-in on the Worker, for the scene where a sav
 (async () => {
   await new Promise(res => server.listen(0, '127.0.0.1', res));
   const base = `http://127.0.0.1:${server.address().port}/recipes/`;
-  const api = await require('./api.cjs')(FILE);
+  const api = await require('../../worker/test/harness.cjs')(FILE);
   await api.addUser('Madi', 'madi-password');
   await api.addUser('Jen', 'jen-password', true);
-  signOutAll = () => { for (const k of [...api.kv.m.keys()]) if (k.startsWith('recipes:session:')) api.kv.m.delete(k); };
+  signOutAll = () => { for (const k of [...api.kv.m.keys()]) if (k.startsWith('auth:session:')) api.kv.m.delete(k); };
   const PASSWORDS = { Madi: 'madi-password', Mitchell: api.ADMIN_PASSWORD };
   const browser = await webkit.launch();
   const problems = [];
@@ -69,7 +69,7 @@ let signOutAll;   // ends every sign-in on the Worker, for the scene where a sav
       : { ...devices['iPhone 13'], viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
     let session = null;
     if (sc.as) {
-      const res = await api.call('http://x/api/recipes/login', { method: 'POST', body: JSON.stringify({ name: sc.as, password: PASSWORDS[sc.as] }) });
+      const res = await api.call('http://x/api/auth/login', { method: 'POST', body: JSON.stringify({ name: sc.as, password: PASSWORDS[sc.as] }) });
       const { token, name, admin } = await res.json();
       session = { token, name, admin };
     }
@@ -78,7 +78,7 @@ let signOutAll;   // ends every sign-in on the Worker, for the scene where a sav
       sessionStorage.setItem('seeded', '1');
       localStorage.clear();
       if (theme) localStorage.setItem('theme', theme);
-      if (session) localStorage.setItem('recipes-session', JSON.stringify(session));
+      if (session) localStorage.setItem('dorrance-session', JSON.stringify(session));
     }, [sc.theme || null, session]);
     await ctx.route('**/api/**', api.route);
     if (sc.many) await ctx.route('**/recipes/recipes.json', r => r.fulfill({ contentType: 'application/json', body: MANY }));

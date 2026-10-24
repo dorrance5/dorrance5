@@ -15,6 +15,7 @@ This is a static site of small phone apps. GitHub Pages deploys `main` with `.gi
 - Each app is a folder with its own `index.html`, `manifest.json` and `sw.js`.
 - Converter, Parking, Triangle and TV Mount use `shared/base.css` and `shared/base.js`. A change in `shared/` affects all four apps.
 - Calculator and Counter have their own styles and scripts.
+- `shared/account.js` is the dorrance.me sign-in. Only pages that load it use it (Recipes). It does not affect the four apps above.
 - All apps share one theme setting, the `theme` key in localStorage.
 
 ## Design
@@ -40,12 +41,17 @@ This is a static site of small phone apps. GitHub Pages deploys `main` with `.gi
 ## Recipes
 
 - `recipes/` is a standalone page, not one of the apps. It has no `manifest.json` and no `sw.js`, so there is no `CACHE` to increase. Do not add it to the home page.
-- `recipes/recipes.json` is the only copy of the recipes. The page saves to it through the API Worker (`worker/recipes.js`), which holds the GitHub token and the accounts. `docs/recipes-handoff.md` has the data format.
-- A push does not deploy the Worker. After a change in `worker/`, run `npx wrangler deploy` in `worker/`, then check that `https://dorrance.me/api/tvmount/lib` still answers.
+- `recipes/recipes.json` is the only copy of the recipes. The page saves to it through the API Worker (`worker/recipes.js`), which holds the GitHub token. `docs/recipes-handoff.md` has the data format.
 - Run the unit tests: `node --test recipes/test/*.test.js`
 - Run the browser checks: `NODE_PATH=<folder with playwright> node recipes/test/flows.cjs`
 - Make the screenshots: `NODE_PATH=<folder with playwright> node recipes/test/shots.cjs <output folder>`
 - Render the icons: `NODE_PATH=<folder with playwright> node docs/icons/render-recipes.cjs`
+
+## Accounts and the API Worker
+
+- `worker/` is the API Worker on `dorrance.me/api/*`: the TV Mount library, the dorrance.me accounts (`worker/auth.js`) and the Recipes saves. `docs/accounts.md` tells how the accounts work and how to use them in an app.
+- Run the Worker checks: `node --test worker/test/*.test.js`
+- A push does not deploy the Worker. After a change in `worker/`, run the Worker checks and the checks of the apps that use the changed routes, then run `npx wrangler deploy` in `worker/`. Then check that `https://dorrance.me/api/tvmount/lib` still answers.
 
 ## Commits
 

@@ -10,14 +10,14 @@ Make `recipes/` a mobile-first recipe book that the owner can edit on his phone.
 - **The theme setting is shared.** The page reads the `theme` key in localStorage (`auto`, `light`, `dark`, `aurora`). Aurora is a hidden theme, as in the apps: five taps on "Theme" in Settings turn it on, and an Aurora button then shows in the theme row until another theme is picked. The page writes `auto`, `light`, `dark` or `aurora` to that key. Do not change the format of that key.
 - **Mobile first.** The owner uses the page on his phone. Desktop must work, but phone width (390 × 844) is the main target.
 - **Editing must be easy.** The owner adds recipes from his phone. Some recipes have quantities and steps. Some recipes have only a list of ingredient names. Both must be valid.
-- **Accounts with a name and a password.** The owner is the admin. Anyone can ask for an account on the page; it waits until the admin approves it in Settings. Approved people can add, edit and delete recipes. Reading needs no account.
+- **Accounts with a name and a password.** Recipes uses the dorrance.me accounts (`docs/accounts.md`), one sign-in for the whole site. The owner is the admin. Anyone can ask for an account on the page; it waits until the admin approves it in Settings. Approved people can add, edit and delete recipes. Reading needs no account.
 
 ## Current state
 
 This handoff is done. The page reads `recipes/recipes.json` and saves to it from the phone.
 
-- `recipes/index.html` has the markup and the styles. `recipes/app.js` runs the page. `recipes/data.js` has the data format, the search and the calls to the API Worker, and Node can test it.
-- `worker/recipes.js` is the Recipes part of the dorrance.me API Worker (`worker/`, on the route `dorrance.me/api/*`). It keeps the accounts in KV and holds the GitHub token. `worker/README.md` has the setup.
+- `recipes/index.html` has the markup and the styles. `recipes/app.js` runs the page. `recipes/data.js` has the data format, the search and the saves, and Node can test it. The page loads `shared/account.js` for the sign-in.
+- `worker/recipes.js` is the Recipes part of the dorrance.me API Worker (`worker/`, on the route `dorrance.me/api/*`). It holds the GitHub token. The accounts are in `worker/auth.js`. `worker/README.md` has the setup.
 - The checks are in `recipes/test/`. `CLAUDE.md` has the commands.
 - The page design is an aged recipe book. Day is sepia paper with a fine grain and darker edges. Night is warm brown. Aurora is a night sky with moving northern lights behind dark glass cards. Color tokens are on `:root`, with `prefers-color-scheme` and `data-theme` overrides. Keep this design and its tokens.
 - The title "Dorrance Family Recipe Book" uses IM Fell English from Google Fonts. The other text uses Iowan Old Style, the Apple Books font, with Palatino and Georgia as fallbacks.
@@ -53,18 +53,17 @@ This handoff is done. The page reads `recipes/recipes.json` and saves to it from
 
 ## Accounts
 
-The admin is the name in the Worker var `RECIPES_ADMIN` ("Mitchell"), with the password in the Worker secret `RECIPES_ADMIN_PASSWORD`. Other people make their own account on the page.
+`docs/accounts.md` has the rules for the dorrance.me accounts. In Recipes:
 
-- **Ask for an account:** a name (2 to 24 letters, numbers, spaces and `. ' _ -`) and a password (8 characters or more). The name cannot be one in use or the admin's. The account waits for approval.
+- **Ask for an account:** Settings > "New here? Create an account". The page says who must approve it.
 - **Approve:** the admin signs in and opens Settings. Under "Accounts", people who are waiting come first, with Approve and Deny. Approved people have Remove. Deny and Remove ask for a second tap. A dot on the menu button shows while someone is waiting.
-- **Sign in:** a name and a password. The Worker gives the phone a sign-in that lasts a year. The page keeps it in localStorage under `recipes-session` as `{ token, name, admin }`. Sign out ends it on the phone and on the Worker.
-- **Safety:** the Worker keeps passwords as PBKDF2 hashes with a salt, and sign-ins as SHA-256 hashes, so KV holds nothing that works as typed. Eight failed sign-ins or new accounts from one address lock that address for 15 minutes. At most 25 accounts can wait at once. Removing an account ends its sign-ins, even if someone takes the name again. A new admin password ends the admin's sign-ins.
+- **Sign in and out:** in Settings. The sign-in is the site's (`dorrance-session`), so it also works on any other page that uses the accounts.
 
 ## How saving works
 
 The site is static, so the page saves through the API Worker, and the Worker saves to GitHub with the contents API.
 
-- The page calls `/api/recipes/file` with `Authorization: Bearer <sign-in>`. `worker/recipes.js` lists every route.
+- The page calls `/api/recipes/file` with `Authorization: Bearer <sign-in>`. `worker/recipes.js` lists its routes.
 - The Worker calls `https://api.github.com/repos/dorrance5/dorrance5/contents/recipes/recipes.json` with the GitHub token in the secret `GITHUB_TOKEN`: a fine-grained personal access token for the `dorrance5/dorrance5` repo only, with "Contents: Read and write". The token never goes to a phone. The page deletes an old `recipes-token` that it finds in localStorage.
 - Keep the last good copy of the data under `recipes-cache`.
 - Save steps:
@@ -135,5 +134,5 @@ Do this once, after the Worker is deployed. `worker/README.md` has the same step
 1. Make a GitHub token: open https://github.com/settings/personal-access-tokens/new. Set "Repository access" to "Only select repositories" and select `dorrance5/dorrance5`. Under "Permissions", set "Contents" to "Read and write". Generate the token and copy it.
 2. Open the Cloudflare dashboard. Go to Workers & Pages > `dorrance-api` > Settings > Variables and Secrets.
 3. Add a secret `GITHUB_TOKEN` with the token.
-4. Add a secret `RECIPES_ADMIN_PASSWORD` with the admin password.
+4. Add a secret `ADMIN_PASSWORD` with the admin password, for the dorrance.me accounts.
 5. On the phone, open dorrance.me/recipes. Open Settings. Sign in as Mitchell with that password.

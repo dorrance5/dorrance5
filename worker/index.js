@@ -4,7 +4,8 @@
    PUT    /api/tvmount/lib/tv|mount     body: item, saved by model     (passcode)
    DELETE /api/tvmount/lib/tv|mount/ID                                  (passcode)
    Writes need the header X-Passcode equal to the PASSCODE secret.
-   Recipes accounts and saves: /api/recipes/*, in recipes.js. */
+   dorrance.me accounts: /api/auth/*, in auth.js. Recipes saves: /api/recipes/*, in recipes.js. */
+import { auth } from './auth.js';
 import { recipes } from './recipes.js';
 
 const KEY = 'tvmount.lib';
@@ -22,6 +23,7 @@ async function read(env) {
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
+    if (url.pathname.startsWith('/api/auth/')) return auth(req, env, url);
     if (url.pathname.startsWith('/api/recipes/')) return recipes(req, env, url);
     const m = url.pathname.match(/^\/api\/tvmount\/lib(?:\/(tv|mount)(?:\/([\w-]+))?)?\/?$/);
     if (!m) return json({ error: 'not found' }, 404);

@@ -160,20 +160,3 @@ test('errors are plain', async () => {
   await assert.rejects(D.api('tok', async () => { throw new TypeError('Load failed'); }).read(), e => e.code === 'network' && e.message === 'No connection.');
   await assert.rejects(D.api('tok', fakeWorker('{oops').fetch).read(), e => e.code === 'json');
 });
-
-test('the account calls', async () => {
-  const calls = [];
-  const f = async (url, opts) => { calls.push([opts.method, url, opts.body && JSON.parse(opts.body), opts.headers.Authorization]); return { ok: true, status: 200, json: async () => ({ users: [] }) }; };
-  await D.api(null, f).signup('Megan', 'pasta-night-42');
-  await D.api(null, f).login('Megan', 'pasta-night-42');
-  await D.api('tok', f).users();
-  await D.api('tok', f).approve("jo ann");
-  await D.api('tok', f).remove('jo/ann');
-  assert.deepEqual(calls, [
-    ['POST', '/api/recipes/signup', { name: 'Megan', password: 'pasta-night-42' }, undefined],
-    ['POST', '/api/recipes/login', { name: 'Megan', password: 'pasta-night-42' }, undefined],
-    ['GET', '/api/recipes/users', undefined, 'Bearer tok'],
-    ['POST', '/api/recipes/users/jo%20ann/approve', undefined, 'Bearer tok'],
-    ['DELETE', '/api/recipes/users/jo%2Fann', undefined, 'Bearer tok']
-  ]);
-});

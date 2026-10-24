@@ -1,7 +1,7 @@
 # dorrance.me API worker
 
-This Cloudflare Worker stores the shared TV Mount library of saved TVs and mounts. It also runs the Recipes
-accounts and saves (`recipes.js`): see `docs/recipes-handoff.md`.
+This Cloudflare Worker stores the shared TV Mount library of saved TVs and mounts. It also keeps the dorrance.me
+accounts (`auth.js`, see `docs/accounts.md`) and saves Recipes to GitHub (`recipes.js`, see `docs/recipes-handoff.md`).
 
 ## Set up
 
@@ -16,17 +16,18 @@ accounts and saves (`recipes.js`): see `docs/recipes-handoff.md`.
 
 The route `dorrance.me/api/*` sends only these requests to the worker. GitHub Pages serves all other pages.
 
-## Recipes setup
+## Accounts and Recipes setup
 
-The Recipes routes are `dorrance.me/api/recipes/*`. They keep their accounts in the same KV namespace, under keys that
-start with `recipes:`. The admin's name is the var `RECIPES_ADMIN` in `wrangler.toml`.
+The routes are `dorrance.me/api/auth/*` for the accounts and `dorrance.me/api/recipes/*` for Recipes. The accounts are
+in the same KV namespace, under keys that start with `auth:`. The admin's name is the var `ADMIN` in `wrangler.toml`.
 
-1. Make a GitHub token at https://github.com/settings/personal-access-tokens/new: "Only select repositories" >
-   `dorrance5/dorrance5`, and "Contents" set to "Read and write".
+1. Make a GitHub token for Recipes at https://github.com/settings/personal-access-tokens/new: "Only select repositories"
+   > `dorrance5/dorrance5`, and "Contents" set to "Read and write".
 2. Add two secrets. In the Cloudflare dashboard: Workers & Pages > `dorrance-api` > Settings > Variables and Secrets.
    Or in this folder:
+   - `npx wrangler secret put ADMIN_PASSWORD`, then type the admin password.
    - `npx wrangler secret put GITHUB_TOKEN`, then paste the token.
-   - `npx wrangler secret put RECIPES_ADMIN_PASSWORD`, then type the admin password.
-3. Open `https://dorrance.me/api/recipes/me`. You see `{"error":"signin"}`.
+3. Open `https://dorrance.me/api/auth/me`. You see `{"error":"signin"}`.
 
-A change to this folder goes live only with `npx wrangler deploy`. A push to `main` does not deploy the Worker.
+Run the checks with `node --test worker/test/*.test.js`. A change to this folder goes live only with
+`npx wrangler deploy`. A push to `main` does not deploy the Worker.

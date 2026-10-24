@@ -1,20 +1,18 @@
 /* Recipes — the page: the list, the recipe sheet, the editor and Settings.
-   The data file and the calls to the API Worker are in data.js (window.RecipeData). */
+   The data file and the saves are in data.js (window.RecipeData). The dorrance.me sign-in is shared/account.js
+   (window.Account): one sign-in for every page on the site. */
 (function () {
   'use strict';
-  const D = window.RecipeData;
+  const D = window.RecipeData, A = window.Account;
   const $ = id => document.getElementById(id);
   const root = document.documentElement;
-  const SESSION = 'recipes-session', CACHE = 'recipes-cache';
+  const CACHE = 'recipes-cache';
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
     del(k) { try { localStorage.removeItem(k); } catch (e) {} }
   };
-  // The sign-in from the API Worker, { token, name, admin }, or null.
-  function session() {
-    try { const s = JSON.parse(store.get(SESSION)); return s && s.token ? s : null; } catch (e) { return null; }
-  }
+  const session = () => A.session();   // { token, name, admin }, or null
   const worker = () => D.api(session() && session().token);
   store.del('recipes-token');   // a GitHub token from before accounts: the Worker holds the token now
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -581,19 +579,18 @@
     const name = aName.value.trim().replace(/\s+/g, ' '), pw = aPass.value;
     if (!name) { result('Type your name.'); aName.focus(); return; }
     if (!pw) { result('Type your password.'); aPass.focus(); return; }
-    if (making && pw.length < 8) { result(D.fail('password').message); aPass.focus(); return; }
+    if (making && pw.length < 8) { result(A.fail('password').message); aPass.focus(); return; }
     aGo.disabled = aSwap.disabled = true;
     aGo.textContent = making ? 'Creating…' : 'Signing in…';
     result('');
     try {
       if (making) {
-        const out = await D.api().signup(name, pw);
+        const out = await A.api().signup(name, pw);
         making = false;
         aPass.value = '';
         result(`Thanks, ${out.name}. Your account is waiting for ${out.admin} to approve it. Then sign in here.`, 'ok');
       } else {
-        const out = await D.api().login(name, pw);
-        store.set(SESSION, JSON.stringify({ token: out.token, name: out.name, admin: out.admin }));
+        const out = await A.signIn(name, pw);
         aPass.value = '';
         $('sNeed').hidden = true;
         result('Signed in. You can add and edit recipes now.', 'ok');
@@ -607,13 +604,13 @@
       account();
     }
   });
-  function signOut() { store.del(SESSION); dot(0); }
+  // A sign-in that ended on the Worker: forget it here too.
+  function signOut() { A.keep(null); dot(0); }
   $('aOut').addEventListener('click', () => {
-    const s = session();
-    signOut();
+    A.signOut();   // here, and on the Worker
+    dot(0);
     account();
     result('Signed out.', 'ok');
-    if (s) D.api(s.token).logout().catch(() => {});   // ends the sign-in on the Worker too
   });
 
   // A dot on the menu button while accounts wait for the admin.
@@ -624,12 +621,11 @@
   async function checkWaiting() {
     const s = session();
     if (!s || !s.admin) return;
-    try { dot((await D.api(s.token).me()).waiting); } catch (e) { if (e.code === 'signin') signOut(); }
+    try { dot((await A.mine().me()).waiting); } catch (e) { if (e.code === 'signin') signOut(); }
   }
   async function loadFolks() {
-    const s = session();
     people.innerHTML = '<li class="none">Loading…</li>';
-    try { folks = await D.api(s.token).users(); }
+    try { folks = await A.mine().users(); }
     catch (e) {
       if (e.code === 'signin') { signOut(); account(); }
       people.innerHTML = `<li class="none">${D.esc(problem(e))}</li>`;
@@ -665,11 +661,11 @@
     result('');
     try {
       if (b.dataset.approve != null) {
-        await D.api(s.token).approve(key);
+        await A.mine().approve(key);
         p.status = 'approved';
         toast(`${p.name} can add and edit recipes now.`);
       } else {
-        await D.api(s.token).remove(key);
+        await A.mine().remove(key);
         folks = folks.filter(x => x !== p);
         toast(p.status === 'pending' ? `${p.name} is turned down.` : `${p.name} is removed.`);
       }

@@ -1,4 +1,4 @@
-// Drives the Recipes page in WebKit at 390 × 844 against the API Worker run in Node (api.cjs), with a stand-in for GitHub:
+// Drives the Recipes page in WebKit at 390 × 844 against the API Worker run in Node (worker/test/harness.cjs), with a stand-in for GitHub:
 // search, the deck of cards and the pile, the recipe sheet, theme and Aurora, accounts and the admin, add, edit, delete,
 // a 409, errors and the back button.
 // Exits 1 on a failed check or a console error.
@@ -28,11 +28,11 @@ const recipeIn = (text, id) => JSON.parse(text).recipes.find(r => r.id === id);
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}/recipes/`;
-  const api = await require('./api.cjs')(FILE), gh = api.gh;
+  const api = await require('../../worker/test/harness.cjs')(FILE), gh = api.gh;
   await api.addUser('Madi', 'madi-password');
   await api.addUser('Jen', 'jen-password', true);
-  const user = key => api.kv.get('recipes:user:' + key, 'json');
-  const sessions = () => [...api.kv.m.keys()].filter(k => k.startsWith('recipes:session:')).length;
+  const user = key => api.kv.get('auth:user:' + key, 'json');
+  const sessions = () => [...api.kv.m.keys()].filter(k => k.startsWith('auth:session:')).length;
   const browser = await webkit.launch();
   const ctx = await browser.newContext({ ...devices['iPhone 13'], viewport: { width: 390, height: 844 } });
   await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: '' }));
@@ -259,7 +259,7 @@ const recipeIn = (text, id) => JSON.parse(text).recipes.find(r => r.id === id);
   check('then the form is back to Sign in, with the name kept', (await page.textContent('#aGo')) === 'Sign in' && (await page.inputValue('#aName')) === 'Megan' && (await page.inputValue('#aPass')) === '');
   await signIn('Megan', 'pasta-night-42');
   msg = await said();
-  check('before approval, sign in says the account is waiting', msg === 'Your account is waiting for approval.' && !(await page.evaluate(() => localStorage.getItem('recipes-session'))), msg);
+  check('before approval, sign in says the account is waiting', msg === 'Your account is waiting for approval.' && !(await page.evaluate(() => localStorage.getItem('dorrance-session'))), msg);
   await tap('#aSwap');
   await page.fill('#aName', 'madi');
   await page.fill('#aPass', 'another-password');
@@ -270,7 +270,7 @@ const recipeIn = (text, id) => JSON.parse(text).recipes.find(r => r.id === id);
   check('a wrong password gets a plain message', (await said()) === 'That name and password do not match.');
   await signIn('Madi', 'madi-password');
   msg = await said('ok');
-  const sess = await page.evaluate(() => JSON.parse(localStorage.getItem('recipes-session')));
+  const sess = await page.evaluate(() => JSON.parse(localStorage.getItem('dorrance-session')));
   check('sign in keeps a sign-in on the phone', msg.startsWith('Signed in') && sess && sess.name === 'Madi' && sess.admin === false && /^[\w-]{40,}$/.test(sess.token), sess);
   check('Settings says who is signed in; no Accounts list for Madi', (await page.textContent('#aWho')).startsWith('Signed in as Madi.') && await page.isHidden('#aForm') && await page.isHidden('#aAdmin'));
   check('the phone never gets the GitHub token', !(await page.evaluate(() => JSON.stringify(localStorage))).includes(api.env.GITHUB_TOKEN));
@@ -401,7 +401,7 @@ const recipeIn = (text, id) => JSON.parse(text).recipes.find(r => r.id === id);
   check('signed in, a change from chat shows at once', true);
 
   /* ---- a sign-in that ended ---- */
-  for (const k of [...api.kv.m.keys()]) if (k.startsWith('recipes:session:')) api.kv.m.delete(k);
+  for (const k of [...api.kv.m.keys()]) if (k.startsWith('auth:session:')) api.kv.m.delete(k);
   await openRecipe('Salmon bowls');
   await tap('#editBtn');
   await opened('editor');
@@ -409,7 +409,7 @@ const recipeIn = (text, id) => JSON.parse(text).recipes.find(r => r.id === id);
   await tap('#eSave');
   await page.waitForSelector('#eError:not([hidden])');
   check('an ended sign-in: plain message and a Settings button', (await page.textContent('#eError')).includes('You are signed out. Sign in again. The change is not saved.') && await page.isVisible('#eError [data-settings]'));
-  check('and the phone forgets the sign-in', !(await page.evaluate(() => localStorage.getItem('recipes-session'))));
+  check('and the phone forgets the sign-in', !(await page.evaluate(() => localStorage.getItem('dorrance-session'))));
   await tap('#eError [data-settings]');
   await opened('settings');
   check('the button opens the sign-in form', await page.isVisible('#aForm'));
@@ -471,7 +471,7 @@ const recipeIn = (text, id) => JSON.parse(text).recipes.find(r => r.id === id);
   await phoneRules('settings in Aurora');
   const live = sessions();
   await tap('#aOut');
-  check('Sign out forgets the sign-in on the phone', !(await page.evaluate(() => localStorage.getItem('recipes-session'))) && await page.isVisible('#aForm') && (await page.textContent('#sResult')) === 'Signed out.');
+  check('Sign out forgets the sign-in on the phone', !(await page.evaluate(() => localStorage.getItem('dorrance-session'))) && await page.isVisible('#aForm') && (await page.textContent('#sResult')) === 'Signed out.');
   await page.waitForTimeout(300);
   check('and on the Worker', sessions() === live - 1, { live, now: sessions() });
 
