@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<!-- Home icon: four app tiles in the app colors on black, full bleed (iOS rounds the corners). favicon.svg is the same
+     drawing with rounded corners. Render the PNG and ICO with docs/icons/render-home.cjs. -->
+<rect width="512" height="512" fill="#000"/>
+<rect x="96" y="96" width="140" height="140" rx="34" fill="#579DFF"/>
+<rect x="276" y="96" width="140" height="140" rx="34" fill="#FEA362"/>
+<rect x="96" y="276" width="140" height="140" rx="34" fill="#4BCE97"/>
+<rect x="276" y="276" width="140" height="140" rx="34" fill="#9F8FEF"/>
+</svg>
