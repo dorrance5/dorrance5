@@ -3,6 +3,9 @@
     {
       "id": "white-chicken-chili",
       "name": "White chicken chili",
+      "tags": [
+        "Soup"
+      ],
       "ingredients": [
         "Chicken",
         "Chicken broth",
