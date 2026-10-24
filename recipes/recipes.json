@@ -3,6 +3,9 @@
     {
       "id": "white-chicken-chili",
       "name": "White chicken chili",
+      "tags": [
+        "Soup"
+      ],
       "ingredients": [
         "Chicken",
         "Chicken broth",
@@ -31,6 +34,9 @@
     {
       "id": "grilled-chicken-and-potatoes",
       "name": "Grilled chicken and potatoes",
+      "tags": [
+        "Grill"
+      ],
       "ingredients": [
         "Grilled chicken",
         "Potatoes"
@@ -108,6 +114,9 @@
     {
       "id": "burgers-and-fries",
       "name": "Burgers and fries",
+      "tags": [
+        "Grill"
+      ],
       "ingredients": [
         "Burgers",
         "Buns",
