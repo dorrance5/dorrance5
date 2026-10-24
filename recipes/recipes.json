@@ -31,6 +31,9 @@
     {
       "id": "grilled-chicken-and-potatoes",
       "name": "Grilled chicken and potatoes",
+      "tags": [
+        "Grill"
+      ],
       "ingredients": [
         "Grilled chicken",
         "Potatoes"
