@@ -2,6 +2,7 @@
 // a stand-in with one file (recipes.json) and a sha, like the contents API. A page's requests to /api/** go to route().
 //   const api = await require('../../worker/test/harness.cjs')(FILE);   await ctx.route('**/api/**', api.route);
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
 const GITHUB_TOKEN = 'github_pat_TEST_good';
 const ADMIN = 'Mitchell', ADMIN_PASSWORD = 'admin-test-password';
@@ -31,7 +32,8 @@ function memoryKV() {
 }
 
 module.exports = async function makeApi(text) {
-  const { default: worker } = await import(path.join(__dirname, '..', 'index.js'));
+  // A file URL, so that Windows can load it too
+  const { default: worker } = await import(pathToFileURL(path.join(__dirname, '..', 'index.js')).href);
   const kv = memoryKV();
   const env = { LIB: kv, GITHUB_TOKEN, ADMIN, ADMIN_PASSWORD };
 
