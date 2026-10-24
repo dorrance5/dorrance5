@@ -1,10 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<!-- Home favicon: four app tiles on a black rounded tile, in the colors of TV Mount (blue), Triangle (orange), Counter (green)
-     and Calculator (purple). It is also the logo in the homepage header. docs/icons/home.svg is the same drawing, full bleed.
-     Render favicon.ico and apple-touch-icon.png with docs/icons/render-home.cjs. -->
-<rect width="512" height="512" rx="112" fill="#000"/>
-<rect x="96" y="96" width="140" height="140" rx="34" fill="#579DFF"/>
-<rect x="276" y="96" width="140" height="140" rx="34" fill="#FEA362"/>
-<rect x="96" y="276" width="140" height="140" rx="34" fill="#4BCE97"/>
-<rect x="276" y="276" width="140" height="140" rx="34" fill="#9F8FEF"/>
+<!-- Home favicon: four app tiles on a rounded tile, in the colors of TV Mount (blue), Triangle (orange), Counter (green)
+     and Calculator (purple). Black tile in dark mode, white tile and deeper colors in light mode, like the homepage icons.
+     The homepage header draws the same logo inline so it follows the site theme. docs/icons/home.svg is the dark drawing,
+     full bleed. Render favicon.ico and apple-touch-icon.png with docs/icons/render-home.cjs. -->
+<style>
+.t{fill:#000}.b{fill:#579DFF}.o{fill:#FEA362}.g{fill:#4BCE97}.p{fill:#9F8FEF}
+@media (prefers-color-scheme:light){.t{fill:#fff}.b{fill:#1D7AFC}.o{fill:#E56910}.g{fill:#22A06B}.p{fill:#8270DB}}
+</style>
+<rect class="t" width="512" height="512" rx="112"/>
+<rect class="b" x="96" y="96" width="140" height="140" rx="34"/>
+<rect class="o" x="276" y="96" width="140" height="140" rx="34"/>
+<rect class="g" x="96" y="276" width="140" height="140" rx="34"/>
+<rect class="p" x="276" y="276" width="140" height="140" rx="34"/>
 </svg>

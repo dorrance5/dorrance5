@@ -18,6 +18,7 @@ try{const t=localStorage.getItem('theme');if(t&&t!=='auto')document.documentElem
   --bg:#F4F4F5;--tile:#fff;--tile-line:rgba(0,0,0,.09);--tile-shadow:0 1px 1px rgba(0,0,0,.07),0 0 1px rgba(0,0,0,.16);
   --text:#1E2126;--muted:#60646C;--line:rgba(0,0,0,.1);--chip:rgba(0,0,0,.05);--chip-line:rgba(0,0,0,.12);
   --sel:#E9F2FF;--sel-line:#0C66E4;--sel-text:#0C66E4;--sheet:rgba(255,255,255,.97);
+  --light-only:block;--dark-only:none;--logo-t:#fff;--logo-b:#1D7AFC;--logo-o:#E56910;--logo-g:#22A06B;--logo-p:#8270DB;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
@@ -25,6 +26,11 @@ try{const t=localStorage.getItem('theme');if(t&&t!=='auto')document.documentElem
 }
 :root[data-theme="dark"]{--bg:#141517;--tile:#1F2023;--tile-line:rgba(255,255,255,.09);--tile-shadow:inset 0 1px 0 rgba(255,255,255,.04);--text:#E6E7E9;--muted:#A0A3A9;--line:rgba(255,255,255,.1);--chip:rgba(255,255,255,.06);--chip-line:rgba(255,255,255,.13);--sel:#1C2B41;--sel-line:#579DFF;--sel-text:#85B8FF;--sheet:rgba(30,31,34,.97);color-scheme:dark}
 :root[data-theme="aurora"]{--bg:#0E0A1E;--tile:rgba(255,255,255,.13);--tile-line:rgba(255,255,255,.26);--tile-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 3px 12px rgba(0,0,0,.18);--text:#fff;--muted:rgba(255,255,255,.62);--line:rgba(255,255,255,.28);--chip:rgba(255,255,255,.09);--chip-line:rgba(255,255,255,.18);--sel:rgba(255,255,255,.24);--sel-line:rgba(255,255,255,.5);--sel-text:#fff;--sheet:rgba(20,14,42,.82);color-scheme:dark}
+/* Icons: white tiles in Day, black tiles in Night and Aurora */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--light-only:none;--dark-only:block;--logo-t:#000;--logo-b:#579DFF;--logo-o:#FEA362;--logo-g:#4BCE97;--logo-p:#9F8FEF}
+}
+:root[data-theme="dark"],:root[data-theme="aurora"]{--light-only:none;--dark-only:block;--logo-t:#000;--logo-b:#579DFF;--logo-o:#FEA362;--logo-g:#4BCE97;--logo-p:#9F8FEF}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 body{
@@ -45,7 +51,8 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
 .menu-label{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:0 0 8px 2px;cursor:default;-webkit-user-select:none;user-select:none}
 @keyframes pop{from{opacity:0;transform:translateY(-4px)}}
 h1{font-size:24px;font-weight:700;margin:0;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
-h1 img{width:36px;height:36px}
+h1 .logo{width:36px;height:36px;flex:none;border-radius:8px;box-shadow:var(--tile-shadow)}
+.logo .t{fill:var(--logo-t)}.logo .b{fill:var(--logo-b)}.logo .o{fill:var(--logo-o)}.logo .g{fill:var(--logo-g)}.logo .p{fill:var(--logo-p)}
 
 .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
 .seg button{height:38px;border-radius:13px;border:.5px solid var(--chip-line);background:var(--chip);color:var(--text);font:inherit;font-size:15px;font-weight:600;padding:0 8px;cursor:pointer}
@@ -85,6 +92,7 @@ a{color:inherit;text-decoration:none}
 .app:active{transform:scale(.94)}
 .app img{width:64px;height:64px;border-radius:15px;box-shadow:0 1px 2px rgba(0,0,0,.12),0 4px 12px rgba(0,0,0,.12);transition:box-shadow .15s}
 .app:hover img{box-shadow:0 2px 4px rgba(0,0,0,.14),0 10px 22px rgba(0,0,0,.18)}
+.app .ic-light{display:var(--light-only)}.app .ic-dark{display:var(--dark-only)}
 .app span{font-weight:600;font-size:13px;letter-spacing:-.01em}
 
 .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
@@ -120,7 +128,8 @@ dialog::backdrop{background:transparent}
 <div class="veil"></div>
 <main>
   <header>
-    <h1><img src="favicon.svg" alt="" width="36" height="36">dorrance.me</h1>
+    <!-- The logo is the drawing in favicon.svg, inline so its colors follow the theme. -->
+    <h1><svg class="logo" viewBox="0 0 512 512" aria-hidden="true"><rect class="t" width="512" height="512" rx="112"/><rect class="b" x="96" y="96" width="140" height="140" rx="34"/><rect class="o" x="276" y="96" width="140" height="140" rx="34"/><rect class="g" x="96" y="276" width="140" height="140" rx="34"/><rect class="p" x="276" y="276" width="140" height="140" rx="34"/></svg>dorrance.me</h1>
     <div class="menu-wrap">
       <button class="round" id="burger" aria-label="Menu" aria-expanded="false" aria-controls="menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <div class="menu" id="menu" hidden>
@@ -134,11 +143,11 @@ dialog::backdrop{background:transparent}
 
   <h2>Apps</h2>
   <div class="apps">
-    <a class="app" href="calculator/"><img src="calculator/icon-180.png" alt="" width="66" height="66"><span>Calculator</span></a>
-    <a class="app" href="counter/"><img src="counter/icon-180.png" alt="" width="66" height="66"><span>Counter</span></a>
-    <a class="app" href="converter/"><img src="converter/icon-180.png" alt="" width="66" height="66"><span>Converter</span></a>
-    <a class="app" href="triangle/"><img src="triangle/icon-180.png" alt="" width="66" height="66"><span>Triangle</span></a>
-    <a class="app" href="tvmount/"><img src="tvmount/icon-180.png" alt="" width="66" height="66"><span>TV Mount</span></a>
+    <a class="app" href="calculator/"><img class="ic-dark" src="calculator/icon-180.png" alt="" width="66" height="66"><img class="ic-light" src="calculator/icon-180-light.png" alt="" width="66" height="66"><span>Calculator</span></a>
+    <a class="app" href="counter/"><img class="ic-dark" src="counter/icon-180.png" alt="" width="66" height="66"><img class="ic-light" src="counter/icon-180-light.png" alt="" width="66" height="66"><span>Counter</span></a>
+    <a class="app" href="converter/"><img class="ic-dark" src="converter/icon-180.png" alt="" width="66" height="66"><img class="ic-light" src="converter/icon-180-light.png" alt="" width="66" height="66"><span>Converter</span></a>
+    <a class="app" href="triangle/"><img class="ic-dark" src="triangle/icon-180.png" alt="" width="66" height="66"><img class="ic-light" src="triangle/icon-180-light.png" alt="" width="66" height="66"><span>Triangle</span></a>
+    <a class="app" href="tvmount/"><img class="ic-dark" src="tvmount/icon-180.png" alt="" width="66" height="66"><img class="ic-light" src="tvmount/icon-180-light.png" alt="" width="66" height="66"><span>TV Mount</span></a>
   </div>
 
   <h2>Photos</h2>
