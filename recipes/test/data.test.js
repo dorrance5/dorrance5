@@ -46,6 +46,10 @@ test('the form makes a recipe in file order and leaves out empty fields', () => 
   assert.deepEqual(Object.keys(full), ['id', 'name', 'servings', 'tags', 'ingredients', 'steps', 'notes', 'source']);
   assert.deepEqual(full.tags, ['Soup', 'Quick']);
   assert.equal(full.source, 'https://example.com/soup');
+  // where it is from can be a cookbook or a person, which stays as typed
+  assert.equal(D.fromForm(form({ name: 'Pie', source: ' Grandma Dorrance ' }), 'pie').source, 'Grandma Dorrance');
+  assert.equal(D.fromForm(form({ name: 'Pie', source: 'Joy of Cooking, p. 42' }), 'pie').source, 'Joy of Cooking, p. 42');
+  assert.equal(D.fromForm(form({ name: 'Pie', source: 'www.allrecipes.com/pie' }), 'pie').source, 'https://www.allrecipes.com/pie');
   assert.deepEqual(D.fromForm(form({ name: 'Bare' }), 'bare').ingredients, []);
   const back = D.toForm(full);
   assert.deepEqual(D.fromForm(back, 'soup'), full);
@@ -159,4 +163,35 @@ test('errors are plain', async () => {
   await assert.rejects(D.api('tok', fakeWorker(FILE, { error: [500, 'no such code'] }).fetch).read(), e => e.code === 500 && e.message === 'The server answered with error 500.');
   await assert.rejects(D.api('tok', async () => { throw new TypeError('Load failed'); }).read(), e => e.code === 'network' && e.message === 'No connection.');
   await assert.rejects(D.api('tok', fakeWorker('{oops').fetch).read(), e => e.code === 'json');
+});
+
+test('the amount at the start of an ingredient is split off, for the bold part', () => {
+  const split = l => { const a = D.amount(l); return a.qty + '|' + a.what; };
+  assert.equal(split('5 strips bacon (thick-cut)'), '5 strips|bacon (thick-cut)');
+  assert.equal(split('1 lb Italian sausage'), '1 lb|Italian sausage');
+  assert.equal(split('4 large red potatoes'), '4 large|red potatoes');
+  assert.equal(split('1 small bunch kale'), '1 small bunch|kale');
+  assert.equal(split('1/4 tsp Italian seasoning'), '¼ tsp|Italian seasoning');
+  assert.equal(split('1 1/2 cups flour'), '1½ cups|flour');
+  assert.equal(split('2 to 3 cups water'), '2 to 3 cups|water');
+  assert.equal(split('12 oz. pasta'), '12 oz.|pasta');
+  assert.equal(split('4 large lemons'), '4 large|lemons');   // "l" (liters) is not the start of "lemons"
+  assert.equal(split('1 chuck roast'), '1|chuck roast');
+  assert.equal(split('Salt and pepper'), '|Salt and pepper');
+  assert.equal(split('2'), '|2');
+});
+
+test('a time in a step gives a timer, from the first time it names', () => {
+  assert.deepEqual(D.timerFor('Cook it in a pot on medium-high for 5 minutes.'), { secs: 300, note: '5 min in this step' });
+  assert.deepEqual(D.timerFor('Simmer 10 to 15 minutes, until tender.'), { secs: 600, note: '10–15 min in this step' });
+  assert.deepEqual(D.timerFor('Bake at 350 for 20-25 mins.'), { secs: 1200, note: '20–25 min in this step' });
+  assert.deepEqual(D.timerFor('Cook on high for 6 hours or low for 8 hours.'), { secs: 21600, note: '6 hr in this step' });
+  assert.deepEqual(D.timerFor('Roast 1 hour 30 minutes.'), { secs: 5400, note: '1 hr 30 min in this step' });
+  assert.deepEqual(D.timerFor('Whisk 30 seconds.'), { secs: 30, note: '30 sec in this step' });
+  assert.equal(D.timerFor('Heat the oven to 350.'), null);
+  assert.equal(D.timerFor('Season with salt and pepper.'), null);
+  assert.equal(D.clock(300), '5:00');
+  assert.equal(D.clock(59), '0:59');
+  assert.equal(D.clock(5400), '1:30:00');
+  assert.equal(D.clock(-3), '0:00');
 });

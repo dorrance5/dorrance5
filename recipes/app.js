@@ -1,4 +1,4 @@
-/* Recipes — the page: the list, the recipe sheet, the editor and Settings.
+/* Recipes — the page: the recipe box, one recipe, cooking mode, the editor and Settings.
    The data file and the saves are in data.js (window.RecipeData). The dorrance.me sign-in is shared/account.js
    (window.Account): one sign-in for every page on the site. */
 (function () {
@@ -6,7 +6,7 @@
   const D = window.RecipeData, A = window.Account;
   const $ = id => document.getElementById(id);
   const root = document.documentElement;
-  const CACHE = 'recipes-cache';
+  const CACHE = 'recipes-cache', WAITING = 'recipes-waiting';
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
@@ -17,60 +17,72 @@
   store.del('recipes-token');   // a GitHub token from before accounts: the Worker holds the token now
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const svg = (d, w = 2.2, size = 22) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const ICON = {
-    tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
-    out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>'
+    out: svg('<path d="M14 5h5v5"/><path d="M19 5l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>', 2.2, 18),
+    pot: svg('<path d="M4 11h16v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M2 11h2M20 11h2"/><path d="M9 7c0-1.5 1-1.5 1-3M14 7c0-1.5 1-1.5 1-3"/>', 2.2, 24),
+    next: svg('<path d="M9 5l7 7-7 7"/>', 2.6),
+    tick: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 2.6),
+    plus: svg('<path d="M12 5v14M5 12h14"/>', 2.6, 16)
   };
 
+  /* ---- colors: each category has one; a recipe takes the color of its first category ---- */
+  const BUTTER = ['#F6C945', '#2A1D17'];
+  const FIXED = { soup: ['#C63A24', '#FFF6E6'], 'crock pot': ['#E07B2E', '#2A1D17'] };
+  // basil, blueberry, plum, teal and cinnamon, each with cream text at 4.5:1 or more
+  const MORE = [['#4F7A3A', '#FFF6E6'], ['#3B5B8C', '#FFF6E6'], ['#7A3B69', '#FFF6E6'], ['#2F6B66', '#FFF6E6'], ['#8A4B2A', '#FFF6E6']];
+  const hash = s => { let h = 0; for (const ch of s) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
+  function colorOf(tag) {
+    if (!tag) return BUTTER;
+    const k = tag.toLowerCase();
+    return FIXED[k] || MORE[hash(k) % MORE.length];
+  }
+  const ALL = ['var(--solid)', 'var(--on-solid)'];   // the All divider: ink by day, cream at night
+  const paint = ([c, f]) => `--c:${c};--cf:${f}`;
+  const FACES = [['#C63A24', '#FFF6E6'], BUTTER, ['#E07B2E', '#2A1D17'], ['#2A1D17', '#FFF6E6'], ['#FCE7A6', '#2A1D17'], ...MORE];
+  const face = name => FACES[hash(String(name).toLowerCase()) % FACES.length];
+
   /* ---- theme: the site setting, key "theme" = auto | light | dark | aurora ---- */
-  // Aurora is secret, as in the apps: five taps on "Theme" in Settings within 2 seconds turn it on, and an
-  // Aurora button shows, picked, until another theme is picked.
-  const metas = document.querySelectorAll('meta[name="theme-color"]');
+  // This page has Auto, Day and Night. Aurora, which the apps have, shows as Night here and stays saved.
+  const meta = document.querySelector('meta[name="theme-color"]');
   const shownTheme = () => { const t = store.get('theme'); return ['light', 'dark', 'aurora'].includes(t) ? t : 'auto'; };
   function applyTheme() {
     const t = shownTheme();
     if (t === 'auto') delete root.dataset.theme; else root.dataset.theme = t;
-    // a forced theme colors the browser bar with the page background
-    const bg = getComputedStyle(document.body).backgroundColor;
-    metas.forEach(m => { m.content = t === 'auto' ? (m.media.includes('dark') ? '#18130f' : '#eadcc2') : bg; });
-    document.querySelectorAll('#themeSeg [data-t]').forEach(b => {
-      b.classList.toggle('on', b.dataset.t === t);
-      b.setAttribute('aria-pressed', b.dataset.t === t);
-      if (b.dataset.t === 'aurora') b.hidden = t !== 'aurora';
-    });
+    const on = t === 'aurora' ? 'dark' : t;
+    document.querySelectorAll('#themeSeg [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === on));
+    barColor();
   }
-  function setTheme(t) { store.set('theme', t); applyTheme(); }
   $('themeSeg').addEventListener('click', e => {
     const b = e.target.closest('[data-t]');
-    if (b) setTheme(b.dataset.t);
-  });
-  let taps = [];
-  $('themeLabel').addEventListener('click', () => {
-    const now = Date.now();
-    taps = taps.filter(x => now - x < 2000).concat(now);
-    if (taps.length < 5) return;
-    taps = [];
-    setTheme('aurora');
-    toast('Aurora');
+    if (b) { store.set('theme', b.dataset.t); applyTheme(); }
   });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   addEventListener('storage', e => { if (e.key === 'theme') applyTheme(); });
+  // The browser bar takes the color at the top of the screen: the tomato header, or the screen that is open.
+  function barColor() {
+    const l = top();
+    const el = !l ? document.querySelector('.hero') : l === settings ? settings.querySelector('.sethead') : l === cookIng ? cook : l;
+    meta.content = getComputedStyle(el).backgroundColor;
+  }
 
   /* ---- data ---- */
-  let data = null, recipes = [];
+  let data = null, recipes = [], loaded = false;
   function setData(d, fromCache) {
     data = d;
     recipes = D.forView(d);
+    loaded = true;
     if (!fromCache) store.set(CACHE, JSON.stringify(d));
-    renderList();
-    if (viewId && isOpen(view)) renderView(viewId);
+    renderBox();
+    if (viewId && isOpen(view) && !renderView(viewId) && top() === view) back(true);   // deleted on another phone
+    if (isOpen(cook)) renderCook();
   }
   function note(msg) { $('notice').hidden = !msg; $('notice').textContent = msg; }
 
   // The saved copy shows at once. Signed in, the file comes from GitHub through the Worker, so a change shows
   // before the site updates.
   async function load() {
-    try { setData(D.parse(store.get(CACHE)), true); } catch (e) { $('none').textContent = 'Loading…'; $('none').hidden = false; }
+    try { setData(D.parse(store.get(CACHE)), true); } catch (e) { none.textContent = 'Loading…'; none.hidden = false; }
     if (session()) {
       try { setData((await worker().read()).data); note(''); return; }
       catch (e) {
@@ -86,195 +98,122 @@
       setData(D.parse(await res.text()));
     } catch (e) {
       note(data ? 'The recipes could not be loaded. Showing the copy saved on this phone.' : 'The recipes could not be loaded.');
-      if (!data) $('none').hidden = true;
+      if (!data) none.hidden = true;
     }
   }
   function offline() {
     note(data ? 'No connection. Showing the copy saved on this phone.' : 'No connection, and this phone has no saved copy yet.');
-    if (!data) $('none').hidden = true;
+    if (!data) none.hidden = true;
   }
 
-  /* ---- list: a deck of index cards, one for each recipe ---- */
-  const list = $('list'), q = $('q');
-  // Under the name, a search shows why the recipe matched: the ingredients, a tag, or a piece of a step or note.
+  /* ---- the recipe box: divider tabs, one for each category, and a deck of cards ---- */
+  const deck = $('deck'), q = $('q'), none = $('none');
+  let tab = '';   // the divider that is open: '' for All, or a category
+  const same = (a, b) => a.toLowerCase() === b.toLowerCase();
+  // The categories in the box, A to Z, with how many recipes each has. "soup" and "Soup" are one category.
+  function categories() {
+    const m = new Map();
+    for (const r of recipes) for (const t of r.tags) {
+      const k = t.toLowerCase();
+      if (!m.has(k)) m.set(k, { name: t, n: 0 });
+      m.get(k).n++;
+    }
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }
+  const inTab = r => !tab || r.tags.some(t => same(t, tab));
+  // Under the name, a search shows why the recipe matched: the ingredients, a category, or a piece of a step or note.
   function why(r, m, t) {
     if (!m) return '';
     if (m.ingredients.length) return m.ingredients.map(i => D.hl(i, t)).join(', ');
     if (m.snippet) return D.hl(m.snippet, t);
     if (D.hl(r.name, t).includes('<mark>')) return '';
-    return r.tags.map(x => D.hl(x, t)).filter(x => x.includes('<mark>')).map(x => `<span class="tg">${x}</span>`).join(' · ');
+    return r.tags.map(x => D.hl(x, t)).filter(x => x.includes('<mark>')).join(' · ');
   }
-  function renderList() {
-    const t = q.value.trim();
-    const cards = [];
+  function renderBox() {
+    const cats = categories();
+    if (tab && !cats.some(c => same(c.name, tab))) tab = '';
+    const tabs = [{ name: '', label: 'All', n: recipes.length }, ...cats.map(c => ({ ...c, label: c.name }))];
+    $('tabs').innerHTML = tabs.map(c => `<button type="button" data-tab="${D.esc(c.name)}" aria-pressed="${same(c.name, tab)}" style="${paint(c.name ? colorOf(c.name) : ALL)}"><span>${D.esc(c.label)}</span><span class="n">${c.n}</span></button>`).join('');
+    $('band').style.cssText = paint(tab ? colorOf(tab) : ALL);
+    const t = q.value.trim(), cards = [];
     for (const r of recipes) {
+      if (!inTab(r)) continue;
       const m = t ? D.match(r, t) : null;
       if (t && !m) continue;
-      const w = why(r, m, t);
-      cards.push(`<li><button class="card${r.id === pulledId ? ' out' : ''}" type="button" data-id="${D.esc(r.id)}"><span class="face"><span class="nm">${D.hl(r.name, t)}</span>${w ? `<span class="hit">${w}</span>` : ''}</span></button></li>`);
+      const w = why(r, m, t), first = r.tags[0];
+      cards.push(`<li><button class="rc" type="button" data-id="${D.esc(r.id)}" style="${paint(colorOf(first))}"><span class="rc-top"><span class="nm serif">${D.hl(r.name, t)}</span>${first ? `<span class="tg">${D.esc(first)}</span>` : ''}</span>${w ? `<span class="hit">${w}</span>` : ''}</button></li>`);
     }
-    list.innerHTML = cards.join('');
-    $('count').textContent = t ? `${cards.length} of ${plural(recipes.length, 'recipe')}` : plural(recipes.length, 'recipe');
-    $('none').hidden = cards.length > 0;
-    $('none').textContent = recipes.length ? 'No recipes match that search.' : 'No recipes yet. Tap Add recipe.';
-    measure();
+    deck.innerHTML = cards.join('');
+    const where = tab ? ` under ${tab}` : '';
+    none.hidden = cards.length > 0 || !loaded;
+    none.textContent = t ? `No recipe${where} has “${t}”.` : recipes.length ? `No recipes${where} yet.` : session() ? 'No recipes yet. Tap + to add one.' : 'No recipes yet.';
+    $('qClear').hidden = !q.value;
   }
-  q.addEventListener('input', renderList);
+  q.addEventListener('input', renderBox);
   q.addEventListener('keydown', e => {
     if (e.key === 'Enter') q.blur();
-    if (e.key === 'Escape' && q.value) { q.value = ''; renderList(); }
+    if (e.key === 'Escape' && q.value) { q.value = ''; renderBox(); }
   });
-  list.addEventListener('click', e => { const b = e.target.closest('.card'); if (b) openView(b.dataset.id, b); });
+  $('qClear').addEventListener('click', () => { q.value = ''; renderBox(); q.focus(); });
+  $('tabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]');
+    if (!b) return;
+    tab = b.dataset.tab;
+    renderBox();
+    $('tabs').querySelector(`[data-tab="${CSS.escape(tab)}"]`).focus({ preventScroll: true });
+    // a shorter list: keep the dividers at the top of the screen, not past the end of the list
+    const hero = document.querySelector('.hero').offsetHeight;
+    if (scrollY > hero) scrollTo(0, hero);
+  });
+  deck.addEventListener('click', e => { const b = e.target.closest('.rc'); if (b) openView(b.dataset.id, b); });
+  $('addBtn').addEventListener('click', () => openEditor(null));
+  $('signInBtn').addEventListener('click', () => openSettings(false));
 
-  // The deck: index cards leaning back in a box, seen from above, as in the owner's drawing. Each card shows only
-  // its top, the name; the next card covers the rest, and a card lower in the list always lies on top. The cards come
-  // up from the bottom as the list scrolls. At the top they fall onto each other: each card stops under the search
-  // field, the next one slides over it, and older cards pile up behind as thin edges, tipped further back.
-  // A card looks tipped back because it is squashed (SQUASH) and drawn narrower at the bottom (the CSS).
-  const searchbar = $('searchbar');
-  const SQUASH = 0.86, EDGE = 5, PILE = 3;   // the height a card keeps, px of each edge in the pile, edges in the pile
-  // Each list item is as tall as its squashed card, less 2 px, so the next card's top edge lies on this card's bottom edge.
-  function measure() {
-    const cards = [...list.querySelectorAll('.card')];
-    const tall = cards.map(c => c.offsetHeight);
-    cards.forEach((c, i) => { c.parentElement.style.height = (tall[i] * SQUASH - 2).toFixed(1) + 'px'; });
-    deck();
-  }
-  function deck() {
-    const items = [...list.children];
-    const base = list.getBoundingClientRect().top;   // the list itself never moves; offsetTop counts from it
-    const T = searchbar.offsetHeight + (parseFloat(getComputedStyle(searchbar).top) || 0) + 16;   // where cards stop
-    const at = items.map(li => base + li.offsetTop), tall = items.map(li => li.offsetHeight);   // read everything first
-    items.forEach((li, i) => {
-      // how many cards' worth this card has gone up past the stop; with reduced motion the cards do not pile up
-      const k = reduceMotion.matches ? 0 : Math.max(0, (T - at[i]) / tall[i]), deep = Math.min(PILE, k);
-      const c = li.firstElementChild;
-      c.style.transform = k
-        ? `translateY(${(T - EDGE * deep - at[i]).toFixed(1)}px) scale(${(1 - 0.02 * deep).toFixed(3)}, ${(SQUASH * (1 - 0.2 * deep)).toFixed(3)})`
-        : `scaleY(${SQUASH})`;
-      c.style.setProperty('--turn', Math.min(0.3, 0.1 * k).toFixed(3));
-      c.style.setProperty('--fade', Math.max(0, 1 - k).toFixed(3));   // a name fades as the next card covers it
-    });
-  }
-  // a line under the search field once it sticks to the top
-  function stick() {
-    searchbar.classList.toggle('stuck', scrollY > 0 && searchbar.getBoundingClientRect().top <= (parseFloat(getComputedStyle(searchbar).top) || 0) + 0.5);
-  }
-  let frame = 0;
-  const onScroll = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; stick(); deck(); }); };
-  addEventListener('scroll', onScroll, { passive: true });
-  addEventListener('resize', () => requestAnimationFrame(() => { stick(); measure(); }));
-  reduceMotion.addEventListener('change', deck);
-  if (document.fonts) document.fonts.ready.then(measure);
-
-  /* ---- sheets ---- */
-  // Each open sheet is one history entry, so the Android back button closes the top sheet.
-  const page = $('page'), fab = $('addBtn'), view = $('view'), editor = $('editor'), settings = $('settings');
-  const layers = [view, editor, settings];
+  /* ---- full screens over the box ---- */
+  // Each open screen is one history entry, so the phone's back button closes the top one.
+  const page = $('page'), nav = $('nav');
+  const view = $('view'), cook = $('cook'), cookIng = $('cookIng'), editor = $('editor'), settings = $('settings');
+  const layers = [view, cook, cookIng, editor, settings];
   const stack = [];
-  let quiet = false;   // the next popstate closes without asking: Cancel and Save already decided
+  let quiet = false;   // the next popstate closes without asking: Cancel, Save and Delete already decided
   const top = () => stack[stack.length - 1];
   const isOpen = l => stack.includes(l);
   function setInert() {
-    page.inert = fab.inert = stack.length > 0;
+    page.inert = stack.length > 0;
     layers.forEach(l => { l.inert = l !== top(); });
     root.classList.toggle('locked', stack.length > 0);
+    drawNav();
+    barColor();
   }
   function show(l, opener) {
     l.opener = opener;
     l.hidden = false;
     l.style.zIndex = 20 + stack.length;
+    l.scrollTop = 0;
     setInert();
-    void l.offsetWidth;   // start the slide from below
+    void l.offsetWidth;   // start the slide from off the screen
     l.classList.add('open');
-    l.querySelector('.sheet').focus({ preventScroll: true });
+    l.focus({ preventScroll: true });
   }
   function hide(l, refocus = true) {
-    const sheet = l.querySelector('.sheet');
-    const card = l === view ? putBack(sheet) : null;
-    if (!card) sheet.style.transform = '';
     l.classList.remove('open');
     setInert();
-    const opener = refocus && l.opener && l.opener.matches('button, a') ? l.opener : null;
-    const focus = () => { if (opener && document.contains(opener)) opener.focus({ preventScroll: true }); };
-    const done = () => {
-      if (l.classList.contains('open')) return;
-      l.hidden = true;
-      if (card) { settle(sheet); focus(); }
-    };
-    if (reduceMotion.matches) done(); else setTimeout(done, card ? 440 : 340);
-    if (!card) focus();   // a card that is still going back cannot take the focus yet
-    if (l === view) wake(false);
+    const o = refocus && l.opener;
+    if (o && o.matches && o.matches('button, a, input') && document.contains(o) && !o.closest('[inert]')) o.focus({ preventScroll: true });
+    const done = () => { if (!l.classList.contains('open')) l.hidden = true; };
+    if (reduceMotion.matches) done(); else setTimeout(done, 340);
+    if (l === cook) stopTimers();
+    wakeCheck();
   }
-
-  // The recipe sheet grows out of the card that was tapped, and shrinks back into it when it closes.
-  // The card stays hidden (class "out") while its recipe is open.
-  let pulledId = null, pullT = 0;
-  const cardFor = id => id ? list.querySelector(`.card[data-id="${CSS.escape(id)}"]`) : null;
-  // the part of a card that shows: in the stack, the card below covers all but its name
-  function shown(card) {
-    const r = card.getBoundingClientRect(), li = card.parentElement.nextElementSibling;
-    const below = li ? li.firstElementChild.getBoundingClientRect().top : Infinity;
-    return below < r.bottom ? { top: r.top, left: r.left, right: r.right, bottom: below, height: Math.max(0, below - r.top) } : r;
-  }
-  // the clip that leaves only the part of the sheet over the card r
-  const clipTo = (s, r) => `inset(0 ${Math.max(0, s.right - r.right)}px ${Math.max(0, s.height - r.height)}px ${Math.max(0, r.left - s.left)}px round 5px)`;
-  function pullOut(card) {
-    list.querySelectorAll('.card.out').forEach(c => c.classList.remove('out'));
-    pulledId = null;
-    if (reduceMotion.matches) return;
-    const sheet = view.querySelector('.sheet');
-    clearTimeout(pullT);
-    sheet.classList.remove('pulling');
-    sheet.classList.add('still');
-    sheet.style.transform = sheet.style.clipPath = '';
-    const s = sheet.getBoundingClientRect(), r = shown(card);
-    sheet.style.transform = `translateY(${r.top - s.top}px)`;
-    sheet.style.clipPath = clipTo(s, r);
-    card.classList.add('out');
-    pulledId = card.dataset.id;
-    void sheet.offsetWidth;
-    sheet.classList.replace('still', 'pulling');
-    sheet.style.transform = '';
-    sheet.style.clipPath = `inset(0 round ${getComputedStyle(sheet).borderRadius})`;
-    pullT = setTimeout(() => { sheet.classList.remove('pulling'); sheet.style.clipPath = ''; }, 460);
-  }
-  // Starts the sheet back toward its card. Returns the card, or null when the sheet slides down as usual
-  // (the recipe was deleted, the search hides it, or the card is off the screen).
-  function putBack(sheet) {
-    const card = reduceMotion.matches ? null : cardFor(pulledId);
-    const r = card && shown(card);
-    if (!card || r.bottom < 0 || r.top > innerHeight) { settle(sheet); return null; }
-    clearTimeout(pullT);
-    sheet.classList.remove('pulling');
-    sheet.classList.add('still');
-    const dragged = sheet.style.transform;
-    sheet.style.transform = 'none';
-    const s = sheet.getBoundingClientRect();
-    sheet.style.transform = dragged;
-    sheet.style.clipPath = `inset(0 round ${getComputedStyle(sheet).borderRadius})`;
-    void sheet.offsetWidth;
-    sheet.classList.replace('still', 'pulling');
-    sheet.style.transform = `translateY(${r.top - s.top}px)`;
-    sheet.style.clipPath = clipTo(s, r);
-    return card;
-  }
-  function settle(sheet) {
-    clearTimeout(pullT);
-    sheet.classList.remove('pulling', 'still');
-    sheet.style.transform = sheet.style.clipPath = '';
-    const card = cardFor(pulledId);
-    if (card) card.classList.remove('out');
-    pulledId = null;
-  }
-  function open(l) {
+  // `opener` gets the focus back when the screen closes. A tap does not focus a button in Safari, so a tapped button is
+  // passed in.
+  function open(l, opener = document.activeElement) {
     if (isOpen(l)) return;
-    const opener = document.activeElement;
     stack.push(l);
     history.pushState({ sheets: stack.length }, '');
     show(l, opener);
   }
-  // Puts another sheet in place of the top one, at the same history depth.
+  // Puts another screen in place of the top one, at the same history depth.
   function swap(l) {
     const old = stack.pop();
     stack.push(l);
@@ -283,55 +222,53 @@
   }
   function back(force) { if (!stack.length) return; quiet = !!force; history.back(); }
   function closeAll() { if (!stack.length) return; quiet = true; history.go(-stack.length); }
+  // A screen that asks before it closes: the editor with changes, cooking mode with a timer that runs.
+  function stays(l) {
+    if (l === editor && dirty()) return !confirm('Discard the changes to this recipe?');
+    if (l === cook && running()) return !confirm('A timer is running. Stop it and leave cooking mode?');
+    return false;
+  }
   addEventListener('popstate', e => {
     const n = (e.state && e.state.sheets) || 0, force = quiet;
     quiet = false;
     while (stack.length > n) {
-      if (top() === editor && !force && dirty() && !confirm('Discard the changes to this recipe?')) {
-        history.pushState({ sheets: stack.length }, '');
-        return;
-      }
+      if (!force && stays(top())) { history.pushState({ sheets: stack.length }, ''); return; }
       hide(stack.pop());
     }
   });
   if (history.state && history.state.sheets) history.replaceState(null, '');
   layers.forEach(l => l.addEventListener('click', e => { if (e.target.closest('[data-close]')) back(); }));
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && stack.length) { e.preventDefault(); back(); } });
-
-  // Drag a sheet down by its top bar to close it.
-  layers.forEach(l => {
-    const bar = l.querySelector('[data-drag]'), sheet = l.querySelector('.sheet');
-    if (!bar) return;
-    let y0 = null, dy = 0, t0 = 0;
-    bar.addEventListener('pointerdown', e => {
-      if (e.button || e.target.closest('button, a')) return;
-      y0 = e.clientY; dy = 0; t0 = e.timeStamp;
-      sheet.classList.add('dragging');
-      bar.setPointerCapture(e.pointerId);
-    });
-    bar.addEventListener('pointermove', e => {
-      if (y0 === null) return;
-      dy = Math.max(0, e.clientY - y0);
-      sheet.style.transform = `translateY(${dy}px)`;
-    });
-    const end = e => {
-      if (y0 === null) return;
-      y0 = null;
-      sheet.classList.remove('dragging');
-      if (e.type === 'pointerup' && (dy > 90 || (dy > 30 && dy / Math.max(1, e.timeStamp - t0) > 0.5))) back();
-      else sheet.style.transform = '';
-    };
-    bar.addEventListener('pointerup', end);
-    bar.addEventListener('pointercancel', end);
+  cookIng.addEventListener('click', e => { if (e.target === cookIng) back(); });   // a tap on the dim part
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && stack.length) { e.preventDefault(); back(); }
+    if (top() === cook && !e.target.closest('input, textarea') && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+      e.preventDefault();
+      (e.key === 'ArrowRight' ? $('cNext') : $('cBack')).click();
+    }
   });
 
-  // a line under a sheet's top bar once its body scrolls
-  layers.forEach(l => {
-    const bar = l.querySelector('.bar'), body = l.querySelector('.body');
-    body.addEventListener('scroll', () => bar.classList.toggle('edge', body.scrollTop > 0), { passive: true });
+  // The tab bar: Recipes and Settings, for anyone signed in, on the box and on Settings. Settings opened over another
+  // screen (to sign in again during a save) has a back button instead, and so has Settings for someone signed out.
+  function drawNav() {
+    const s = !!session(), alone = top() === settings && stack.length === 1, on = s && (!top() || alone);
+    nav.hidden = !on;
+    nav.inert = !on;
+    document.body.classList.toggle('has-nav', s);
+    nav.querySelectorAll('[data-go]').forEach(b => {
+      const here = b.dataset.go === 'settings' ? alone : !top();
+      if (here) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    $('sBack').hidden = s && alone;
+    $('sBackText').textContent = stack.length > 1 ? 'Back' : 'Recipe box';
+  }
+  nav.addEventListener('click', e => {
+    const b = e.target.closest('[data-go]');
+    if (!b) return;
+    if (b.dataset.go === 'box') { if (top() === settings) closeAll(); else scrollTo({ top: 0, behavior: reduceMotion.matches ? 'auto' : 'smooth' }); }
+    else if (top() !== settings) openSettings(false);
   });
 
-  // Keep the sheets inside the visual viewport, above the phone keyboard.
+  // Keep the screens inside the visual viewport, above the phone keyboard.
   const vv = window.visualViewport;
   if (vv) {
     const fit = () => { root.style.setProperty('--vvh', vv.height + 'px'); root.style.setProperty('--vvt', vv.offsetTop + 'px'); };
@@ -349,82 +286,243 @@
     toastT = setTimeout(() => t.classList.remove('on'), 2800);
   }
 
-  /* ---- keep the screen on while a recipe is open ---- */
+  /* ---- keep the screen on while a recipe or cooking mode is open ---- */
   let lock = null;
-  async function wake(on) {
-    if (!on) { const l = lock; lock = null; if (l) l.release().catch(() => {}); return; }
+  const wanted = () => isOpen(view) || isOpen(cook);
+  async function wakeCheck() {
+    if (!wanted()) { const l = lock; lock = null; if (l) l.release().catch(() => {}); return; }
     if (lock || !navigator.wakeLock) return;
     try {
       const l = await navigator.wakeLock.request('screen');
-      if (!isOpen(view) || lock) { l.release().catch(() => {}); return; }
+      if (!wanted() || lock) { l.release().catch(() => {}); return; }
       lock = l;
       l.addEventListener('release', () => { if (lock === l) lock = null; });
     } catch (e) {}   // refused (low battery, page hidden): the screen can sleep as usual
   }
   // the phone drops the lock when the page is hidden
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && isOpen(view)) wake(true); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wakeCheck(); });
 
-  /* ---- one recipe ---- */
-  let viewId = null;
+  /* ---- one recipe: an index card ---- */
+  let viewId = null, half = 'ing';   // half: the ingredients or the steps
   const vBody = $('vBody');
   const host = u => new URL(u).hostname.replace(/^www\./, '');
+  const ingLine = text => { const a = D.amount(text); return `<li>${a.qty ? `<strong>${D.esc(a.qty)}</strong>` : ''}<span>${D.esc(a.what)}</span></li>`; };
   function renderView(id) {
     const r = recipes.find(x => x.id === id);
     if (!r) return false;
+    if (id !== viewId) half = 'ing';
     viewId = id;
-    const meta = [];
-    if (r.servings) meta.push(`<span class="chip plain">${D.esc(/^\d/.test(r.servings) ? 'Serves ' + r.servings : r.servings)}</span>`);
-    r.tags.forEach(t => meta.push(`<span class="chip">${D.esc(t)}</span>`));
-    const head = (title, hint) => `<div class="v-head"><h3>${title}</h3>${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
-    let html = `<h2 class="v-name" id="vName">${D.esc(r.name)}</h2>${meta.length ? `<div class="v-meta">${meta.join('')}</div>` : ''}`;
-    html += head('Ingredients', r.ingredients.length ? 'Tap to check off' : '');
-    html += r.ingredients.length
-      ? `<ul class="checks">${r.ingredients.map(i => `<li><label><input type="checkbox"><span class="box" aria-hidden="true">${ICON.tick}</span><span class="t">${D.esc(i)}</span></label></li>`).join('')}</ul>`
-      : '<p class="empty">No ingredients yet.</p>';
-    if (r.steps.length) html += head('Steps') + `<ol class="steps">${r.steps.map(s => `<li><span>${D.esc(s)}</span></li>`).join('')}</ol>`;
-    if (r.notes) html += head('Notes') + `<p class="notes">${D.esc(r.notes)}</p>`;
+    const chips = r.tags.map(t => `<span class="chip" style="${paint(colorOf(t))}">${D.esc(t)}</span>`);
+    if (r.servings) chips.push(`<span class="chip plain">${D.esc(/^\d/.test(r.servings) ? 'Serves ' + r.servings : r.servings)}</span>`);
+    const ings = r.ingredients.length ? `<ul class="lines">${r.ingredients.map(ingLine).join('')}</ul>` : '<p class="empty">No ingredients yet.</p>';
+    const steps = `<ol class="lines steps">${r.steps.map((s, i) => `<li><span class="num serif">${i + 1}</span><span>${D.esc(s)}</span></li>`).join('')}</ol>`;
+    const seg = r.steps.length
+      ? `<div class="seg" role="group" aria-label="Show"><button type="button" data-half="ing" aria-pressed="${half === 'ing'}">Ingredients · ${r.ingredients.length}</button><button type="button" data-half="steps" aria-pressed="${half === 'steps'}">Steps · ${r.steps.length}</button></div>`
+      : '';
+    let html = `<article class="index" style="${paint(colorOf(r.tags[0]))}"><div class="strip"></div><div class="head">${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}<h1 class="serif" id="vName">${D.esc(r.name)}</h1></div><div class="rule"></div><div class="body">${seg}${r.steps.length && half === 'steps' ? steps : ings}</div></article>`;
+    if (r.steps.length) html += `<button class="pill tomato big" id="cookBtn" type="button">${ICON.pot}<span>Start cooking</span></button>`;
+    if (r.notes) html += `<section class="notes"><h2 class="serif">Notes</h2><p>${D.esc(r.notes)}</p></section>`;
     if (r.source) {
       const url = D.safeUrl(r.source);
-      html += head('Source') + (url
-        ? `<a class="source" href="${D.esc(url)}" target="_blank" rel="noopener">${ICON.out}${D.esc(host(url))}</a>`
-        : `<p class="notes">${D.esc(r.source)}</p>`);
+      html += url
+        ? `<a class="source" href="${D.esc(url)}" target="_blank" rel="noopener"><span>From ${D.esc(host(url))}</span>${ICON.out}</a>`
+        : `<p class="source">From ${D.esc(r.source)}</p>`;
     }
     vBody.innerHTML = html;
+    $('editBtn').hidden = !session();
     return true;
   }
   function openView(id, card) {
     if (!renderView(id)) return;
-    open(view);
-    if (card) pullOut(card);
-    vBody.scrollTop = 0;
-    wake(true);
+    open(view, card);
+    wakeCheck();
   }
+  vBody.addEventListener('click', e => {
+    const b = e.target.closest('[data-half]');
+    if (b) {
+      half = b.dataset.half;
+      renderView(viewId);
+      vBody.querySelector(`[data-half="${half}"]`).focus({ preventScroll: true });
+    }
+    if (e.target.closest('#cookBtn')) openCook();
+  });
   $('editBtn').addEventListener('click', () => openEditor(recipes.find(x => x.id === viewId)));
 
+  /* ---- cooking mode: one step at a time, and a timer when the step names a time ---- */
+  let cookId = null, at = 0, tick = 0, audio = null;
+  const timers = new Map();   // step number -> { left: seconds, end: the time it ends while it runs, else 0 }
+  const cooking = () => recipes.find(x => x.id === cookId);
+  const leftOf = t => t.end ? Math.max(0, Math.ceil((t.end - Date.now()) / 1000)) : t.left;
+  const running = () => [...timers.values()].some(t => t.end);
+  function openCook() {
+    const r = recipes.find(x => x.id === viewId);
+    if (!r || !r.steps.length) return;
+    cookId = r.id;
+    at = 0;
+    stopTimers();
+    renderCook();
+    open(cook);
+    wakeCheck();
+  }
+  function renderCook() {
+    const r = cooking();
+    if (!r || !r.steps.length) return;
+    const n = r.steps.length;
+    at = Math.min(at, n - 1);
+    $('cName').textContent = r.name;
+    $('cProgress').innerHTML = r.steps.map((s, k) => `<span${k <= at ? ' class="done"' : ''}></span>`).join('');
+    $('cKick').textContent = `Step ${at + 1} of ${n}`;
+    $('cText').textContent = r.steps[at];
+    $('cBack').disabled = at === 0;
+    $('cNext').innerHTML = at === n - 1 ? `${ICON.tick}<span>Done</span>` : `<span>Next step</span>${ICON.next}`;
+    $('cIngBtn').hidden = !r.ingredients.length;
+    drawTimer();
+  }
+  function drawTimer() {
+    const r = cooking();
+    if (!r) return;
+    const spec = D.timerFor(r.steps[at] || ''), box = $('cTimer');
+    box.hidden = !spec;
+    if (spec) {
+      const t = timers.get(at), left = t ? leftOf(t) : spec.secs, up = !!t && left === 0;
+      $('cWhat').textContent = up ? 'Time’s up' : spec.note;
+      $('cClock').textContent = D.clock(left);
+      box.classList.toggle('up', up);
+      box.classList.toggle('long', spec.secs >= 3600);
+      $('cGo').textContent = t && t.end && left ? 'Pause' : up ? 'Again' : t && left < spec.secs ? 'Resume' : 'Start';
+    }
+    // a timer on another step that runs or is up: a button that goes back to it
+    const other = [...timers].filter(([k, t]) => k !== at && (t.end || t.left === 0)).map(([k, t]) => ({ k, left: leftOf(t) })).sort((a, b) => a.left - b.left)[0];
+    const pill = $('cElse');
+    pill.hidden = !other;
+    if (other) {
+      pill.dataset.step = other.k;
+      pill.classList.toggle('up', other.left === 0);
+      pill.textContent = other.left ? `Step ${other.k + 1} timer · ${D.clock(other.left)}` : `Step ${other.k + 1} · Time’s up`;
+    }
+  }
+  function ticking() {
+    if (running() && !tick) tick = setInterval(onTick, 250);
+    if (!running() && tick) { clearInterval(tick); tick = 0; }
+  }
+  function onTick() {
+    for (const t of timers.values()) if (t.end && t.end <= Date.now()) { t.end = 0; t.left = 0; ring(); }
+    drawTimer();
+    ticking();
+  }
+  function stopTimers() { timers.clear(); ticking(); }
+  // A sound needs a tap first on a phone: Start makes the sound ready.
+  function hearing() {
+    try {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (!audio && C) audio = new C();
+      if (audio && audio.state === 'suspended') audio.resume();
+    } catch (e) {}
+  }
+  function ring() {
+    try { if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]); } catch (e) {}
+    if (!audio) return;
+    try {
+      const t0 = audio.currentTime;
+      [0, 0.4, 0.8].forEach(d => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.frequency.value = 880;
+        g.gain.setValueAtTime(0.0001, t0 + d);
+        g.gain.exponentialRampToValueAtTime(0.3, t0 + d + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.3);
+        o.connect(g).connect(audio.destination);
+        o.start(t0 + d);
+        o.stop(t0 + d + 0.32);
+      });
+    } catch (e) {}
+  }
+  $('cGo').addEventListener('click', () => {
+    const spec = D.timerFor(cooking().steps[at]);
+    if (!spec) return;
+    hearing();
+    const t = timers.get(at) || { left: spec.secs, end: 0 };
+    if (t.end) { t.left = leftOf(t); t.end = 0; }   // pause
+    else { if (t.left <= 0) t.left = spec.secs; t.end = Date.now() + t.left * 1000; }   // start, resume or again
+    timers.set(at, t);
+    drawTimer();
+    ticking();
+  });
+  $('cReset').addEventListener('click', () => { timers.delete(at); drawTimer(); ticking(); });
+  const goStep = i => { at = i; renderCook(); cook.scrollTop = 0; };
+  $('cBack').addEventListener('click', () => { if (at > 0) goStep(at - 1); });
+  $('cNext').addEventListener('click', () => { if (at < cooking().steps.length - 1) goStep(at + 1); else back(); });
+  $('cElse').addEventListener('click', e => goStep(+e.currentTarget.dataset.step));
+  $('cIngBtn').addEventListener('click', () => {
+    $('ciList').innerHTML = cooking().ingredients.map(ingLine).join('');
+    open(cookIng);
+  });
+
   /* ---- add and edit ---- */
-  const F = { name: $('fName'), servings: $('fServings'), tags: $('fTags'), ingredients: $('fIngredients'), steps: $('fSteps'), notes: $('fNotes'), source: $('fSource') };
-  const eSave = $('eSave'), eCancel = $('eCancel'), eDelete = $('eDelete'), eBody = $('eBody'), eError = $('eError');
+  const F = { name: $('fName'), servings: $('fServings'), ingredients: $('fIngredients'), steps: $('fSteps'), notes: $('fNotes'), source: $('fSource') };
+  const eSave = $('eSave'), eCancel = $('eCancel'), eDelete = $('eDelete'), eError = $('eError'), cats = $('fCats'), newRow = $('fNewRow'), fNew = $('fNew');
   let editId = null, start = '', busy = false, armT = 0;
-  const values = () => Object.fromEntries(Object.keys(F).map(k => [k, F[k].value]));
+  let picked = [];   // the categories picked, in the order they were picked; the first one colors the card
+  let made = [];     // categories made with New in this editor
+  const values = () => ({ ...Object.fromEntries(Object.keys(F).map(k => [k, F[k].value])), tags: picked.join(', ') });
   const dirty = () => JSON.stringify(values()) !== start;
-  // "5 ingredients" and "4 steps" under the fields, so a long step that wraps still counts as one.
+  function drawCats() {
+    const names = categories().map(c => c.name);
+    for (const t of [...picked, ...made]) if (!names.some(n => same(n, t))) names.push(t);
+    const on = n => picked.some(p => same(p, n));
+    cats.innerHTML = `<button type="button" data-cat="" aria-pressed="${!picked.length}" style="${paint(BUTTER)}"><i></i><span>None</span></button>`
+      + names.map(n => `<button type="button" data-cat="${D.esc(n)}" aria-pressed="${on(n)}" style="${paint(colorOf(n))}"><i></i><span>${D.esc(n)}</span></button>`).join('')
+      + `<button type="button" class="new" data-new aria-expanded="${!newRow.hidden}">${ICON.plus}<span>New</span></button>`;
+  }
+  cats.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.hasAttribute('data-new')) {
+      newRow.hidden = !newRow.hidden;
+      drawCats();
+      if (!newRow.hidden) fNew.focus();
+      return;
+    }
+    const n = b.dataset.cat;
+    picked = !n ? [] : picked.some(p => same(p, n)) ? picked.filter(p => !same(p, n)) : [...picked, n];
+    drawCats();
+    cats.querySelector(`[data-cat="${CSS.escape(n)}"]`).focus({ preventScroll: true });
+  });
+  function addCat() {
+    const n = fNew.value.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!n) { fNew.focus(); return; }
+    const known = [...categories().map(c => c.name), ...made].find(c => same(c, n)) || n;
+    if (!made.some(c => same(c, known)) && !categories().some(c => same(c.name, known))) made.push(known);
+    if (!picked.some(p => same(p, known))) picked.push(known);
+    fNew.value = '';
+    newRow.hidden = true;
+    drawCats();
+    cats.querySelector(`[data-cat="${CSS.escape(known)}"]`).focus({ preventScroll: true });
+  }
+  $('fNewAdd').addEventListener('click', addCat);
+  fNew.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addCat(); } });
+
+  // "One per line · 5 ingredients" under the labels, so a long step that wraps still counts as one.
   function counts() {
-    editor.querySelectorAll('[data-count]').forEach(b => {
-      const n = D.lines(F[b.dataset.count].value).length;
-      b.textContent = n ? plural(n, b.dataset.count === 'steps' ? 'step' : 'ingredient') : '';
-    });
+    const n = D.lines(F.ingredients.value).length, s = D.lines(F.steps.value).length;
+    $('fIngHint').textContent = `One per line${n ? ' · ' + plural(n, 'ingredient') : ''}`;
+    $('fStepHint').textContent = `One per line${s ? ' · ' + plural(s, 'step') : ''}. A time like “15 minutes” gets a timer.`;
   }
   function grow(ta) {
-    const y = eBody.scrollTop;
+    const y = editor.scrollTop;
     ta.style.height = 'auto';
     ta.style.height = ta.scrollHeight + 3 + 'px';
-    eBody.scrollTop = y;
+    editor.scrollTop = y;
   }
   function openEditor(r) {
     if (!session()) return openSettings(true);
     editId = r ? r.id : null;
     const v = D.toForm(r || {});
     for (const k in F) { F[k].value = v[k]; F[k].classList.remove('bad'); }
+    picked = r ? r.tags.slice() : [];
+    made = [];
+    fNew.value = '';
+    newRow.hidden = true;
+    drawCats();
     start = JSON.stringify(values());
     $('eTitle').textContent = r ? 'Edit recipe' : 'New recipe';
     eDelete.hidden = !r;
@@ -433,15 +531,14 @@
     open(editor);
     editor.querySelectorAll('textarea').forEach(grow);
     counts();
-    eBody.scrollTop = 0;
     if (!r) F.name.focus({ preventScroll: true });   // a new recipe starts with the keyboard up
   }
   function error(msg, withSettings) {
     eError.hidden = !msg;
-    eError.innerHTML = msg ? D.esc(msg) + (withSettings ? '<br><button class="btn" type="button" data-settings>Open Settings</button>' : '') : '';
-    if (msg) eBody.scrollTop = 0;
+    eError.innerHTML = msg ? D.esc(msg) + (withSettings ? '<br><button class="pill solid" type="button" data-settings>Sign in again</button>' : '') : '';
+    if (msg) editor.scrollTop = 0;
   }
-  eError.addEventListener('click', e => { if (e.target.closest('[data-settings]')) openSettings(false); });
+  eError.addEventListener('click', e => { if (e.target.closest('[data-settings]')) openSettings(true); });
   function setBusy(btn, label) {
     busy = !!label;
     [eSave, eCancel, eDelete].forEach(b => { b.disabled = busy; });
@@ -453,8 +550,8 @@
     if (!e.code) console.error(e);
     return `${e.code ? e.message : 'Something went wrong.'} ${what}`;
   };
-  // A save that failed because the sign-in ended: sign out here too, and offer Settings to sign in again.
-  const needsSettings = e => { if (e.code === 'signin') signOut(); return e.code === 'signin'; };
+  // A save that failed because the sign-in ended: sign out here too, and offer to sign in again.
+  const needsSignIn = e => { if (e.code === 'signin') signOut(); return e.code === 'signin'; };
 
   editor.querySelectorAll('textarea').forEach(ta => ta.addEventListener('input', () => { grow(ta); counts(); }));
   // A pasted list loses its leading "-", "•", "*", "1." and "1)" marks, one item on each line.
@@ -476,10 +573,10 @@
     }
   }));
   // The return key moves to the next field instead of saving.
-  [F.name, F.servings, F.tags].forEach((el, i, a) => el.addEventListener('keydown', e => {
+  [[F.name, F.servings], [F.servings, F.ingredients]].forEach(([el, next]) => el.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.isComposing) return;
     e.preventDefault();
-    (a[i + 1] || F.ingredients).focus();
+    next.focus();
   }));
   F.source.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); F.source.blur(); } });
   F.name.addEventListener('input', () => F.name.classList.remove('bad'));
@@ -500,12 +597,12 @@
       start = JSON.stringify(values());
       setData(out.data);
       toast('Saved. The site updates in about a minute.');
-      if (!isOpen(editor)) return;
+      if (top() !== editor) return;
       renderView(out.recipe.id);
       if (editId) back(true);
-      else { swap(view); wake(true); }   // show the new recipe
+      else { swap(view); wakeCheck(); }   // show the new recipe
     } catch (e) {
-      error(failText(e, 'The change is not saved.'), needsSettings(e));
+      error(failText(e, 'The change is not saved.'), needsSignIn(e));
     } finally {
       setBusy(eSave, '');
     }
@@ -526,51 +623,61 @@
     setBusy(eDelete, 'Deleting…');
     try {
       const out = await worker().save({ type: 'delete', id: editId });
+      viewId = null;
       setData(out.data);
       toast(out.recipe ? `Deleted ${out.recipe.name}.` : 'Deleted.');
-      viewId = null;
       closeAll();
     } catch (e) {
-      error(failText(e, 'The recipe is not deleted.'), needsSettings(e));
+      error(failText(e, 'The recipe is not deleted.'), needsSignIn(e));
     } finally {
       setBusy(eDelete, '');
     }
   });
-  fab.addEventListener('click', () => openEditor(null));
 
-  /* ---- settings: the theme, the account, and for the admin, the accounts to approve ---- */
-  const aForm = $('aForm'), aName = $('aName'), aPass = $('aPass'), aGo = $('aGo'), aSwap = $('aSwap');
-  const sResult = $('sResult'), people = $('people'), menuBtn = $('menuBtn');
+  /* ---- settings: the account, the theme, and for the admin, the accounts ---- */
+  const aForm = $('aForm'), aName = $('aName'), aPass = $('aPass'), aGo = $('aGo'), aSwap = $('aSwap'), aResult = $('aResult');
+  const say = $('sSay'), people = $('sPeople'), waitList = $('sWaitList');
   let making = false;   // the form asks for a new account instead of signing in
   let folks = [];       // the admin's list: { key, name, status, created }
-  function result(msg, kind) {
-    sResult.hidden = !msg;
-    sResult.textContent = msg;
-    sResult.className = 'alert' + (kind ? ' ' + kind : '');
-  }
   const problem = e => { if (!e.code) console.error(e); return e.code ? e.message : 'Something went wrong.'; };
+  function result(msg, ok) {
+    aResult.hidden = !msg;
+    aResult.textContent = msg;
+    aResult.classList.toggle('ok', !!ok);
+  }
+  function said(msg) { say.hidden = !msg; say.textContent = msg; }
   function account() {
     const s = session();
-    aForm.hidden = !!s;
-    $('aIn').hidden = !s;
-    $('aAdmin').hidden = !(s && s.admin);
-    if (s) $('aWho').innerHTML = `Signed in as <b>${D.esc(s.name)}</b>${s.admin ? ', the admin' : ''}. You can add and edit recipes.`;
-    $('aStatus').textContent = making ? 'Pick a name and a password. The admin approves new accounts.' : 'Sign in to add and edit recipes.';
+    $('sMe').hidden = !s;
+    $('aBox').hidden = !!s;
+    $('sAdmin').hidden = !(s && s.admin);
+    if (s) {
+      $('sMeAv').textContent = (s.name[0] || '?').toUpperCase();
+      $('sMeAv').style.cssText = paint(face(s.name));
+      $('sMeName').textContent = s.name;
+      $('sMeRole').textContent = s.admin ? 'Admin · signed in' : 'Signed in';
+    }
+    $('aTitle').textContent = making ? 'Ask for an account' : 'Sign in';
+    $('aNote').textContent = making ? 'Pick a name and a password. The admin approves new accounts.' : 'Anyone can read the recipes. Sign in to add and change them.';
     aPass.autocomplete = making ? 'new-password' : 'current-password';
-    $('aPassHint').hidden = !making;
-    aGo.textContent = making ? 'Create account' : 'Sign in';
-    aSwap.textContent = making ? 'I have an account' : 'New here? Create an account';
+    aPass.placeholder = making ? '8 characters or more' : '';
+    aGo.textContent = making ? 'Ask for an account' : 'Sign in';
+    aSwap.textContent = making ? 'I have an account' : 'New here? Ask for an account';
+    $('addBtn').hidden = !s;
+    $('signInBtn').hidden = !!s;
+    drawNav();
+    renderBox();
   }
   function openSettings(need) {
     $('sNeed').hidden = !need;
     result('');
+    said('');
     making = false;
     account();
     if (session() && session().admin) loadFolks();
     applyTheme();
     open(settings);
   }
-  menuBtn.addEventListener('click', () => openSettings(false));
   aSwap.addEventListener('click', () => { making = !making; result(''); account(); });
   aName.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); aPass.focus(); } });
   aForm.addEventListener('submit', async e => {
@@ -581,19 +688,19 @@
     if (!pw) { result('Type your password.'); aPass.focus(); return; }
     if (making && pw.length < 8) { result(A.fail('password').message); aPass.focus(); return; }
     aGo.disabled = aSwap.disabled = true;
-    aGo.textContent = making ? 'Creating…' : 'Signing in…';
+    aGo.textContent = making ? 'Asking…' : 'Signing in…';
     result('');
     try {
       if (making) {
         const out = await A.api().signup(name, pw);
         making = false;
         aPass.value = '';
-        result(`Thanks, ${out.name}. Your account is waiting for ${out.admin} to approve it. Then sign in here.`, 'ok');
+        result(`Thanks, ${out.name}. Your account is waiting for ${out.admin}. You can sign in once it’s approved.`, true);
       } else {
         const out = await A.signIn(name, pw);
         aPass.value = '';
         $('sNeed').hidden = true;
-        result('Signed in. You can add and edit recipes now.', 'ok');
+        toast(`Signed in as ${out.name}.`);
         if (out.admin) loadFolks();
         load();   // the newest copy, from GitHub
       }
@@ -605,78 +712,115 @@
     }
   });
   // A sign-in that ended on the Worker: forget it here too.
-  function signOut() { A.keep(null); dot(0); }
+  function signOut() { A.keep(null); dot(0); account(); }
   $('aOut').addEventListener('click', () => {
     A.signOut();   // here, and on the Worker
     dot(0);
+    folks = [];
     account();
-    result('Signed out.', 'ok');
+    said('');
+    result('Signed out.', true);
   });
 
-  // A dot on the menu button while accounts wait for the admin.
+  // A dot on Settings in the tab bar while accounts wait for the admin. Counting them is a KV list on the Worker,
+  // so a page load asks at most once every 6 hours; opening Settings always asks.
+  function showDot(n) {
+    const b = $('navSettings');
+    b.classList.toggle('dot', n > 0);
+    b.setAttribute('aria-label', n > 0 ? `Settings, ${plural(n, 'account')} waiting for approval` : 'Settings');
+  }
   function dot(n) {
-    menuBtn.classList.toggle('dot', n > 0);
-    menuBtn.setAttribute('aria-label', n > 0 ? `Menu, ${plural(n, 'account')} waiting for approval` : 'Menu');
+    showDot(n);
+    const s = session();
+    if (s && s.admin) store.set(WAITING, JSON.stringify({ name: s.name, n, at: Date.now() }));
+    else store.del(WAITING);
   }
   async function checkWaiting() {
     const s = session();
     if (!s || !s.admin) return;
+    let last = null;
+    try { last = JSON.parse(store.get(WAITING)); } catch (e) {}
+    if (last && last.name === s.name && Date.now() - last.at < 6 * 3600e3) return showDot(last.n);
     try { dot((await A.mine().me()).waiting); } catch (e) { if (e.code === 'signin') signOut(); }
   }
   async function loadFolks() {
-    people.innerHTML = '<li class="none">Loading…</li>';
+    people.innerHTML = '<p class="nobody">Loading…</p>';
+    waitList.innerHTML = '';
+    $('sWaiting').hidden = true;
     try { folks = await A.mine().users(); }
     catch (e) {
-      if (e.code === 'signin') { signOut(); account(); }
-      people.innerHTML = `<li class="none">${D.esc(problem(e))}</li>`;
+      if (e.code === 'signin') signOut();
+      people.innerHTML = `<p class="nobody">${D.esc(problem(e))}</p>`;
       return;
     }
     drawFolks();
   }
-  const day = iso => { const d = new Date(iso + 'T12:00:00'); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
+  // "today", "yesterday" or "on Oct 22"
+  const day = iso => {
+    const d = new Date(iso + 'T12:00:00');
+    if (isNaN(d)) return '';
+    const days = Math.round((new Date().setHours(12, 0, 0, 0) - d) / 864e5);
+    return days <= 0 ? 'today' : days === 1 ? 'yesterday' : 'on ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+  const avatar = p => `<span class="av serif" aria-hidden="true" style="${paint(face(p.name))}">${D.esc((p.name[0] || '?').toUpperCase())}</span>`;
   function drawFolks() {
-    const later = p => p.status === 'pending' ? 0 : 1;   // the people waiting come first
-    folks.sort((a, b) => later(a) - later(b) || a.name.localeCompare(b.name));
-    dot(folks.filter(p => p.status === 'pending').length);
-    people.innerHTML = folks.length ? folks.map(p => {
-      const k = D.esc(p.key), name = `<span class="who"><b>${D.esc(p.name)}</b>`;
-      return p.status === 'pending'
-        ? `<li>${name}<small>Asked ${day(p.created)}</small></span><button class="btn solid" type="button" data-approve="${k}">Approve</button><button class="btn" type="button" data-remove="${k}" data-label="Deny">Deny</button></li>`
-        : `<li>${name}<small>Can add and edit</small></span><button class="btn" type="button" data-remove="${k}" data-label="Remove">Remove</button></li>`;
-    }).join('') : '<li class="none">No one has asked for an account yet.</li>';
+    const waiting = folks.filter(p => p.status === 'pending'), approved = folks.filter(p => p.status !== 'pending');
+    waiting.sort((a, b) => a.name.localeCompare(b.name));
+    approved.sort((a, b) => a.name.localeCompare(b.name));
+    dot(waiting.length);
+    $('sWaiting').hidden = !waiting.length;
+    waitList.innerHTML = waiting.map(p => {
+      const k = D.esc(p.key), asked = day(p.created);
+      return `<div class="box waiting"><div class="row">${avatar(p)}<span class="who"><b>${D.esc(p.name)}</b><small>Asked for an account${asked ? ' ' + asked : ''}</small></span></div>`
+        + `<div class="two"><button class="pill solid" type="button" data-approve="${k}">Approve</button><button class="pill" type="button" data-remove="${k}" data-label="Deny" data-armed="Tap again to deny" aria-label="Deny ${D.esc(p.name)}">Deny</button></div></div>`;
+    }).join('');
+    people.innerHTML = approved.length
+      ? approved.map(p => `<div class="row">${avatar(p)}<span class="who"><b>${D.esc(p.name)}</b></span><button class="pill" type="button" data-remove="${D.esc(p.key)}" data-label="Remove" data-armed="Tap again" aria-label="Remove ${D.esc(p.name)}">Remove</button></div>`).join('')
+      : '<p class="nobody">No other accounts yet.</p>';
   }
-  function unarm() { people.querySelectorAll('.armed').forEach(b => { b.classList.remove('armed'); b.textContent = b.dataset.label; }); }
-  people.addEventListener('click', async e => {
+  function unarm() {
+    settings.querySelectorAll('[data-remove].armed').forEach(b => {
+      b.classList.remove('armed');
+      b.textContent = b.dataset.label;
+      b.setAttribute('aria-label', b.getAttribute('aria-label').replace(/^Tap again to (\w+)/, (m, w) => w[0].toUpperCase() + w.slice(1)));
+    });
+  }
+  $('sAdmin').addEventListener('click', async e => {
     const b = e.target.closest('button'), s = session();
     if (!b || b.disabled || !s) return;
     const key = b.dataset.approve ?? b.dataset.remove, p = folks.find(x => x.key === key);
+    if (!p) return;
     if (b.dataset.remove != null && !b.classList.contains('armed')) {   // Deny and Remove ask for a second tap
       unarm();
       b.classList.add('armed');
-      b.textContent = 'Tap again';
+      b.textContent = b.dataset.armed;
+      b.setAttribute('aria-label', `Tap again to ${b.dataset.label.toLowerCase()} ${p.name}`);
       return;
     }
     unarm();
     b.disabled = true;
-    result('');
+    said('');
     try {
       if (b.dataset.approve != null) {
         await A.mine().approve(key);
         p.status = 'approved';
-        toast(`${p.name} can add and edit recipes now.`);
+        said(`${p.name} can sign in now.`);
       } else {
         await A.mine().remove(key);
         folks = folks.filter(x => x !== p);
-        toast(p.status === 'pending' ? `${p.name} is turned down.` : `${p.name} is removed.`);
+        said(p.status === 'pending' ? `${p.name}’s request is gone.` : `${p.name} can no longer sign in.`);
       }
       drawFolks();
     } catch (err) {
-      result(problem(err));
-      if (err.code === 'nobody') loadFolks(); else b.disabled = false;
+      said(problem(err));
+      if (err.code === 'signin') signOut();
+      else if (err.code === 'nobody') loadFolks();
+      else b.disabled = false;
     }
   });
 
   applyTheme();
+  account();
   load();
   checkWaiting();
 })();

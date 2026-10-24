@@ -20,7 +20,7 @@ One name and password works on every page of dorrance.me. Recipes uses the accou
 
 ## Approving accounts
 
-Today the admin approves accounts in Recipes: Settings > Accounts, with Approve, Deny and Remove. A dot on the Recipes menu button shows while someone is waiting. Another app can show the same list with `Account.mine().users()`, `.approve(key)` and `.remove(key)`.
+Today the admin approves accounts in Recipes: Settings > "Waiting for you" has Approve and Deny, and Settings > Accounts has Remove. A dot on Settings in the Recipes tab bar shows while someone is waiting. `GET /api/auth/me` counts the waiting accounts with a KV list, so a page should not call it on every load; Recipes asks at most once every 6 hours. Another app can show the same list with `Account.mine().users()`, `.approve(key)` and `.remove(key)`.
 
 ## Use the accounts in an app
 

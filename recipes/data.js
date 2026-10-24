@@ -40,10 +40,11 @@
     const seen = new Set();
     return String(text || '').split(',').map(s => s.trim()).filter(t => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()));
   }
+  // A link without "https://" gets it. Other text, such as a cookbook or a person, stays as it is.
   function normUrl(text) {
     const s = String(text || '').trim();
-    if (!s) return '';
-    return /^[a-z][a-z0-9+.-]*:/i.test(s) ? s : 'https://' + s;
+    if (!s || /^[a-z][a-z0-9+.-]*:/i.test(s)) return s;
+    return /^[^\s/]+\.[a-z]{2,}(?:[/?#:]\S*)?$/i.test(s) ? 'https://' + s : s;
   }
   // Only http and https links are shown as links.
   function safeUrl(s) {
@@ -147,6 +148,38 @@
     return { ingredients, snippet: (from > 0 ? '…' : '') + hit.slice(from, end) + (end < hit.length ? '…' : '') };
   }
 
+  /* ---- amounts and times, for the recipe card and cooking mode ---- */
+  // "1/4 tsp Italian seasoning" -> { qty: '¼ tsp', what: 'Italian seasoning' }. A line with no amount has qty ''.
+  const FRAC = '[¼½¾⅓⅔⅛⅜⅝⅞]';
+  const NUM = `(?:\\d+(?:[.,]\\d+)?(?:\\s+\\d\\/\\d|\\s*${FRAC})?|\\d\\/\\d|${FRAC})`;
+  const UNITS = 'cups?|tablespoons?|tbsps?|tbs|teaspoons?|tsps?|pounds?|lbs?|ounces?|oz|grams?|g|kilograms?|kg|ml|milliliters?|liters?|l|' +
+    'quarts?|qts?|pints?|pts?|gallons?|gal|cloves?|strips?|slices?|packets?|packages?|pkgs?|jars?|cans?|sticks?|bunch(?:es)?|heads?|' +
+    'pinch(?:es)?|dash(?:es)?|sprigs?|stalks?|handfuls?|dozen|pieces?|inch(?:es)?|boxes|box|bags?|bottles?|envelopes?|containers?|links?';
+  const SIZE = '(?:small|medium|large|big|heaping|level|scant)';
+  const AMOUNT = new RegExp(`^(${NUM}(?:\\s*(?:-|–|to|or)\\s*${NUM})?(?:\\s+${SIZE})?(?:\\s*(?:${UNITS})\\b\\.?)?)\\s+(\\S.*)$`, 'i');
+  const GLYPH = { '1/2': '½', '1/3': '⅓', '2/3': '⅔', '1/4': '¼', '3/4': '¾', '1/8': '⅛', '3/8': '⅜', '5/8': '⅝', '7/8': '⅞' };
+  const pretty = q => q.replace(/(\d+)\s+(\d\/\d)\b/g, (m, w, f) => GLYPH[f] ? w + GLYPH[f] : m).replace(/\b\d\/\d\b/g, f => GLYPH[f] || f);
+  function amount(line) {
+    const s = String(line).trim(), m = AMOUNT.exec(s);
+    return m ? { qty: pretty(m[1]), what: m[2] } : { qty: '', what: s };
+  }
+  // The first time in a step, as a timer: { secs, note }, or null. "Simmer 10 to 15 minutes" -> 600 s, "10–15 min in
+  // this step". A range starts at the shorter time; "1 hour 30 minutes" is one timer.
+  const TIME = /(\d+)(?:\s*(?:to|-|–|or)\s*(\d+))?\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b(?:,?\s*(?:and\s+)?(\d+)\s*(?:minutes?|mins?)\b)?/i;
+  function timerFor(step) {
+    const m = TIME.exec(String(step));
+    if (!m) return null;
+    const u = m[3][0].toLowerCase(), per = { h: 3600, m: 60, s: 1 }[u], more = u === 'h' && m[4] ? +m[4] : 0;
+    const secs = +m[1] * per + more * 60;
+    if (!secs) return null;
+    return { secs, note: `${m[1]}${m[2] ? '–' + m[2] : ''} ${{ h: 'hr', m: 'min', s: 'sec' }[u]}${more ? ` ${more} min` : ''} in this step` };
+  }
+  // 300 -> "5:00", 5400 -> "1:30:00"
+  function clock(secs) {
+    const s = Math.max(0, Math.round(secs)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), pad = n => String(n).padStart(2, '0');
+    return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
+  }
+
   /* ---- base64 that keeps non-ASCII text (plain atob and btoa work on bytes, not on UTF-8 text) ---- */
   function toBase64(str) {
     const bytes = new TextEncoder().encode(str);
@@ -228,5 +261,5 @@
   }
 
   return { REPO, API, slug, uniqueId, cleanLine, cleanPaste, lines, tagList, normUrl, safeUrl, fromForm, toForm, parse, serialize,
-    forView, apply, hl, esc, match, toBase64, fromBase64, fail, api };
+    forView, apply, hl, esc, match, amount, timerFor, clock, toBase64, fromBase64, fail, api };
 });

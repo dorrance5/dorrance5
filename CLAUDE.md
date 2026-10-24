@@ -57,6 +57,7 @@ This is a static site of small phone apps. GitHub Pages deploys `main` with `.gi
 - Run the browser checks: `NODE_PATH=<folder with playwright> node recipes/test/flows.cjs`
 - Make the screenshots: `NODE_PATH=<folder with playwright> node recipes/test/shots.cjs <output folder>`
 - Render the icons: `NODE_PATH=<folder with playwright> node docs/icons/render-recipes.cjs`
+- `oldrecipes/` is version 1 of Recipes, kept at dorrance.me/oldrecipes. It reads and saves the same `recipes/recipes.json`. Do not add features to it. When a change could affect it (`recipes/recipes.json`, the Worker's recipes routes, `shared/account.js`), run its checks too: `NODE_PATH=<folder with playwright> node oldrecipes/test/flows.cjs` and `NODE_PATH=<folder with playwright> node oldrecipes/test/shots.cjs <output folder>`.
 
 ## Accounts and the API Worker
 

@@ -1,6 +1,6 @@
 // Drives the Recipes page in WebKit at 390 × 844 against the API Worker run in Node (worker/test/harness.cjs), with a stand-in for GitHub:
-// search, the deck of cards and the pile, the recipe sheet, theme and Aurora, accounts and the admin, add, edit, delete,
-// a 409, errors and the back button.
+// the recipe box and its dividers, search, a recipe, cooking mode and its timers, theme, accounts and the admin, add, edit,
+// delete, a 409, errors and the back button.
 // Exits 1 on a failed check or a console error.
 //   NODE_PATH=/path/to/node_modules node recipes/test/flows.cjs
 const { webkit, devices } = require('playwright');
@@ -24,6 +24,8 @@ const results = [];
 const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${info !== undefined && !ok ? ' — ' + JSON.stringify(info) : ''}`); };
 const decoded = body => Buffer.from(body.content, 'base64').toString('utf8');
 const recipeIn = (text, id) => JSON.parse(text).recipes.find(r => r.id === id);
+const ZUPPA = "Megan's zuppa toscana";
+const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(246, 201, 69)';
 
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
@@ -34,446 +36,447 @@ const recipeIn = (text, id) => JSON.parse(text).recipes.find(r => r.id === id);
   const user = key => api.kv.get('auth:user:' + key, 'json');
   const sessions = () => [...api.kv.m.keys()].filter(k => k.startsWith('auth:session:')).length;
   const browser = await webkit.launch();
-  const ctx = await browser.newContext({ ...devices['iPhone 13'], viewport: { width: 390, height: 844 } });
-  await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: '' }));
-  await ctx.route('**/api/**', api.route);
+  const phone = { ...devices['iPhone 13'], viewport: { width: 390, height: 844 } };
+  async function newContext() {
+    const ctx = await browser.newContext(phone);
+    await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: '' }));
+    await ctx.route('**/api/**', api.route);
+    // a wake lock that counts, and a vibration that counts
+    await ctx.addInitScript(() => {
+      window.__wake = { requests: 0, releases: 0 };
+      window.__buzz = 0;
+      Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request: async () => {
+        __wake.requests++;
+        const s = new EventTarget();
+        s.release = async () => { __wake.releases++; s.dispatchEvent(new Event('release')); };
+        return s;
+      } } });
+      navigator.vibrate = () => { __buzz++; return true; };
+    });
+    return ctx;
+  }
+  const ctx = await newContext();
   // a GitHub token left on the phone from before accounts, which the page removes
   await ctx.addInitScript(() => { if (!sessionStorage.getItem('old')) { sessionStorage.setItem('old', '1'); localStorage.setItem('recipes-token', 'github_pat_OLD'); } });
-  // a wake lock that the test can refuse or grant
-  await ctx.addInitScript(() => {
-    window.__wake = { requests: 0, releases: 0, refuse: true };
-    Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request: async () => {
-      __wake.requests++;
-      if (__wake.refuse) throw new DOMException('Not allowed', 'NotAllowedError');
-      const s = new EventTarget();
-      s.release = async () => { __wake.releases++; s.dispatchEvent(new Event('release')); };
-      return s;
-    } } });
-  });
   const page = await ctx.newPage();
   const errors = [];
   // A failed status from the API shows in the console as "Failed to load resource"; that is the test, not a bug.
-  page.on('console', m => { if (m.type() === 'error' && !(/^Failed to load resource/.test(m.text()) && /\/api\//.test(m.location().url || ''))) errors.push(m.text()); });
+  const watch = p => {
+    p.on('console', m => { if (m.type() === 'error' && !(/^Failed to load resource/.test(m.text()) && /\/api\//.test(m.location().url || ''))) errors.push(m.text()); });
+    p.on('pageerror', e => errors.push(e.message));
+  };
+  watch(page);
   const urls = [];
   page.on('request', r => urls.push(r.url()));
-  page.on('pageerror', e => errors.push(e.message));
   let answer = null;   // the reply to the next confirm()
-  page.on('dialog', d => { (answer ? d.accept() : d.dismiss()).catch(() => {}); answer = null; });
+  const asked = [];
+  page.on('dialog', d => { asked.push(d.message()); (answer ? d.accept() : d.dismiss()).catch(() => {}); answer = null; });
 
-  const names = () => page.$$eval('#list .card .nm', els => els.map(e => e.textContent));
+  const names = (p = page) => p.$$eval('#deck .rc .nm', els => els.map(e => e.textContent));
   const tap = sel => page.tap(sel);
-  const opened = id => page.waitForSelector(`#${id}.open`);
-  const closed = id => page.waitForSelector(`#${id}`, { state: 'hidden' });
-  const openRecipe = async name => { await page.tap(`#list .card:has-text("${name}")`); await opened('view'); };
-  const paste = (sel, text) => page.evaluate(([sel, text]) => {
+  const opened = (id, p = page) => p.waitForSelector(`#${id}.open`);
+  const closed = (id, p = page) => p.waitForSelector(`#${id}`, { state: 'hidden' });
+  const openRecipe = async (name, p = page) => { await p.tap(`#deck .rc:has-text("${name}")`); await opened('view', p); };
+  const text = sel => page.textContent(sel);
+  const bg = sel => page.$eval(sel, el => getComputedStyle(el).backgroundColor);
+  const pressed = sel => page.$$eval(sel, els => els.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.textContent.trim()));
+  const depth = () => page.evaluate(() => (history.state && history.state.sheets) || 0);
+  const paste = (sel, t) => page.evaluate(([sel, t]) => {
     const ta = document.querySelector(sel);
     ta.focus();
     ta.setSelectionRange(ta.value.length, ta.value.length);
     const dt = new DataTransfer();
-    dt.setData('text/plain', text);
+    dt.setData('text/plain', t);
     ta.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
     return ta.value;
-  }, [sel, text]);
+  }, [sel, t]);
   // Phone rules for whatever is on screen now.
-  async function phoneRules(where) {
-    const r = await page.evaluate(() => {
+  async function phoneRules(where, p = page) {
+    const r = await p.evaluate(() => {
       const visible = el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[inert], [hidden]');
-      const small = [...document.querySelectorAll('button, a, .checks label, input:not([type=checkbox]), textarea')].filter(visible)
+      const small = [...document.querySelectorAll('button, a, input, textarea')].filter(visible)
         .map(el => ({ el, b: el.getBoundingClientRect() })).filter(({ b }) => b.height < 44 || b.width < 44)
         .map(({ el, b }) => `${el.id || el.className || el.tagName} ${Math.round(b.width)}x${Math.round(b.height)}`);
-      const fonts = [...document.querySelectorAll('input, textarea')].map(el => parseFloat(getComputedStyle(el).fontSize)).filter(s => s < 16);
-      const wide = [...document.querySelectorAll('.sheet .body')].filter(visible).filter(b => b.scrollWidth > b.clientWidth + 1).length;
+      const fonts = [...document.querySelectorAll('input, textarea')].filter(visible).map(el => parseFloat(getComputedStyle(el).fontSize)).filter(s => s < 16);
+      const wide = [...document.querySelectorAll('.layer')].filter(visible).filter(l => l.scrollWidth > l.clientWidth + 1).map(l => l.id);
       return { small, fonts, sideways: document.documentElement.scrollWidth - innerWidth, wide };
     });
     check(`${where}: tap targets are 44 px or more`, r.small.length === 0, r.small);
-    check(`${where}: no sideways scroll at 390`, r.sideways <= 0 && r.wide === 0, r);
-    if (where === 'list') check('inputs are 16 px or more, so iOS does not zoom', r.fonts.length === 0, r.fonts);
+    check(`${where}: inputs are 16 px or more, so iOS does not zoom`, r.fonts.length === 0, r.fonts);
+    check(`${where}: no sideways scroll at 390`, r.sideways <= 0 && r.wide.length === 0, r);
   }
+  // Each card in the deck: how much of it shows above the next card, and which card a tap there reaches.
+  const deck = (p = page) => p.evaluate(() => {
+    const cards = [...document.querySelectorAll('#deck .rc')];
+    const at = (x, y) => { const c = document.elementFromPoint(x, y)?.closest('.rc'); return c ? cards.indexOf(c) : -1; };
+    return cards.map((c, i) => {
+      const b = c.getBoundingClientRect(), shows = cards[i + 1] ? cards[i + 1].getBoundingClientRect().top - b.top : b.height;
+      return { i, top: b.top, shows, onIt: b.top + shows / 2 < innerHeight ? at(b.left + 60, b.top + shows / 2) : i };
+    });
+  });
 
-  /* ---- reading, no token ---- */
+  /* ---- reading, signed out ---- */
   await page.goto(base);
-  await page.waitForSelector('#list .card');
+  await page.waitForSelector('#deck .rc');
   const first = await names();
   check('11 recipes from the site file, sorted by name', first.length === 11 && first.join() === [...first].sort((a, b) => a.localeCompare(b)).join(), first);
-  check('count line', (await page.textContent('#count')) === '11 recipes');
-  check('without a search each card shows only its name', await page.$$eval('#list .card .face', fs => fs.every(f => f.children.length === 1 && f.firstElementChild.className === 'nm')));
-  await openRecipe('Jen');
-  check('a recipe with no ingredients says so', (await page.textContent('#vBody')).includes('No ingredients yet'));
-  await page.goBack();
-  await closed('view');
   check('the file comes from the site without a sign-in', gh.gets === 0);
   check('an old GitHub token is removed from the phone', (await page.evaluate(() => localStorage.getItem('recipes-token'))) === null);
-  await phoneRules('list');
-  const addBtn = await page.$eval('#addBtn', b => { const r = b.getBoundingClientRect(); return { right: innerWidth - r.right, bottom: innerHeight - r.bottom }; });
-  check('Add recipe floats at the bottom right', addBtn.right >= 16 && addBtn.bottom >= 16, addBtn);
-  await page.evaluate(() => scrollTo(0, document.body.scrollHeight));
-  const lastClear = await page.evaluate(() => document.querySelector('#list li:last-child').getBoundingClientRect().bottom <= document.getElementById('addBtn').getBoundingClientRect().top);
-  check('the last card scrolls clear of the Add button', lastClear);
+  check('signed out: no tab bar, and Sign in in the header in place of +', await page.isHidden('#nav') && await page.isVisible('#signInBtn') && await page.isHidden('#addBtn'));
+  const tabLabels = () => page.$$eval('#tabs button', bs => bs.map(b => b.firstElementChild.textContent + ' ' + b.lastElementChild.textContent));
+  const tabs = await tabLabels();
+  check('dividers: All on the left, then each category with its count', tabs.join('|') === 'All 11|Crock pot 1|Soup 1', tabs);
+  check('All is open', (await pressed('#tabs button')).join() === 'All11');
+  const cardBg = async name => page.$eval(`#deck .rc:has-text("${name}")`, el => getComputedStyle(el).backgroundColor);
+  check('cards take their category color: Soup tomato, Crock pot carrot, none butter',
+    (await cardBg(ZUPPA)) === TOMATO && (await cardBg('Pepperoncini')) === CARROT && (await cardBg('Burgers')) === BUTTER);
+  check('a card with a category shows it', (await text(`#deck .rc:has-text("${ZUPPA}") .tg`)) === 'Soup' && !(await page.$('#deck .rc:has-text("Burgers") .tg')));
+  const strips = (await deck()).slice(0, -1).filter(c => c.top + c.shows < 844);
+  check('each card shows a strip of 44 px or more, and a tap there opens that card', strips.length >= 6 && strips.every(c => c.shows >= 44 && c.onIt === c.i), strips);
+  await phoneRules('recipe box');
+  check('the browser bar is tomato over the header', (await page.$eval('meta[name="theme-color"]', m => m.content)) === TOMATO);
 
-  /* ---- the cards are a deck of name strips, and they pile up under the search field as the list scrolls ---- */
-  // Each card: its place on screen, its transform, how tall its name is on screen, how much of it shows above the
-  // next card, and which card a tap on the part that shows, or just below it, would reach.
-  const deck = (p = page) => p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => {
-    const cards = [...document.querySelectorAll('#list .card')];
-    const at = (x, y) => { const c = document.elementFromPoint(x, y)?.closest('.card'); return c ? cards.indexOf(c) : -1; };
-    const T = document.getElementById('searchbar').getBoundingClientRect().bottom + 16;   // where the pile is
-    r({ T, cards: cards.map((c, i) => {
-      const b = c.getBoundingClientRect(), nm = c.querySelector('.nm').getBoundingClientRect().height;
-      const shows = cards[i + 1] ? cards[i + 1].getBoundingClientRect().top - b.top : b.height;
-      const f = c.style.getPropertyValue('--fade'), fade = f === '' ? 1 : +f;
-      return { i, top: b.top, height: b.height, transform: c.style.transform, nm, shows, fade,
-        onName: at(b.left + 60, b.top + shows / 2), onNext: at(b.left + 60, b.top + shows + 4) };
-    }) });
-  }))));
-  const flat = c => c.transform === 'scaleY(0.86)';   // tipped back, but not in the pile
-  await page.evaluate(() => scrollTo(0, 0));
-  let { cards } = await deck();
-  const strips = cards.slice(0, -1).filter(c => c.top + c.shows < 844);
-  check('at the top of the page every card tips back in its place', cards.every(flat), cards.filter(c => !flat(c)));
-  check('each card shows only its name, never its bottom edge', strips.length >= 6 && strips.every(c => c.shows >= 44 && c.shows < c.nm + 14 && c.shows < c.height - 1), strips.map(c => [c.i, Math.round(c.shows), Math.round(c.nm), Math.round(c.height)]));
-  check('a lower card lies on top of the one above', strips.every(c => c.onName === c.i && c.onNext === c.i + 1), strips.map(c => [c.i, c.onName, c.onNext]));
-
-  // a second phone with 30 recipes, so the list scrolls far enough to pile up
-  const many = require('./many.cjs');
-  const ctx2 = await browser.newContext({ ...devices['iPhone 13'], viewport: { width: 390, height: 844 } });
-  await ctx2.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: '' }));
-  await ctx2.route('**/recipes/recipes.json', r => r.fulfill({ contentType: 'application/json', body: many(FILE) }));
-  const page2 = await ctx2.newPage();
-  page2.on('pageerror', e => errors.push(e.message));
-  await page2.goto(base);
-  await page2.waitForSelector('#list .card');
-  check('the long list has 30 recipes', (await page2.$$('#list .card')).length === 30);
-  await page2.evaluate(() => scrollTo(0, 900));
-  let pile = await deck(page2);
-  const piled = pile.cards.filter(c => !flat(c)), on = pile.cards.filter(c => flat(c) && c.top < 844);
-  check('cards that go past the search field pile up under it', piled.length >= 8 && piled.every(c => c.top >= pile.T - 16 && c.top <= pile.T + 0.5), { T: pile.T, tops: piled.map(c => Math.round(c.top)) });
-  check('names in the pile fade out', piled.slice(0, -1).every(c => c.fade < 1) && piled.some(c => c.fade === 0), piled.map(c => c.fade));
-  check('below the pile the cards come up as usual', on.length >= 6 && on.every(c => c.top > pile.T), on.map(c => Math.round(c.top)));
-  const pileTop = await page2.evaluate(y => {
-    const cards = [...document.querySelectorAll('#list .card')];
-    const under = cards.filter(c => { const b = c.getBoundingClientRect(); return b.top <= y && b.bottom > y; });
-    return { hit: cards.indexOf(document.elementFromPoint(100, y)?.closest('.card')), newest: cards.indexOf(under.at(-1)), under: under.length };
-  }, pile.T - 6);
-  check('in the pile a lower card lies on top too', pileTop.under >= 2 && pileTop.hit === pileTop.newest, pileTop);
-  await page2.emulateMedia({ reducedMotion: 'reduce' });
-  pile = await deck(page2);
-  check('with reduced motion the cards do not pile up', pile.cards.every(flat), pile.cards.filter(c => !flat(c)).map(c => c.transform));
-  await ctx2.close();
-
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await openRecipe('Salmon bowls');
-  check('with reduced motion the card is not pulled out', (await page.$$('#list .card.out')).length === 0);
-  await page.goBack();
-  await closed('view');
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.evaluate(() => scrollTo(0, 0));
-
-  await page.fill('#q', 'red onion');
-  check('search for an ingredient', (await names()).join() === "Madi's pasta salad,Sheet pan breakfast burritos", await names());
-  check('the matching ingredient shows and is marked', (await page.innerHTML('.card:has-text("Madi") .hit')) === '<mark>Red onion</mark>');
-  await page.fill('#q', 'garnish');
-  check('a match in the notes shows a piece of the note', (await page.innerHTML('.card:has-text("Tacos") .hit')).includes('<mark>garnish</mark>'));
+  /* ---- dividers and search ---- */
+  await tap('#tabs [data-tab="Soup"]');
+  check('the Soup divider shows only soups, and the band under it is tomato', (await names()).join() === ZUPPA && (await bg('#band')) === TOMATO && (await pressed('#tabs button')).join() === 'Soup1');
+  await page.fill('#q', 'chili');
+  check('a search in a divider with nothing found says so', (await text('#none')) === 'No recipe under Soup has “chili”.' && await page.isVisible('#none'));
+  await tap('#tabs [data-tab=""]');
+  check('All again: the search finds White chicken chili', (await names()).join() === 'White chicken chili');
+  await page.fill('#q', 'onion');
+  const hits = await page.$$eval('#deck .rc', cs => cs.map(c => [c.querySelector('.nm').textContent, c.querySelector('.hit')?.innerHTML || '']));
+  check('a search for an ingredient shows why each card matched', hits.length === 4 && hits.every(([, h]) => /<mark>onion<\/mark>/i.test(h)), hits);
+  const hitStrips = (await deck()).slice(0, -1);
+  check('cards with a reason still show their name and the reason above the next card', hitStrips.every(c => c.shows >= 64 && c.onIt === c.i), hitStrips);
   await page.fill('#q', 'zzz');
-  check('no match says so', await page.isVisible('#none') && (await page.textContent('#count')) === '0 of 11 recipes');
-  await page.fill('#q', '');
+  check('nothing found: says so', (await text('#none')) === 'No recipe has “zzz”.');
+  await tap('#qClear');
+  check('the clear button empties the search', (await page.inputValue('#q')) === '' && (await names()).length === 11 && await page.isHidden('#qClear'));
 
-  const wake0 = await page.evaluate(() => __wake.requests);
-  await openRecipe("Megan's zuppa toscana");
-  const v = await page.evaluate(() => ({
-    name: document.getElementById('vName').textContent,
-    chips: [...document.querySelectorAll('#vBody .chip')].map(c => c.textContent),
-    ings: document.querySelectorAll('#vBody .checks li').length,
-    steps: document.querySelectorAll('#vBody .steps li').length,
-    notes: !!document.querySelector('#vBody .notes'),
-    src: document.querySelector('#vBody a.source')?.textContent,
-    srcTarget: document.querySelector('#vBody a.source')?.target
-  }));
-  check('the recipe sheet shows everything', v.name === "Megan's zuppa toscana" && v.chips.join() === 'Serves 6,Soup' && v.ings === 11 && v.steps === 9 && v.notes && v.src === 'saltandlavender.com' && v.srcTarget === '_blank', v);
-  check('the tapped card is out of the list while its recipe is open', (await page.$$eval('#list .card.out', cs => cs.map(c => c.dataset.id))).join() === 'megans-zuppa-toscana');
-  await page.waitForTimeout(500);
-  const full = await page.evaluate(() => { const s = document.querySelector('#view .sheet'), b = s.getBoundingClientRect(); return { clip: s.style.clipPath, transform: s.style.transform, bottom: Math.round(b.bottom), cls: s.className }; });
-  check('the card grows into the full recipe sheet', full.clip === '' && full.transform === '' && full.bottom === 844 && full.cls === 'sheet', full);
-  await tap('#vBody .checks li:nth-child(2) label');
-  check('tap an ingredient to check it off', await page.isChecked('#vBody .checks li:nth-child(2) input'));
-  check('a wake lock is asked for, and a refusal is fine', (await page.evaluate(() => __wake.requests)) === wake0 + 1);
-  check('the page behind the sheet is inert', await page.evaluate(() => document.getElementById('page').inert && document.getElementById('addBtn').inert));
+  /* ---- one recipe ---- */
+  await openRecipe(ZUPPA);
+  check('the recipe opens as an index card with its name', (await text('#vName')) === ZUPPA);
+  check('chips: the category, then Serves', (await page.$$eval('#vBody .chip', cs => cs.map(c => c.textContent))).join('|') === 'Soup|Serves 6');
+  check('the card has a tomato strip', (await bg('#vBody .strip')) === TOMATO);
+  const ings = await page.$$eval('#vBody .lines li', ls => ls.map(l => [l.querySelector('strong')?.textContent || '', l.querySelector('span').textContent]));
+  check('ingredients: the amount in bold, ¼ for 1/4, and none for "Salt and pepper"',
+    ings.length === 11 && ings[0].join('|') === '5 strips|bacon (thick-cut)' && ings[7].join('|') === '¼ tsp|Italian seasoning' && ings[10].join('|') === '|Salt and pepper', ings);
+  check('signed out: no Edit button', await page.isHidden('#editBtn'));
+  check('the notes and the link to where it is from', (await text('#vBody .notes p')).startsWith('Hot Italian sausage') &&
+    (await page.$eval('#vBody a.source', a => [a.textContent.trim(), a.target, a.rel].join('|'))) === 'From saltandlavender.com|_blank|noopener');
+  check('the screen stays on while a recipe is open', (await page.evaluate(() => __wake.requests)) === 1);
+  check('the page behind is inert', await page.$eval('#page', p => p.inert));
+  await tap('#vBody [data-half="steps"]');
+  const steps = await page.$$eval('#vBody .steps li', ls => ls.map(l => l.querySelector('.num').textContent + ' ' + l.lastElementChild.textContent));
+  check('Steps shows the 9 numbered steps', steps.length === 9 && steps[0].startsWith('1 Cut the bacon') && (await pressed('#vBody [data-half]')).join() === 'Steps · 9', steps[0]);
+  check('Steps keeps the focus on its button', await page.evaluate(() => document.activeElement.dataset.half === 'steps'));
+  await tap('#vBody [data-half="ing"]');
   await phoneRules('recipe');
   await page.goBack();
   await closed('view');
-  check('the back button closes the sheet', !(await page.evaluate(() => document.documentElement.classList.contains('locked'))));
-  const backIn = await page.evaluate(() => ({ out: document.querySelectorAll('#list .card.out').length, sheet: document.querySelector('#view .sheet').getAttribute('style') }));
-  check('the card goes back into the list', backIn.out === 0 && !backIn.sheet, backIn);
-  await openRecipe("Megan's zuppa toscana");
-  check('checks are not saved', !(await page.isChecked('#vBody .checks li:nth-child(2) input')));
-  await tap('#view button[data-close]');
+  check('back closes the recipe and gives the focus back to its card', (await page.evaluate(() => document.activeElement.dataset.id)) === 'megans-zuppa-toscana');
+  check('the screen may sleep again', (await page.evaluate(() => __wake.releases)) === 1);
+  await openRecipe('Burgers');
+  check('a recipe with no steps: no Steps button, no Start cooking', !(await page.$('#vBody .seg')) && !(await page.$('#cookBtn')) && (await page.$$('#vBody .lines li')).length === 3);
+  await tap('#view [data-close]');
   await closed('view');
-  check('the close button leaves no extra history', await page.evaluate(() => !history.state || !history.state.sheets));
-
-  const asked = await page.evaluate(() => { __wake.refuse = false; return __wake.requests; });
-  await openRecipe('Salmon bowls');
-  await page.waitForFunction(n => __wake.requests === n + 1, asked);
+  check('the back button on the screen leaves no extra history', (await depth()) === 0);
+  await openRecipe("Jen's tortellini");
+  check('a recipe with no ingredients says so', (await text('#vBody')).includes('No ingredients yet.'));
   await page.keyboard.press('Escape');
   await closed('view');
-  check('a granted wake lock is released on close', (await page.evaluate(() => __wake.releases)) === 1);
 
-  await openRecipe('Salmon bowls');
-  await tap('#editBtn');
-  await opened('settings');
-  check('Edit without a sign-in opens Settings and says why', await page.isVisible('#sNeed') && (await page.textContent('#sNeed')).includes('Sign in to add or edit recipes.'));
+  /* ---- cooking mode ---- */
+  await openRecipe(ZUPPA);
+  const released = await page.evaluate(() => __wake.releases);
+  await tap('#cookBtn');
+  await opened('cook');
+  check('cooking mode: step 1 of 9, one step at a time', (await text('#cKick')) === 'Step 1 of 9' && (await text('#cText')).startsWith('Cut the bacon') && (await text('#cName')) === ZUPPA);
+  check('the progress bar has 9 parts, 1 done', (await page.$$eval('#cProgress span', s => [s.length, s.filter(x => x.className === 'done').length].join())) === '9,1');
+  check('a step with "5 minutes" has a 5:00 timer', await page.isVisible('#cTimer') && (await text('#cClock')) === '5:00' && (await text('#cWhat')) === '5 min in this step' && (await text('#cGo')) === 'Start');
+  check('Back is off on the first step', await page.$eval('#cBack', b => b.disabled));
+  await phoneRules('cooking');
+  await tap('#cNext');
+  check('Next step: step 2, a 15-minute timer', (await text('#cKick')) === 'Step 2 of 9' && (await text('#cClock')) === '15:00');
+  await tap('#cNext');
+  check('a step with no time has no timer', (await text('#cKick')) === 'Step 3 of 9' && await page.isHidden('#cTimer'));
+  await tap('#cNext');
+  check('"2 to 3 minutes" starts at 2:00 and says the range', (await text('#cClock')) === '2:00' && (await text('#cWhat')) === '2–3 min in this step');
+  await page.keyboard.press('ArrowLeft');
+  check('the left arrow key goes back a step', (await text('#cKick')) === 'Step 3 of 9');
+  await tap('#cBack');
+  await tap('#cBack');
+  await tap('#cGo');
+  await page.waitForTimeout(1300);
+  const ran = await text('#cClock');
+  check('Start counts down', ran === '4:59' || ran === '4:58', ran);
+  check('and Start turns into Pause', (await text('#cGo')) === 'Pause');
+  await tap('#cGo');
+  const paused = await text('#cClock');
+  await page.waitForTimeout(1200);
+  check('Pause stops it, and the button says Resume', (await text('#cClock')) === paused && (await text('#cGo')) === 'Resume');
+  await tap('#cGo');
+  await tap('#cNext');
+  await tap('#cNext');
+  check('on another step, a button shows the timer that runs', await page.isVisible('#cElse') && /^Step 1 timer · 4:5\d$/.test(await text('#cElse')), await text('#cElse'));
+  await tap('#cElse');
+  check('and it goes back to that step', (await text('#cKick')) === 'Step 1 of 9' && await page.isHidden('#cElse'));
+  await tap('#cReset');
+  check('Reset puts the timer back to 5:00', (await text('#cClock')) === '5:00' && (await text('#cGo')) === 'Start');
+  await tap('#cIngBtn');
+  await opened('cookIng');
+  check('Ingredients opens over cooking mode with all 11', (await page.$$('#ciList li')).length === 11 && (await page.$eval('#cook', c => c.inert)));
+  await phoneRules('cooking ingredients');
+  await tap('#cookIng [data-close]');
+  await closed('cookIng');
+  check('Close goes back to the step', (await text('#cKick')) === 'Step 1 of 9' && (await depth()) === 2);
+  await tap('#cGo');
+  answer = false;
   await page.goBack();
-  await closed('settings');
+  await page.waitForTimeout(200);
+  check('leaving with a timer that runs asks first; No stays', asked.at(-1) === 'A timer is running. Stop it and leave cooking mode?' && await page.isVisible('#cook.open') && (await depth()) === 2);
+  for (let i = 0; i < 8; i++) await tap('#cNext');
+  check('the last step has Done', (await text('#cKick')) === 'Step 9 of 9' && (await text('#cNext')).trim() === 'Done');
+  answer = true;
+  await tap('#cNext');
+  await closed('cook');
+  check('Done asks about the timer, then goes back to the recipe', asked.at(-1).startsWith('A timer is running') && await page.isVisible('#view.open') && (await depth()) === 1);
+  check('the screen stays on from the recipe through cooking mode and back', (await page.evaluate(() => __wake.releases)) === released);
   await page.goBack();
   await closed('view');
-  await tap('#addBtn');
-  await opened('settings');
-  check('Add without a sign-in opens Settings too', await page.isVisible('#sNeed'));
-  await phoneRules('settings');
+
+  // the end of a timer, on a clock the test moves
+  {
+    const c3 = await newContext(), p3 = await c3.newPage();
+    watch(p3);
+    await p3.clock.install();
+    await p3.goto(base);
+    await p3.waitForSelector('#deck .rc');
+    await openRecipe('Pepperoncini', p3);
+    await p3.tap('#cookBtn');
+    await opened('cook', p3);
+    for (let i = 0; i < 3; i++) await p3.tap('#cNext');
+    check('"6 hours" is a 6:00:00 timer', (await p3.textContent('#cClock')) === '6:00:00' && (await p3.textContent('#cWhat')) === '6 hr in this step');
+    await p3.tap('#cGo');
+    await p3.clock.fastForward('01:00:00');
+    check('an hour later it shows 5:00:00', (await p3.textContent('#cClock')) === '5:00:00', await p3.textContent('#cClock'));
+    await p3.clock.fastForward('05:00:01');
+    check('at the end: "Time’s up", 0:00, the phone buzzes, and the button says Again',
+      (await p3.textContent('#cWhat')) === 'Time’s up' && (await p3.textContent('#cClock')) === '0:00' && (await p3.evaluate(() => __buzz)) === 1 && (await p3.textContent('#cGo')) === 'Again');
+    await c3.close();
+  }
 
   /* ---- theme ---- */
-  const seg = await page.$$eval('#themeSeg button', bs => bs.filter(b => !b.hidden).map(b => b.textContent + (b.classList.contains('on') ? '*' : '')));
-  check('theme row is Auto, Day, Night with Auto on the left and on; Aurora is hidden', seg.join() === 'Auto*,Day,Night', seg);
+  await tap('#signInBtn');
+  await opened('settings');
+  check('signed out, Settings has a back button to the box and no tab bar', await page.isVisible('#sBack') && (await text('#sBackText')) === 'Recipe box' && await page.isHidden('#nav'));
+  check('Settings shows the sign-in form', await page.isVisible('#aForm') && await page.isHidden('#sMe'));
+  check('the old recipe book is linked', (await page.$eval('.oldlink', a => a.href)).endsWith('/oldrecipes/'));
+  check('Theme: Auto, Day, Night, with Auto on the left and picked', (await page.$$eval('#themeSeg button', bs => bs.map(b => b.textContent).join())) === 'Auto,Day,Night' && (await pressed('#themeSeg button')).join() === 'Auto');
   await tap('#themeSeg [data-t="dark"]');
-  let th = await page.evaluate(() => ({ key: localStorage.getItem('theme'), attr: document.documentElement.dataset.theme, meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content), bg: getComputedStyle(document.body).backgroundColor }));
-  check('Night writes "dark" and colors the browser bar with the page', th.key === 'dark' && th.attr === 'dark' && th.meta.every(c => c === th.bg) && th.bg === 'rgb(24, 19, 15)', th);
+  check('Night: saved for the whole site, and the page turns dark', (await page.evaluate(() => [localStorage.getItem('theme'), document.documentElement.dataset.theme].join())) === 'dark,dark' && (await bg('body')) === 'rgb(28, 21, 18)');
+  await phoneRules('settings');
   await tap('#themeSeg [data-t="auto"]');
-  th = await page.evaluate(() => ({ key: localStorage.getItem('theme'), attr: document.documentElement.dataset.theme, meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content) }));
-  check('Auto writes "auto" and follows the phone', th.key === 'auto' && th.attr === undefined && th.meta.join() === '#eadcc2,#18130f', th);
+  check('Auto follows the phone', (await page.evaluate(() => [localStorage.getItem('theme'), document.documentElement.dataset.theme || ''].join())) === 'auto,' && (await bg('body')) === 'rgb(251, 243, 228)');
+  await page.evaluate(() => localStorage.setItem('theme', 'aurora'));
+  await page.reload();
+  await page.waitForSelector('#deck .rc');
+  check('Aurora from the apps shows as Night here', (await bg('body')) === 'rgb(28, 21, 18)');
+  await tap('#signInBtn');
+  await opened('settings');
+  check('and Settings shows Night picked, without changing the saved Aurora', (await pressed('#themeSeg button')).join() === 'Night' && (await page.evaluate(() => localStorage.getItem('theme'))) === 'aurora');
+  await tap('#themeSeg [data-t="light"]');
+  check('Day', (await bg('body')) === 'rgb(251, 243, 228)' && (await page.evaluate(() => localStorage.getItem('theme'))) === 'light');
 
   /* ---- accounts ---- */
-  const said = async kind => { await page.waitForSelector(`#sResult${kind === 'ok' ? '.ok' : ':not(.ok)'}:not([hidden])`); const t = await page.textContent('#sResult'); return t; };
   const signIn = async (name, pw) => { await page.fill('#aName', name); await page.fill('#aPass', pw); await tap('#aGo'); };
-  const form0 = await page.evaluate(() => ({ form: !document.getElementById('aForm').hidden, signedIn: !document.getElementById('aIn').hidden, go: document.getElementById('aGo').textContent,
-    type: document.getElementById('aPass').type, ac: document.getElementById('aPass').autocomplete }));
-  check('signed out, Settings has the sign-in form', form0.form && !form0.signedIn && form0.go === 'Sign in' && form0.type === 'password' && form0.ac === 'current-password', form0);
-  await tap('#aSwap');
-  const form1 = await page.evaluate(() => ({ go: document.getElementById('aGo').textContent, ac: document.getElementById('aPass').autocomplete, hint: !document.getElementById('aPassHint').hidden }));
-  check('"Create an account" turns it into the new account form', form1.go === 'Create account' && form1.ac === 'new-password' && form1.hint, form1);
-  await page.fill('#aName', 'Megan');
-  await page.fill('#aPass', 'short');
-  await tap('#aGo');
-  check('a short password is refused on the phone', (await said()).includes('8 characters') && !(await user('megan')));
-  await page.fill('#aPass', 'pasta-night-42');
-  await tap('#aGo');
-  let msg = await said('ok');
-  check('a new account waits for the admin', msg.includes('waiting for Mitchell to approve it') && (await user('megan')).status === 'pending', msg);
-  check('then the form is back to Sign in, with the name kept', (await page.textContent('#aGo')) === 'Sign in' && (await page.inputValue('#aName')) === 'Megan' && (await page.inputValue('#aPass')) === '');
-  await signIn('Megan', 'pasta-night-42');
-  msg = await said();
-  check('before approval, sign in says the account is waiting', msg === 'Your account is waiting for approval.' && !(await page.evaluate(() => localStorage.getItem('dorrance-session'))), msg);
-  await tap('#aSwap');
-  await page.fill('#aName', 'madi');
-  await page.fill('#aPass', 'another-password');
-  await tap('#aGo');
-  check('a name in use is refused', (await said()).includes('That name is taken'));
-  await tap('#aSwap');
+  const said = () => page.waitForFunction(() => !document.getElementById('aResult').hidden || !document.getElementById('sMe').hidden).then(() => text('#aResult'));
   await signIn('Madi', 'wrong-password');
-  check('a wrong password gets a plain message', (await said()) === 'That name and password do not match.');
+  check('a wrong password says so', (await said()) === 'That name and password do not match.');
+  await signIn('Jen', 'jen-password');
+  await page.waitForFunction(() => document.getElementById('aResult').textContent.includes('waiting'));
+  check('an account that waits says so', (await text('#aResult')) === 'Your account is waiting for approval.');
+  await tap('#aSwap');
+  check('New here? switches the form to asking for an account', (await text('#aTitle')) === 'Ask for an account' && (await text('#aGo')) === 'Ask for an account' && (await page.$eval('#aPass', i => i.autocomplete)) === 'new-password');
+  await signIn('Megan', 'short');
+  check('a short password is turned down on the phone', (await text('#aResult')) === 'Use 8 characters or more for your password.');
+  await signIn('Megan', 'pasta-night-42');
+  await page.waitForSelector('#aResult.ok');
+  check('asking for an account: thanks, and who approves it', (await text('#aResult')) === 'Thanks, Megan. Your account is waiting for Mitchell. You can sign in once it’s approved.' && (await user('megan')).status === 'pending');
+  check('the form goes back to Sign in', (await text('#aTitle')) === 'Sign in');
   await signIn('Madi', 'madi-password');
-  msg = await said('ok');
+  await page.waitForSelector('#sMe:not([hidden])');
   const sess = await page.evaluate(() => JSON.parse(localStorage.getItem('dorrance-session')));
-  check('sign in keeps a sign-in on the phone', msg.startsWith('Signed in') && sess && sess.name === 'Madi' && sess.admin === false && /^[\w-]{40,}$/.test(sess.token), sess);
-  check('Settings says who is signed in; no Accounts list for Madi', (await page.textContent('#aWho')).startsWith('Signed in as Madi.') && await page.isHidden('#aForm') && await page.isHidden('#aAdmin'));
-  check('the phone never gets the GitHub token', !(await page.evaluate(() => JSON.stringify(localStorage))).includes(api.env.GITHUB_TOKEN));
-  await phoneRules('settings, signed in');
-  await page.goBack();
+  check('signed in: the You card says who', (await text('#sMeName')) === 'Madi' && (await text('#sMeRole')) === 'Signed in' && sess.name === 'Madi' && !sess.admin);
+  check('signed in: the tab bar shows Recipes and Settings, Settings picked, and no back button',
+    await page.isVisible('#nav') && (await page.$$eval('#nav button', bs => bs.map(b => b.textContent.trim() + (b.getAttribute('aria-current') ? '*' : '')).join())) === 'Recipes,Settings*' && await page.isHidden('#sBack'));
+  check('only the admin sees the accounts', await page.isHidden('#sAdmin'));
+  check('the password is gone from the form', (await page.inputValue('#aPass')) === '');
+  await tap('#nav [data-go="box"]');
   await closed('settings');
+  check('Recipes in the tab bar goes back to the box', (await depth()) === 0 && (await page.$eval('#nav [data-go="box"]', b => b.getAttribute('aria-current'))) === 'page');
+  check('signed in: + in the header', await page.isVisible('#addBtn') && await page.isHidden('#signInBtn'));
+  await page.evaluate(() => scrollTo(0, document.body.scrollHeight));
+  const clear = await page.evaluate(() => document.querySelector('#deck li:last-child').getBoundingClientRect().bottom <= document.getElementById('nav').getBoundingClientRect().top);
+  check('the last card scrolls clear of the tab bar', clear);
+  await page.evaluate(() => scrollTo(0, 0));
+  await phoneRules('recipe box, signed in');
 
   /* ---- add ---- */
   await tap('#addBtn');
   await opened('editor');
-  check('a new recipe starts in the Name field', await page.evaluate(() => document.activeElement.id === 'fName'));
-  check('a new recipe has no Delete button', !(await page.isVisible('#eDelete')));
+  check('+ opens a new recipe, with the keyboard on the name', (await text('#eTitle')) === 'New recipe' && await page.evaluate(() => document.activeElement.id === 'fName') && await page.isHidden('#eDelete'));
+  check('Category: None on the left and picked', (await page.$$eval('#fCats button', bs => bs.map(b => b.textContent.trim()).join())) === 'None,Crock pot,Soup,New' && (await pressed('#fCats button')).join() === 'None');
   await phoneRules('editor');
-  await page.fill('#fName', 'Grandma’s crème brûlée');
-  await page.fill('#fTags', 'Dessert, French');
-  const ingText = await paste('#fIngredients', '• 4 egg yolks\n• 2 cups heavy cream\n\n- 1/2 cup sugar\n* 1 tsp vanilla');
-  check('pasted ingredients lose their bullets', ingText === '4 egg yolks\n2 cups heavy cream\n1/2 cup sugar\n1 tsp vanilla', ingText);
-  check('the field counts its lines', (await page.textContent('[data-count="ingredients"]')) === '4 ingredients');
-  await page.fill('#fSteps', 'Heat the oven to 325.');
-  const stepText = await paste('#fSteps', '1. Heat the cream.\n2) Whisk the yolks and sugar.\n3. Bake 40 minutes.');
-  check('a pasted list goes on its own lines without numbers', stepText === 'Heat the oven to 325.\nHeat the cream.\nWhisk the yolks and sugar.\nBake 40 minutes.', stepText);
-  await page.fill('#fSource', 'example.com/brulee');
   await tap('#eSave');
-  await page.waitForSelector('#view.open #vName');
+  check('Save with no name asks for one', (await text('#eError')) === 'Give the recipe a name.' && await page.$eval('#fName', i => i.classList.contains('bad')) && gh.puts.length === 0);
+  await page.fill('#fName', 'Grandma’s crème brûlée');
+  await tap('#fCats [data-cat="Soup"]');
+  check('picking Soup unpicks None', (await pressed('#fCats button')).join() === 'Soup');
+  await tap('#fCats [data-cat="Soup"]');
+  check('unpicking it picks None again', (await pressed('#fCats button')).join() === 'None');
+  await tap('#fCats [data-new]');
+  check('New shows a field for a new category', await page.isVisible('#fNew') && await page.evaluate(() => document.activeElement.id === 'fNew'));
+  await page.fill('#fNew', 'Dessert');
+  await page.press('#fNew', 'Enter');
+  check('the new category is added and picked', (await pressed('#fCats button')).join() === 'Dessert' && await page.isHidden('#fNew'));
+  await page.fill('#fServings', '4');
+  const pasted = await paste('#fIngredients', '- 4 egg yolks\n- 2 cups heavy cream\n• 1/2 cup sugar\n▢ 1 tsp vanilla');
+  check('a pasted list loses its marks', pasted === '4 egg yolks\n2 cups heavy cream\n1/2 cup sugar\n1 tsp vanilla', pasted);
+  check('the count under Ingredients', (await text('#fIngHint')) === 'One per line · 4 ingredients');
+  await paste('#fSteps', '1. Heat the oven to 325.\n2. Bake 40 minutes.');
+  await page.fill('#fSource', 'Grandma Dorrance');
+  await tap('#eSave');
+  await page.waitForSelector('#view.open');
   await closed('editor');
-  let put = gh.puts.at(-1), saved = decoded(put);
-  let parsed = null;
-  try { parsed = JSON.parse(saved); } catch (e) {}
-  const brulee = parsed && parsed.recipes.find(r => r.id === 'grandmas-creme-brulee');
-  check('add: the PUT body decodes to valid JSON', !!parsed && saved.endsWith('}\n') && saved.includes('\n  "recipes": [\n'));
-  check('add: accents and the apostrophe survive', !!brulee && brulee.name === 'Grandma’s crème brûlée', brulee);
-  check('add: the recipe is saved in file order', !!brulee && JSON.stringify(brulee) === JSON.stringify({ id: 'grandmas-creme-brulee', name: 'Grandma’s crème brûlée', tags: ['Dessert', 'French'], ingredients: ['4 egg yolks', '2 cups heavy cream', '1/2 cup sugar', '1 tsp vanilla'], steps: ['Heat the oven to 325.', 'Heat the cream.', 'Whisk the yolks and sugar.', 'Bake 40 minutes.'], source: 'https://example.com/brulee' }), brulee);
-  check('add: commit title with the name, sha and branch', put.message === 'Recipes: add Grandma’s crème brûlée (Madi)' && put.sha === 's0' && put.branch === 'main', { message: put.message, sha: put.sha });
-  check('add: the other recipes are untouched', JSON.stringify(parsed.recipes.slice(0, 11)) === JSON.stringify(JSON.parse(FILE).recipes));
-  check('add: the new recipe opens', (await page.textContent('#vName')) === 'Grandma’s crème brûlée' && await page.isHidden('#editor'));
-  check('add: it is in the list and in the saved copy', (await names()).includes('Grandma’s crème brûlée') && (await page.evaluate(() => localStorage.getItem('recipes-cache'))).includes('grandmas-creme-brulee'));
-  check('add: a toast says it saved', (await page.textContent('#toast')).startsWith('Saved'));
+  let put = gh.puts.at(-1);
+  const brulee = recipeIn(decoded(put), 'grandmas-creme-brulee');
+  check('add: the recipe is saved in file order, and a source that is not a link stays as typed', JSON.stringify(brulee) === JSON.stringify({ id: 'grandmas-creme-brulee', name: 'Grandma’s crème brûlée', servings: '4', tags: ['Dessert'], ingredients: ['4 egg yolks', '2 cups heavy cream', '1/2 cup sugar', '1 tsp vanilla'], steps: ['Heat the oven to 325.', 'Bake 40 minutes.'], source: 'Grandma Dorrance' }), brulee);
+  check('add: commit title with the name', put.message === 'Recipes: add Grandma’s crème brûlée (Madi)' && put.sha === 's0', put.message);
+  check('add: the other recipes are untouched', JSON.stringify(JSON.parse(decoded(put)).recipes.slice(0, 11)) === JSON.stringify(JSON.parse(FILE).recipes));
+  check('add: the new recipe opens, with "From Grandma Dorrance" as plain text', (await text('#vName')) === 'Grandma’s crème brûlée' && (await text('#vBody p.source')) === 'From Grandma Dorrance' && await page.isHidden('#editor'));
+  check('add: the editor and the recipe are one step of history', (await depth()) === 1);
+  check('add: a toast says it saved', (await text('#toast')).startsWith('Saved'));
   check('the sign-in is never in a URL, and the page never calls GitHub itself', urls.every(u => !u.includes(sess.token) && !u.includes('github.com/repos')));
   await page.goBack();
   await closed('view');
-  check('add: back from the new recipe goes to the list', await page.evaluate(() => !history.state || !history.state.sheets));
+  check('add: a Dessert divider, and the card in the box', (await tabLabels()).join('|') === 'All 12|Crock pot 1|Dessert 1|Soup 1' && (await names()).includes('Grandma’s crème brûlée'));
 
   /* ---- edit ---- */
+  // a field the page does not know, added on GitHub, is kept
+  gh.text = gh.text.replace('"id": "salmon-bowls",', '"id": "salmon-bowls",\n      "rating": 5,');
   await openRecipe('Salmon bowls');
+  check('signed in: the Edit button', await page.isVisible('#editBtn'));
   await tap('#editBtn');
   await opened('editor');
-  check('Edit fills the form', (await page.inputValue('#fIngredients')) === 'Salmon\nRice\nMayo\nSriracha\nCucumbers' && (await page.textContent('#eTitle')) === 'Edit recipe');
+  check('Edit fills the form', (await page.inputValue('#fIngredients')) === 'Salmon\nRice\nMayo\nSriracha\nCucumbers' && (await text('#eTitle')) === 'Edit recipe' && await page.isVisible('#eDelete'));
   await page.fill('#fServings', '2');
-  await page.fill('#fIngredients', 'Salmon\nRice\nMayo\nSriracha\nCucumbers\nAvocado');
-  const before = gh.text;
+  answer = false;
+  await tap('#eCancel');
+  check('Cancel with changes asks; No keeps the editor', asked.at(-1) === 'Discard the changes to this recipe?' && await page.isVisible('#editor.open'));
+  answer = false;
+  await page.goBack();
+  await page.waitForTimeout(200);
+  check('the back button asks too', asked.at(-1) === 'Discard the changes to this recipe?' && await page.isVisible('#editor.open') && (await depth()) === 2);
+  await tap('#fCats [data-cat="Soup"]');
+  gh.putQueue.push(409);
+  const gets0 = gh.gets, puts0 = gh.puts.length;
   await tap('#eSave');
   await closed('editor');
   put = gh.puts.at(-1);
   const salmon = recipeIn(decoded(put), 'salmon-bowls');
-  check('edit: the change is in the PUT', put.message === 'Recipes: edit Salmon bowls (Madi)' && salmon.servings === '2' && salmon.ingredients.at(-1) === 'Avocado', salmon);
-  const others = t => JSON.stringify(JSON.parse(t).recipes.filter(r => r.id !== 'salmon-bowls'));
-  check('edit: only that recipe changed', others(decoded(put)) === others(before));
-  check('edit: the sheet shows the change', (await page.textContent('#vBody .chip')) === 'Serves 2' && (await page.$$('#vBody .checks li')).length === 6);
+  check('edit: after a 409 it reads again and saves on the second PUT', gh.gets - gets0 === 2 && gh.puts.length - puts0 === 2, { gets: gh.gets - gets0, puts: gh.puts.length - puts0 });
+  check('edit: the change is saved, and the field the page does not know is kept', put.message === 'Recipes: edit Salmon bowls (Madi)' && salmon.servings === '2' && salmon.tags.join() === 'Soup' && salmon.rating === 5, salmon);
+  check('409: the other change (Ketchup) is kept too', recipeIn(gh.text, 'burgers-and-fries').ingredients.includes('Ketchup'));
+  check('edit: back on the recipe, which shows the change', (await page.$$eval('#vBody .chip', cs => cs.map(c => c.textContent).join('|'))) === 'Soup|Serves 2' && (await depth()) === 1);
+  check('edit: the card is now tomato', (await page.$eval('#vBody .strip', s => getComputedStyle(s).backgroundColor)) === TOMATO);
 
-  /* ---- 409 on the first PUT ---- */
-  gh.putQueue.push(409);
-  const gets0 = gh.gets, puts0 = gh.puts.length, sha0 = gh.sha;
+  /* ---- errors keep the editor open ---- */
   await tap('#editBtn');
   await opened('editor');
   await page.fill('#fNotes', 'Use the good soy sauce.');
-  await tap('#eSave');
-  await closed('editor');
-  check('409: read again and saved on the second PUT', gh.gets - gets0 === 2 && gh.puts.length - puts0 === 2 && gh.puts.at(-2).sha === sha0 && gh.puts.at(-1).sha !== sha0, { gets: gh.gets - gets0, puts: gh.puts.length - puts0 });
-  check('409: both changes are in the file', recipeIn(gh.text, 'salmon-bowls').notes === 'Use the good soy sauce.' && recipeIn(gh.text, 'burgers-and-fries').ingredients.includes('Ketchup'));
-  await page.goBack();
-  await closed('view');
-  await openRecipe('Burgers');
-  check('409: the page has the other change too', (await page.textContent('#vBody .checks')).includes('Ketchup'));
-  await page.goBack();
-  await closed('view');
-
-  /* ---- errors keep the editor open ---- */
-  await openRecipe('Tacos and beans');
-  await tap('#editBtn');
-  await opened('editor');
-  await page.fill('#fNotes', 'Add any garnish wanted. Lime!');
-  const tacosBefore = gh.text;
+  const before = gh.text;
   api.env.GITHUB_TOKEN = 'github_pat_TEST_wrong';
   await tap('#eSave');
   await page.waitForSelector('#eError:not([hidden])');
-  check('a bad GitHub token in the Worker: plain message, nothing saved', (await page.textContent('#eError')).includes('check its GitHub token. The change is not saved.') && !(await page.isVisible('#eError [data-settings]')) && gh.text === tacosBefore, await page.textContent('#eError'));
+  check('a bad GitHub token in the Worker: plain message, nothing saved', (await text('#eError')).includes('check its GitHub token. The change is not saved.') && !(await page.$('#eError [data-settings]')) && gh.text === before, await text('#eError'));
   api.env.GITHUB_TOKEN = 'github_pat_TEST_good';
-  gh.getStatus = 403;
-  await tap('#eSave');
-  await page.waitForFunction(() => document.getElementById('eError').textContent.includes('hourly limit'));
-  check('GitHub’s rate limit: says to try later', true);
-  gh.getStatus = 0;
   gh.offline = true;
   await tap('#eSave');
   await page.waitForFunction(() => document.getElementById('eError').textContent.startsWith('No connection.'));
-  check('offline: "No connection. The change is not saved."', (await page.textContent('#eError')).startsWith('No connection. The change is not saved.'));
-  check('the editor keeps what was typed', (await page.inputValue('#fNotes')) === 'Add any garnish wanted. Lime!' && await page.isVisible('#editor'));
+  check('offline: "No connection. The change is not saved."', (await text('#eError')) === 'No connection. The change is not saved.');
   gh.offline = false;
-
-  /* ---- unsaved changes ---- */
-  answer = false;
-  await tap('#eCancel');
-  await page.waitForTimeout(150);
-  check('Cancel with changes asks first; "no" keeps the editor', await page.isVisible('#editor.open'));
-  answer = false;
-  await page.goBack();
-  await page.waitForTimeout(400);
-  check('the back button asks too; "no" keeps the editor', await page.isVisible('#editor.open'));
-  answer = true;
-  await page.goBack();
-  await closed('editor');
-  check('"yes" discards and goes back to the recipe', await page.isVisible('#view.open') && gh.text === tacosBefore);
-
-  /* ---- delete ---- */
-  await tap('#editBtn');
-  await opened('editor');
-  await tap('#eDelete');
-  check('Delete asks for a second tap', (await page.textContent('#eDelete')) === 'Tap again to delete' && gh.text === tacosBefore);
-  await tap('#eDelete');
-  await closed('view');
-  check('delete: one PUT with the recipe gone', gh.puts.at(-1).message === 'Recipes: delete Tacos and beans (Madi)' && !recipeIn(gh.text, 'tacos-and-beans') && JSON.parse(gh.text).recipes.length === 11);
-  check('delete: both sheets close and the card is gone', await page.isHidden('#editor') && !(await names()).includes('Tacos and beans') && await page.evaluate(() => !history.state || !history.state.sheets));
-
-  /* ---- signed in, the file comes through the Worker ---- */
-  gh.text = gh.text.replace('"name": "Burgers and fries"', '"name": "Burgers and fries (from chat)"');
-  await page.reload();
-  await page.waitForFunction(() => [...document.querySelectorAll('#list .nm')].some(e => e.textContent.includes('from chat')));
-  check('signed in, a change from chat shows at once', true);
-
-  /* ---- a sign-in that ended ---- */
-  for (const k of [...api.kv.m.keys()]) if (k.startsWith('auth:session:')) api.kv.m.delete(k);
-  await openRecipe('Salmon bowls');
-  await tap('#editBtn');
-  await opened('editor');
-  await page.fill('#fServings', '3');
+  for (const k of [...api.kv.m.keys()]) if (k.startsWith('auth:session:')) api.kv.m.delete(k);   // the sign-in ends on the Worker
   await tap('#eSave');
-  await page.waitForSelector('#eError:not([hidden])');
-  check('an ended sign-in: plain message and a Settings button', (await page.textContent('#eError')).includes('You are signed out. Sign in again. The change is not saved.') && await page.isVisible('#eError [data-settings]'));
-  check('and the phone forgets the sign-in', !(await page.evaluate(() => localStorage.getItem('dorrance-session'))));
+  await page.waitForSelector('#eError [data-settings]');
+  check('a sign-in that ended: says so, with Sign in again', (await text('#eError')).startsWith('You are signed out. Sign in again. The change is not saved.'));
   await tap('#eError [data-settings]');
   await opened('settings');
-  check('the button opens the sign-in form', await page.isVisible('#aForm'));
-
-  /* ---- the admin approves accounts ---- */
-  await signIn('mitchell', api.ADMIN_PASSWORD);
-  await said('ok');
-  await page.waitForSelector('#people [data-approve]');
-  const rows = () => page.$$eval('#people li', ls => ls.map(l => l.querySelector('b').textContent + ':' + [...l.querySelectorAll('button')].map(b => b.textContent).join('/')));
-  check('the admin sees who is waiting first, then who can edit', (await rows()).join() === 'Jen:Approve/Deny,Megan:Approve/Deny,Madi:Remove', await rows());
-  check('Settings says Mitchell is the admin', (await page.textContent('#aWho')).startsWith('Signed in as Mitchell, the admin.'));
-  const dot = () => page.evaluate(() => ({ on: document.getElementById('menuBtn').classList.contains('dot'), label: document.getElementById('menuBtn').getAttribute('aria-label') }));
-  check('a dot on the menu button says accounts are waiting', (await dot()).on && (await dot()).label === 'Menu, 2 accounts waiting for approval', await dot());
-  await phoneRules('settings for the admin');
-  await tap('#people [data-approve="megan"]');
-  await page.waitForFunction(() => document.getElementById('toast').textContent.startsWith('Megan can'));
-  check('Approve lets Megan in', (await user('megan')).status === 'approved' && (await rows()).join() === 'Jen:Approve/Deny,Madi:Remove,Megan:Remove', await rows());
-  await tap('#people [data-remove="jen"]');
-  check('Deny asks for a second tap', (await page.textContent('#people [data-remove="jen"]')) === 'Tap again' && !!(await user('jen')));
-  await tap('#people [data-remove="jen"]');
-  await page.waitForFunction(() => !document.querySelector('#people [data-remove="jen"]'));
-  check('Deny removes the account; no one is waiting, so no dot', !(await user('jen')) && !(await dot()).on);
-  await tap('#people [data-remove="madi"]');
-  await tap('#people [data-remove="madi"]');
-  await page.waitForFunction(() => !document.querySelector('#people [data-remove="madi"]'));
-  check('Remove takes an account away', !(await user('madi')) && (await rows()).join() === 'Megan:Remove');
-  await page.goBack();
+  check('Settings opens over the editor, with Back and no tab bar', (await text('#sBackText')) === 'Back' && await page.isHidden('#nav') && await page.isVisible('#sNeed'));
+  await signIn('Madi', 'madi-password');
+  await page.waitForSelector('#sMe:not([hidden])');
+  check('signed in again, still with Back and no tab bar', await page.isVisible('#sBack') && await page.isHidden('#nav'));
+  await tap('#sBack');
   await closed('settings');
-  answer = true;
-  await page.goBack();   // the editor from before asks about its change: "yes"
+  check('Back goes to the editor, which kept what was typed', (await page.inputValue('#fNotes')) === 'Use the good soy sauce.' && await page.isVisible('#editor.open'));
+  await tap('#eSave');
   await closed('editor');
+  check('and now it saves', recipeIn(gh.text, 'salmon-bowls').notes === 'Use the good soy sauce.');
   await page.goBack();
   await closed('view');
 
-  /* ---- Aurora: a secret theme, as in the apps ---- */
-  const aurora = () => page.evaluate(() => {
-    const b = document.querySelector('#themeSeg [data-t="aurora"]');
-    return { key: localStorage.getItem('theme'), attr: document.documentElement.dataset.theme, shown: !b.hidden, on: document.querySelector('#themeSeg .on')?.textContent,
-      bg: getComputedStyle(document.body).backgroundColor, meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content), blobs: getComputedStyle(document.querySelector('.aurora')).display };
-  });
-  await page.evaluate(() => localStorage.setItem('theme', 'aurora'));
-  await page.reload();
-  await page.waitForSelector('#list .card');
-  th = await aurora();
-  check('a saved "aurora" shows the Aurora theme, not Night', th.attr === 'aurora' && th.bg === 'rgb(14, 10, 30)' && th.meta.every(c => c === th.bg) && th.blobs !== 'none', th);
-  await tap('#menuBtn');
+  /* ---- delete ---- */
+  await openRecipe('Grandma’s crème brûlée');
+  await tap('#editBtn');
+  await opened('editor');
+  const putsD = gh.puts.length;
+  await tap('#eDelete');
+  check('Delete asks for a second tap', (await text('#eDelete')) === 'Tap again to delete' && gh.puts.length === putsD);
+  await tap('#eDelete');
+  await closed('editor');
+  await closed('view');
+  check('delete: gone from the file and the box, back on the box', !recipeIn(gh.text, 'grandmas-creme-brulee') && !(await names()).includes('Grandma’s crème brûlée') && (await depth()) === 0);
+  check('delete: the Dessert divider is gone with it', !(await page.$('#tabs [data-tab="Dessert"]')));
+  check('delete: a toast says so', (await text('#toast')) === 'Deleted Grandma’s crème brûlée.');
+
+  /* ---- the admin ---- */
+  await tap('#nav [data-go="settings"]');
   await opened('settings');
-  th = await aurora();
-  check('Settings shows the Aurora button, picked', th.shown && th.on === 'Aurora', th);
-  await tap('#themeSeg [data-t="light"]');
-  th = await aurora();
-  check('picking Day hides the Aurora button again', th.key === 'light' && th.attr === 'light' && !th.shown && th.blobs === 'none', th);
-  for (let i = 0; i < 4; i++) await tap('#themeLabel');
-  th = await aurora();
-  check('four taps on "Theme" do nothing', th.key === 'light' && !th.shown, th);
-  await tap('#themeLabel');
-  th = await aurora();
-  check('the fifth tap turns Aurora on and shows its button', th.key === 'aurora' && th.attr === 'aurora' && th.shown && th.on === 'Aurora' && (await page.textContent('#toast')) === 'Aurora', th);
-  await phoneRules('settings in Aurora');
-  const live = sessions();
   await tap('#aOut');
-  check('Sign out forgets the sign-in on the phone', !(await page.evaluate(() => localStorage.getItem('dorrance-session'))) && await page.isVisible('#aForm') && (await page.textContent('#sResult')) === 'Signed out.');
+  await page.waitForSelector('#aBox:not([hidden])');
+  check('Sign out forgets the sign-in on the phone and on the Worker', (await page.evaluate(() => localStorage.getItem('dorrance-session'))) === null && sessions() === 0);
+  check('signed out: the tab bar goes, Back to the box comes', await page.isHidden('#nav') && await page.isVisible('#sBack'));
+  const meCalls = () => urls.filter(u => u.endsWith('/api/auth/me')).length;
+  await signIn(api.ADMIN, api.ADMIN_PASSWORD);
+  await page.waitForSelector('#sWaitList [data-approve]');
+  check('the admin: the You card says Admin', (await text('#sMeRole')) === 'Admin · signed in');
+  const waitingNames = await page.$$eval('#sWaitList .who b', bs => bs.map(b => b.textContent));
+  check('Waiting for you: Jen and Megan, each with Approve and Deny', waitingNames.join() === 'Jen,Megan' && (await page.$$('#sWaitList [data-approve]')).length === 2);
+  check('Accounts: Madi, with Remove', (await page.$$eval('#sPeople .who b', bs => bs.map(b => b.textContent))).join() === 'Madi');
+  check('a dot on Settings while accounts wait', await page.$eval('#navSettings', b => b.classList.contains('dot')));
+  await phoneRules('settings, the admin');
+  await tap('#sWaitList [data-approve="jen"]');
+  await page.waitForFunction(() => document.getElementById('sSay').textContent.includes('Jen'));
+  check('Approve: Jen can sign in', (await text('#sSay')) === 'Jen can sign in now.' && (await user('jen')).status === 'approved');
+  await tap('#sWaitList [data-remove="megan"]');
+  check('Deny asks for a second tap', (await text('#sWaitList [data-remove="megan"]')) === 'Tap again to deny' && !!(await user('megan')));
+  await tap('#sWaitList [data-remove="megan"]');
+  await page.waitForFunction(() => document.getElementById('sSay').textContent.includes('Megan'));
+  check('Deny removes the request; no one waits, so no dot', (await text('#sSay')) === 'Megan’s request is gone.' && !(await user('megan')) && await page.isHidden('#sWaiting') && !(await page.$eval('#navSettings', b => b.classList.contains('dot'))));
+  await tap('#sPeople [data-remove="madi"]');
+  await tap('#sPeople [data-remove="madi"]');
+  await page.waitForFunction(() => document.getElementById('sSay').textContent.includes('Madi'));
+  check('Remove takes an account away', (await text('#sSay')) === 'Madi can no longer sign in.' && !(await user('madi')) && (await page.$$eval('#sPeople .who b', bs => bs.map(b => b.textContent))).join() === 'Jen');
+  const me0 = meCalls();
+  await page.reload();
+  await page.waitForSelector('#deck .rc');
   await page.waitForTimeout(300);
-  check('and on the Worker', sessions() === live - 1, { live, now: sessions() });
+  check('a page load does not count the waiting accounts again within 6 hours (a KV list)', meCalls() === me0);
+  await page.evaluate(() => localStorage.removeItem('recipes-waiting'));
+  await page.reload();
+  await page.waitForSelector('#deck .rc');
+  await page.waitForFunction(n => performance.getEntriesByType('resource').some(e => e.name.endsWith('/api/auth/me')), me0);
+  check('without a recent count, a page load asks once', meCalls() === me0 + 1);
 
   check('no console errors', errors.length === 0, errors);
   await browser.close();

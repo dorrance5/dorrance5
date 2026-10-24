@@ -1,4 +1,4 @@
-// Phone-size screenshots of the Recipes page in WebKit, Day, Night and Aurora; exits 1 on any console error or page error.
+// Phone-size screenshots of the Recipes page in WebKit, Day and Night; exits 1 on any console error or page error.
 // The API Worker runs in Node (worker/test/harness.cjs) with a stand-in for GitHub, so nothing is saved. The fonts load from Google
 // when there is a connection.
 //   NODE_PATH=/path/to/node_modules node recipes/test/shots.cjs [outdir]
@@ -23,33 +23,36 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(f).pipe(res);
 });
 
-const openRecipe = name => async p => { await p.click(`#list .card:has-text("${name}")`); await p.waitForSelector('#view.open'); };
-const scroll = y => async p => { await p.evaluate(y => scrollTo(0, y), y); };
-const settings = async p => { await p.click('#menuBtn'); await p.waitForSelector('#settings.open'); };
+const ZUPPA = "Megan's zuppa toscana";
+const openRecipe = name => async p => { await p.click(`#deck .rc:has-text("${name}")`); await p.waitForSelector('#view.open'); };
+const layerEnd = id => p => p.evaluate(id => { const l = document.getElementById(id); l.scrollTop = l.scrollHeight; }, id);
+const cook = name => async p => { await openRecipe(name)(p); await p.click('#cookBtn'); await p.waitForSelector('#cook.open'); };
+const settings = async p => { await p.click('#navSettings, #signInBtn >> visible=true'); await p.waitForSelector('#settings.open'); };
 const scenes = [
-  { name: '01-list-day' },
-  { name: '02-pile-day', many: true, act: scroll(900) },
-  { name: '03-pile-night', theme: 'dark', many: true, act: scroll(900) },
-  { name: '04-pile-aurora', theme: 'aurora', many: true, act: scroll(900) },
-  { name: '05-search-day', act: async p => { await p.fill('#q', 'red onion'); } },
-  { name: '06-search-night', theme: 'dark', act: async p => { await p.fill('#q', 'onion'); } },
-  { name: '07-list-end-day', act: async p => { await p.evaluate(() => scrollTo(0, document.body.scrollHeight)); } },
-  { name: '08-recipe-day', act: async p => { await openRecipe("Megan's zuppa toscana")(p); await p.click('#vBody .checks li:nth-child(1) label'); await p.click('#vBody .checks li:nth-child(3) label'); } },
-  { name: '09-recipe-steps-day', act: async p => { await openRecipe("Megan's zuppa toscana")(p); await p.evaluate(() => document.querySelector('#vBody .steps').scrollIntoView()); } },
-  { name: '10-recipe-night', theme: 'dark', act: openRecipe('Pepperoncini roast') },
-  { name: '11-recipe-aurora', theme: 'aurora', act: openRecipe("Megan's zuppa toscana") },
-  { name: '12-recipe-no-ingredients-night', theme: 'dark', act: openRecipe("Jen's tortellini pasta salad") },
-  { name: '13-pulling-out-day', wait: 140, act: async p => { await p.evaluate(() => scrollTo(0, 300)); await p.waitForTimeout(100); await p.click('#list .card:has-text("Salmon bowls")'); } },
-  { name: '14-edit-day', as: 'Madi', act: async p => { await openRecipe("Megan's zuppa toscana")(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); } },
-  { name: '15-edit-bottom-night', theme: 'dark', as: 'Madi', act: async p => { await openRecipe('Pepperoncini roast')(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); await p.evaluate(() => { const b = document.getElementById('eBody'); b.scrollTop = b.scrollHeight; }); await p.click('#eDelete'); } },
-  { name: '16-new-day', as: 'Madi', act: async p => { await p.click('#addBtn'); await p.waitForSelector('#editor.open'); await p.fill('#fName', 'Grandma’s crème brûlée'); } },
-  { name: '17-save-error-day', as: 'Madi', act: async p => { await openRecipe('Salmon bowls')(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); signOutAll(); await p.click('#eSave'); await p.waitForSelector('#eError:not([hidden])'); } },
-  { name: '18-settings-need-day', act: async p => { await p.click('#addBtn'); await p.waitForSelector('#settings.open'); } },
-  { name: '19-settings-admin-night', theme: 'dark', as: 'Mitchell', act: async p => { await settings(p); await p.waitForSelector('#people [data-approve]'); await p.evaluate(() => { const b = document.querySelector('#settings .body'); b.scrollTop = b.scrollHeight; }); } },
-  { name: '20-settings-aurora', theme: 'aurora', as: 'Madi', act: settings },
-  { name: '21-desktop-day', desktop: true, act: openRecipe("Megan's zuppa toscana") },
-  { name: '22-new-account-day', act: async p => { await settings(p); await p.click('#aSwap'); await p.fill('#aName', 'Megan'); await p.fill('#aPass', 'pasta-night-42'); await p.click('#aGo'); await p.waitForSelector('#sResult.ok'); } },
-  { name: '23-menu-dot-day', as: 'Mitchell', act: async p => { await p.waitForSelector('#menuBtn.dot'); } }
+  { name: '01-box-signed-out-day' },
+  { name: '02-box-signed-in-day', as: 'Madi' },
+  { name: '03-box-scrolled-day', as: 'Madi', many: true, act: async p => { await p.evaluate(() => scrollTo(0, 700)); } },
+  { name: '04-box-soup-day', many: true, act: async p => { await p.click('#tabs [data-tab="Soup"]'); } },
+  { name: '05-search-day', act: async p => { await p.fill('#q', 'onion'); } },
+  { name: '06-box-night', theme: 'dark', as: 'Madi', many: true },
+  { name: '07-recipe-day', act: openRecipe(ZUPPA) },
+  { name: '08-recipe-steps-day', as: 'Madi', act: async p => { await openRecipe(ZUPPA)(p); await p.click('#vBody [data-half="steps"]'); } },
+  { name: '09-recipe-end-day', act: async p => { await openRecipe(ZUPPA)(p); await layerEnd('view')(p); } },
+  { name: '10-recipe-plain-day', act: openRecipe('Burgers and fries') },
+  { name: '11-recipe-night', theme: 'dark', as: 'Madi', act: openRecipe('Pepperoncini roast') },
+  { name: '12-cooking-night', theme: 'dark', act: cook(ZUPPA) },
+  { name: '13-cooking-timer-night', theme: 'dark', act: async p => { await cook(ZUPPA)(p); await p.click('#cGo'); await p.waitForTimeout(2100); await p.click('#cNext'); await p.click('#cNext'); } },
+  { name: '14-cooking-ingredients-night', theme: 'dark', act: async p => { await cook(ZUPPA)(p); await p.click('#cIngBtn'); await p.waitForSelector('#cookIng.open'); } },
+  { name: '15-cooking-day', act: async p => { await cook('Pepperoncini roast')(p); for (let i = 0; i < 3; i++) await p.click('#cNext'); } },
+  { name: '16-new-day', as: 'Madi', act: async p => { await p.click('#addBtn'); await p.waitForSelector('#editor.open'); await p.fill('#fName', 'Grandma’s crème brûlée'); await p.click('#fCats [data-new]'); await p.fill('#fNew', 'Dessert'); } },
+  { name: '17-edit-day', as: 'Madi', act: async p => { await openRecipe(ZUPPA)(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); } },
+  { name: '18-edit-end-night', theme: 'dark', as: 'Madi', act: async p => { await openRecipe(ZUPPA)(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); await layerEnd('editor')(p); await p.click('#eDelete'); } },
+  { name: '19-save-error-day', as: 'Madi', act: async p => { await openRecipe('Salmon bowls')(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); signOutAll(); await p.click('#eSave'); await p.waitForSelector('#eError:not([hidden])'); } },
+  { name: '20-settings-admin-day', as: 'Mitchell', act: async p => { await settings(p); await p.waitForSelector('#sWaitList [data-approve]'); } },
+  { name: '21-settings-family-night', theme: 'dark', as: 'Madi', act: settings },
+  { name: '22-settings-signed-out-day', act: settings },
+  { name: '23-ask-account-day', act: async p => { await settings(p); await p.click('#aSwap'); await p.fill('#aName', 'Megan'); await p.fill('#aPass', 'pasta-night-42'); await p.click('#aGo'); await p.waitForSelector('#aResult.ok'); } },
+  { name: '24-desktop-day', desktop: true, act: openRecipe(ZUPPA) }
 ];
 let signOutAll;   // ends every sign-in on the Worker, for the scene where a save finds the sign-in gone
 
@@ -58,6 +61,7 @@ let signOutAll;   // ends every sign-in on the Worker, for the scene where a sav
   const base = `http://127.0.0.1:${server.address().port}/recipes/`;
   const api = await require('../../worker/test/harness.cjs')(FILE);
   await api.addUser('Madi', 'madi-password');
+  await api.addUser('Nicole', 'nicole-password');
   await api.addUser('Jen', 'jen-password', true);
   signOutAll = () => { for (const k of [...api.kv.m.keys()]) if (k.startsWith('auth:session:')) api.kv.m.delete(k); };
   const PASSWORDS = { Madi: 'madi-password', Mitchell: api.ADMIN_PASSWORD };
@@ -81,12 +85,16 @@ let signOutAll;   // ends every sign-in on the Worker, for the scene where a sav
       if (session) localStorage.setItem('dorrance-session', JSON.stringify(session));
     }, [sc.theme || null, session]);
     await ctx.route('**/api/**', api.route);
-    if (sc.many) await ctx.route('**/recipes/recipes.json', r => r.fulfill({ contentType: 'application/json', body: MANY }));
+    if (sc.many) {
+      await ctx.route('**/recipes/recipes.json', r => r.fulfill({ contentType: 'application/json', body: MANY }));
+      api.gh.text = MANY;
+    } else api.gh.text = FILE;
     const page = await ctx.newPage();
     page.on('console', m => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) problems.push(`${sc.name}: console: ${m.text()}`); });
     page.on('pageerror', e => problems.push(`${sc.name}: page error: ${e.message}`));
     await page.goto(base, { waitUntil: 'load' });
-    await page.waitForSelector('#list .card');
+    await page.waitForSelector('#deck .rc');
+    await page.evaluate(() => document.fonts.ready);
     if (sc.act) await sc.act(page);
     await page.waitForTimeout(sc.wait || 600);
     await page.screenshot({ path: path.join(out, sc.name + '.png') });
