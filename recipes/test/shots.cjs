@@ -28,6 +28,31 @@ const openRecipe = name => async p => { await p.click(`#deck .rc:has-text("${nam
 const layerEnd = id => p => p.evaluate(id => { const l = document.getElementById(id); l.scrollTop = l.scrollHeight; }, id);
 const cook = name => async p => { await openRecipe(name)(p); await p.click('#cookBtn'); await p.waitForSelector('#cook.open'); };
 const settings = async p => { await p.click('#navSettings, #signInBtn >> visible=true'); await p.waitForSelector('#settings.open'); };
+
+// The meal plan in the scenes with `day0`, where it is Saturday, October 24, 2026. Mitchell and Nicole plan the dinners.
+const DAY0 = new Date(2026, 9, 24, 18, 0);
+const dinner = (recipe, name, by) => ({ recipe, name, by });
+const MEALS = {
+  days: {
+    '2026-10-19': dinner('tacos-and-beans', 'Tacos and beans', 'Mitchell'),
+    '2026-10-20': dinner('white-chicken-chili', 'White chicken chili', 'Nicole'),
+    '2026-10-21': dinner('salmon-bowls', 'Salmon bowls', 'Nicole'),
+    '2026-10-22': { note: 'Leftovers', by: 'Mitchell' },
+    '2026-10-23': dinner('burgers-and-fries', 'Burgers and fries', 'Mitchell'),
+    '2026-10-24': dinner('megans-zuppa-toscana', ZUPPA, 'Nicole'),
+    '2026-10-26': dinner('pepperoncini-roast', 'Pepperoncini roast', 'Nicole'),
+    '2026-10-27': dinner('sheet-pan-breakfast-burritos', 'Sheet pan breakfast burritos', 'Mitchell')
+  },
+  list: {
+    recipes: [{ id: 'tacos-and-beans', name: 'Tacos and beans' }, { id: 'burgers-and-fries', name: 'Burgers and fries' }, { id: 'pulled-pork-sandwiches', name: 'Pulled pork sandwiches' }],
+    extra: [{ key: 'paper towels', text: 'Paper towels' }],
+    got: ['taco seasoning'],
+    gone: []
+  }
+};
+const planner = p => p.waitForSelector('#navPlan:not([hidden])');
+const tab = go => async p => { await planner(p); await p.click(`#nav [data-go="${go}"]`); await p.waitForSelector(`#${go}.open`); };
+const pickDay = date => async p => { await tab('plan')(p); await p.click(`#pDays [data-plan="${date}"]`); await p.waitForSelector('#pick.open'); };
 const scenes = [
   { name: '01-box-signed-out-day' },
   { name: '02-box-signed-in-day', as: 'Madi' },
@@ -52,7 +77,20 @@ const scenes = [
   { name: '21-settings-family-night', theme: 'dark', as: 'Madi', act: settings },
   { name: '22-settings-signed-out-day', act: settings },
   { name: '23-ask-account-day', act: async p => { await settings(p); await p.click('#aSwap'); await p.fill('#aName', 'Megan'); await p.fill('#aPass', 'pasta-night-42'); await p.click('#aGo'); await p.waitForSelector('#aResult.ok'); } },
-  { name: '24-desktop-day', desktop: true, act: openRecipe(ZUPPA) }
+  { name: '24-desktop-day', desktop: true, act: openRecipe(ZUPPA) },
+  { name: '25-plan-day', as: 'Mitchell', day0: true, act: tab('plan') },
+  { name: '26-plan-next-week-day', as: 'Nicole', day0: true, act: async p => { await tab('plan')(p); await p.click('#pWeeks [data-week="1"]'); } },
+  { name: '27-plan-picker-day', as: 'Mitchell', day0: true, act: pickDay('2026-10-25') },
+  { name: '28-grocery-day', as: 'Nicole', day0: true, act: tab('grocery') },
+  { name: '29-grocery-end-day', as: 'Mitchell', day0: true, act: async p => { await tab('grocery')(p); await layerEnd('grocery')(p); } },
+  { name: '30-recipe-add-to-list-day', as: 'Nicole', day0: true, act: async p => { await planner(p); await openRecipe(ZUPPA)(p); await p.$eval('#listBtn', b => b.scrollIntoView({ block: 'center' })); } },
+  { name: '31-recipe-on-list-day', as: 'Mitchell', day0: true, act: async p => { await planner(p); await openRecipe('Burgers and fries')(p); } },
+  { name: '32-settings-partner-day', as: 'Mitchell', day0: true, act: async p => { await planner(p); await settings(p); await p.waitForSelector('#sPartners [data-partner="nicole"]'); await p.$eval('#sMeal', g => g.scrollIntoView({ block: 'center' })); } },
+  { name: '33-box-planner-day', as: 'Nicole', day0: true, act: planner },
+  { name: '34-plan-night', theme: 'dark', as: 'Mitchell', day0: true, act: tab('plan') },
+  { name: '35-plan-picker-night', theme: 'dark', as: 'Nicole', day0: true, act: pickDay('2026-10-25') },
+  { name: '36-grocery-night', theme: 'dark', as: 'Mitchell', day0: true, act: tab('grocery') },
+  { name: '37-recipe-on-list-night', theme: 'dark', as: 'Nicole', day0: true, act: async p => { await planner(p); await openRecipe('Burgers and fries')(p); } }
 ];
 let signOutAll;   // ends every sign-in on the Worker, for the scene where a save finds the sign-in gone
 
@@ -64,7 +102,10 @@ let signOutAll;   // ends every sign-in on the Worker, for the scene where a sav
   await api.addUser('Nicole', 'nicole-password');
   await api.addUser('Jen', 'jen-password', true);
   signOutAll = () => { for (const k of [...api.kv.m.keys()]) if (k.startsWith('auth:session:')) api.kv.m.delete(k); };
-  const PASSWORDS = { Madi: 'madi-password', Mitchell: api.ADMIN_PASSWORD };
+  const PASSWORDS = { Madi: 'madi-password', Nicole: 'nicole-password', Mitchell: api.ADMIN_PASSWORD };
+  const nicole = await api.kv.get('auth:user:nicole', 'json');
+  await api.kv.put('meals:partner', JSON.stringify({ key: 'nicole', id: nicole.id, name: 'Nicole' }));
+  await api.kv.put('meals:data', JSON.stringify(MEALS));
   const browser = await webkit.launch();
   const problems = [];
   for (const sc of scenes) {
@@ -90,6 +131,7 @@ let signOutAll;   // ends every sign-in on the Worker, for the scene where a sav
       api.gh.text = MANY;
     } else api.gh.text = FILE;
     const page = await ctx.newPage();
+    if (sc.day0) await page.clock.setFixedTime(DAY0);   // Date.now() stands still; the timers run
     page.on('console', m => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) problems.push(`${sc.name}: console: ${m.text()}`); });
     page.on('pageerror', e => problems.push(`${sc.name}: page error: ${e.message}`));
     await page.goto(base, { waitUntil: 'load' });

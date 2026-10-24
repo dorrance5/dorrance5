@@ -1,12 +1,14 @@
-/* Recipes — the page: the recipe box, one recipe, cooking mode, the editor and Settings.
-   The data file and the saves are in data.js (window.RecipeData). The dorrance.me sign-in is shared/account.js
-   (window.Account): one sign-in for every page on the site. */
+/* Recipes — the page: the recipe box, one recipe, cooking mode, the editor and Settings, and for the two meal
+   planners the meal plan and the grocery list.
+   The data file and the saves are in data.js (window.RecipeData). The meal plan's data and ops are in meals.js
+   (window.Meals), which the API Worker uses too. The dorrance.me sign-in is shared/account.js (window.Account): one
+   sign-in for every page on the site. */
 (function () {
   'use strict';
-  const D = window.RecipeData, A = window.Account;
+  const D = window.RecipeData, A = window.Account, M = window.Meals;
   const $ = id => document.getElementById(id);
   const root = document.documentElement;
-  const CACHE = 'recipes-cache', WAITING = 'recipes-waiting';
+  const CACHE = 'recipes-cache', WAITING = 'recipes-waiting', MEALS = 'recipes-meals';
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
@@ -23,7 +25,11 @@
     pot: svg('<path d="M4 11h16v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M2 11h2M20 11h2"/><path d="M9 7c0-1.5 1-1.5 1-3M14 7c0-1.5 1-1.5 1-3"/>', 2.2, 24),
     next: svg('<path d="M9 5l7 7-7 7"/>', 2.6),
     tick: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 2.6),
-    plus: svg('<path d="M12 5v14M5 12h14"/>', 2.6, 16)
+    plus: svg('<path d="M12 5v14M5 12h14"/>', 2.6, 16),
+    plan: svg('<path d="M12 5v14M5 12h14"/>', 2.6, 18),
+    x: svg('<path d="M7 7l10 10M17 7L7 17"/>', 2.6, 18),
+    off: svg('<path d="M7 7l10 10M17 7L7 17"/>', 2.8, 16),
+    bag: svg('<path d="M3.5 9.5h17l-1.6 9.1a2 2 0 0 1-2 1.65H7.1a2 2 0 0 1-2-1.65z"/><path d="M8 9.5l3-5.5M16 9.5l-3-5.5"/>', 2, 22)
   };
 
   /* ---- colors: each category has one; a recipe takes the color of its first category ---- */
@@ -59,10 +65,11 @@
   });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   addEventListener('storage', e => { if (e.key === 'theme') applyTheme(); });
-  // The browser bar takes the color at the top of the screen: the tomato header, or the screen that is open.
+  // The browser bar takes the color at the top of the screen: the tomato header, or the header of the screen that is
+  // open. A sheet over a screen (the ingredients, the dinner picker) keeps the color of the screen under it.
   function barColor() {
-    const l = top();
-    const el = !l ? document.querySelector('.hero') : l === settings ? settings.querySelector('.sethead') : l === cookIng ? cook : l;
+    const under = stack.filter(l => !l.classList.contains('over')), l = under[under.length - 1];
+    const el = !l ? document.querySelector('.hero') : l.querySelector(':scope > header') || l;
     meta.content = getComputedStyle(el).backgroundColor;
   }
 
@@ -76,6 +83,7 @@
     renderBox();
     if (viewId && isOpen(view) && !renderView(viewId) && top() === view) back(true);   // deleted on another phone
     if (isOpen(cook)) renderCook();
+    drawMeals();   // the names and colors of the planned dinners
   }
   function note(msg) { $('notice').hidden = !msg; $('notice').textContent = msg; }
 
@@ -173,7 +181,9 @@
   // Each open screen is one history entry, so the phone's back button closes the top one.
   const page = $('page'), nav = $('nav');
   const view = $('view'), cook = $('cook'), cookIng = $('cookIng'), editor = $('editor'), settings = $('settings');
-  const layers = [view, cook, cookIng, editor, settings];
+  const plan = $('plan'), grocery = $('grocery'), pick = $('pick');
+  const layers = [view, cook, cookIng, editor, settings, plan, grocery, pick];
+  const tabLayers = [plan, grocery, settings], mealLayers = [plan, grocery, pick];
   const stack = [];
   let quiet = false;   // the next popstate closes without asking: Cancel, Save and Delete already decided
   const top = () => stack[stack.length - 1];
@@ -182,6 +192,7 @@
     page.inert = stack.length > 0;
     layers.forEach(l => { l.inert = l !== top(); });
     root.classList.toggle('locked', stack.length > 0);
+    $('vBackText').textContent = stack[stack.indexOf(view) - 1] === plan ? 'Meal plan' : 'Recipe box';
     drawNav();
     barColor();
   }
@@ -222,6 +233,11 @@
   }
   function back(force) { if (!stack.length) return; quiet = !!force; history.back(); }
   function closeAll() { if (!stack.length) return; quiet = true; history.go(-stack.length); }
+  // The tabs: from the box, a tab opens over it; from one tab, the next one takes its place.
+  function goTab(l) {
+    if (top() === l) return;
+    if (!stack.length) open(l); else swap(l);
+  }
   // A screen that asks before it closes: the editor with changes, cooking mode with a timer that runs.
   function stays(l) {
     if (l === editor && dirty()) return !confirm('Discard the changes to this recipe?');
@@ -239,6 +255,7 @@
   if (history.state && history.state.sheets) history.replaceState(null, '');
   layers.forEach(l => l.addEventListener('click', e => { if (e.target.closest('[data-close]')) back(); }));
   cookIng.addEventListener('click', e => { if (e.target === cookIng) back(); });   // a tap on the dim part
+  pick.addEventListener('click', e => { if (e.target === pick) back(); });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && stack.length) { e.preventDefault(); back(); }
     if (top() === cook && !e.target.closest('input, textarea') && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
@@ -247,25 +264,33 @@
     }
   });
 
-  // The tab bar: Recipes and Settings, for anyone signed in, on the box and on Settings. Settings opened over another
-  // screen (to sign in again during a save) has a back button instead, and so has Settings for someone signed out.
+  // The tab bar, for anyone signed in, on the box and on the tabs: Recipes and Settings, and for the two meal planners
+  // Meal plan and Grocery list as well. Settings opened over another screen (to sign in again during a save) has a back
+  // button instead, and so has Settings for someone signed out.
   function drawNav() {
-    const s = !!session(), alone = top() === settings && stack.length === 1, on = s && (!top() || alone);
+    const s = !!session(), mine = planner(), l = top(), alone = stack.length === 1 && tabLayers.includes(l), on = s && (!l || alone);
     nav.hidden = !on;
     nav.inert = !on;
+    nav.style.setProperty('--n', mine ? 4 : 2);
+    $('navPlan').hidden = $('navGrocery').hidden = !mine;
     document.body.classList.toggle('has-nav', s);
     nav.querySelectorAll('[data-go]').forEach(b => {
-      const here = b.dataset.go === 'settings' ? alone : !top();
+      const here = b.dataset.go === 'box' ? !l : alone && l.id === b.dataset.go;
       if (here) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
-    $('sBack').hidden = s && alone;
+    $('sBack').hidden = s && alone && l === settings;
     $('sBackText').textContent = stack.length > 1 ? 'Back' : 'Recipe box';
   }
   nav.addEventListener('click', e => {
     const b = e.target.closest('[data-go]');
     if (!b) return;
-    if (b.dataset.go === 'box') { if (top() === settings) closeAll(); else scrollTo({ top: 0, behavior: reduceMotion.matches ? 'auto' : 'smooth' }); }
-    else if (top() !== settings) openSettings(false);
+    const go = b.dataset.go;
+    if (go === 'box') { if (top()) closeAll(); else scrollTo({ top: 0, behavior: reduceMotion.matches ? 'auto' : 'smooth' }); }
+    else if (go === 'settings') { if (top() !== settings) openSettings(false, true); }
+    else if (top() !== $(go)) {
+      goTab($(go));
+      if (performance.now() - lastPull > 30e3) pull();
+    }
   });
 
   // Keep the screens inside the visual viewport, above the phone keyboard.
@@ -320,7 +345,10 @@
       ? `<div class="seg" role="group" aria-label="Show"><button type="button" data-half="ing" aria-pressed="${half === 'ing'}">Ingredients · ${r.ingredients.length}</button><button type="button" data-half="steps" aria-pressed="${half === 'steps'}">Steps · ${r.steps.length}</button></div>`
       : '';
     let html = `<article class="index" style="${paint(colorOf(r.tags[0]))}"><div class="strip"></div><div class="head">${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}<h1 class="serif" id="vName">${D.esc(r.name)}</h1></div><div class="rule"></div><div class="body">${seg}${r.steps.length && half === 'steps' ? steps : ings}</div></article>`;
-    if (r.steps.length) html += `<button class="pill tomato big" id="cookBtn" type="button">${ICON.pot}<span>Start cooking</span></button>`;
+    const acts = [];
+    if (r.steps.length) acts.push(`<button class="pill tomato big" id="cookBtn" type="button">${ICON.pot}<span>Start cooking</span></button>`);
+    if (r.ingredients.length) acts.push('<button class="pill big listbtn" id="listBtn" type="button" hidden></button>');   // for the planners
+    if (acts.length) html += `<div class="acts">${acts.join('')}</div>`;
     if (r.notes) html += `<section class="notes"><h2 class="serif">Notes</h2><p>${D.esc(r.notes)}</p></section>`;
     if (r.source) {
       const url = D.safeUrl(r.source);
@@ -330,6 +358,7 @@
     }
     vBody.innerHTML = html;
     $('editBtn').hidden = !session();
+    drawListBtn(shown());
     return true;
   }
   function openView(id, card) {
@@ -345,6 +374,7 @@
       vBody.querySelector(`[data-half="${half}"]`).focus({ preventScroll: true });
     }
     if (e.target.closest('#cookBtn')) openCook();
+    if (e.target.closest('#listBtn')) toggleList();
   });
   $('editBtn').addEventListener('click', () => openEditor(recipes.find(x => x.id === viewId)));
 
@@ -668,7 +698,8 @@
     drawNav();
     renderBox();
   }
-  function openSettings(need) {
+  // `tabbed`: from the tab bar, where Settings is a tab; else it opens over the screen that is open.
+  function openSettings(need, tabbed) {
     $('sNeed').hidden = !need;
     result('');
     said('');
@@ -676,7 +707,7 @@
     account();
     if (session() && session().admin) loadFolks();
     applyTheme();
-    open(settings);
+    if (tabbed) goTab(settings); else open(settings);
   }
   aSwap.addEventListener('click', () => { making = !making; result(''); account(); });
   aName.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); aPass.focus(); } });
@@ -703,6 +734,7 @@
         toast(`Signed in as ${out.name}.`);
         if (out.admin) loadFolks();
         load();   // the newest copy, from GitHub
+        pull();   // the meal plan, for the planners
       }
     } catch (err) {
       result(problem(err));
@@ -712,10 +744,11 @@
     }
   });
   // A sign-in that ended on the Worker: forget it here too.
-  function signOut() { A.keep(null); dot(0); account(); }
+  function signOut() { A.keep(null); dot(0); dropMeals(); account(); }
   $('aOut').addEventListener('click', () => {
     A.signOut();   // here, and on the Worker
     dot(0);
+    dropMeals();
     folks = [];
     account();
     said('');
@@ -777,6 +810,7 @@
     people.innerHTML = approved.length
       ? approved.map(p => `<div class="row">${avatar(p)}<span class="who"><b>${D.esc(p.name)}</b></span><button class="pill" type="button" data-remove="${D.esc(p.key)}" data-label="Remove" data-armed="Tap again" aria-label="Remove ${D.esc(p.name)}">Remove</button></div>`).join('')
       : '<p class="nobody">No other accounts yet.</p>';
+    drawMeals();   // a partner chip for each account
   }
   function unarm() {
     settings.querySelectorAll('[data-remove].armed').forEach(b => {
@@ -809,6 +843,12 @@
         await A.mine().remove(key);
         folks = folks.filter(x => x !== p);
         said(p.status === 'pending' ? `${p.name}’s request is gone.` : `${p.name} can no longer sign in.`);
+        if (planner() && meals.state.partner && meals.state.partner.key === key) {   // the partner is gone: no one shares the plan
+          meals.state.partner = null;
+          meals.state.people = meals.state.people.slice(0, 1);
+          saveMeals();
+          pull();
+        }
       }
       drawFolks();
     } catch (err) {
@@ -819,8 +859,329 @@
     }
   });
 
+  /* ---- the meal plan and the grocery list: tabs for the admin and the partner the admin picks ---- */
+  // The Worker keeps them (worker/meals.js), and meals.js has the data and the ops. This phone keeps the last answer and
+  // the changes that are not sent yet under "recipes-meals", so the tabs show at once, and it shows the answer with those
+  // changes on top. The changes go in batches: one POST at a time, at most one each 1.2 s. A GET only reads KV, so a page
+  // load and the 30 s refresh while a meal screen shows cost no writes.
+  let meals = null;   // { name, state: the Worker's answer { people, days, list, partner (admin) }, queue: [ops] }
+  let week = 0, pickDate = null, shopping = [], choosing = false;
+  // The batch window and the age of the last GET use performance.now(), which only goes forward. `ticks` orders the
+  // GETs and the POSTs.
+  let sending = false, sendT = 0, retryT = 0, tries = 0, lastSent = -Infinity, lastPull = -Infinity, ticks = 0, lastPost = 0, pulls = 0;
+  const mealsApi = () => M.api(session() && session().token);
+  const planner = () => !!(meals && session() && meals.name === session().name);
+  const onMeals = () => mealLayers.includes(top());
+  const utcToday = () => new Date().toISOString().slice(0, 10);   // the Worker's day
+  const saveMeals = () => { if (meals) store.set(MEALS, JSON.stringify(meals)); };
+  function shown() {
+    if (!planner()) return null;
+    return { ...meals.state, ...M.apply(meals.state, meals.queue, meals.name, utcToday()) };
+  }
+  function readMeals() {
+    const s = session();
+    let c = null;
+    try { c = JSON.parse(store.get(MEALS)); } catch (e) {}
+    if (!s || !c || c.name !== s.name || !c.state || typeof c.state !== 'object' || !Array.isArray(c.queue)) { store.del(MEALS); return; }
+    const people = Array.isArray(c.state.people) ? c.state.people.filter(n => typeof n === 'string') : [s.name];
+    meals = { name: c.name, state: { ...c.state, people }, queue: c.queue.map(M.check).filter(Boolean) };
+  }
+  // Not a planner, or signed out: the tabs go, and so does what this phone kept.
+  function dropMeals() {
+    meals = null;
+    store.del(MEALS);
+    clearTimeout(sendT);
+    clearTimeout(retryT);
+    sendT = retryT = tries = 0;
+    mealsNote('');
+    if (stack.some(l => mealLayers.includes(l))) closeAll();
+    drawMeals();
+  }
+  function mealsNote(msg) { ['pNote', 'gNote'].forEach(id => { $(id).hidden = !msg; $(id).textContent = msg; }); }
+  // One change: it shows at once and goes in the next batch.
+  function change(op) {
+    const o = M.check(op);
+    if (!o || !planner()) return false;
+    meals.queue.push(o);
+    saveMeals();
+    drawMeals();
+    later();
+    return true;
+  }
+  function later() {
+    if (sendT || retryT || sending || !planner() || !meals.queue.length) return;
+    sendT = setTimeout(() => { sendT = 0; send(); }, Math.max(0, lastSent + 1200 - performance.now()));
+  }
+  function retryNow() {
+    if (retryT) { clearTimeout(retryT); retryT = 0; }
+    later();
+  }
+  // `keepalive` sends while the page closes.
+  async function send(keepalive) {
+    if (sending || !planner() || !meals.queue.length) return;
+    const mine = meals, batch = mine.queue.slice(0, M.MAX.ops);
+    sending = true;
+    lastSent = performance.now();
+    let wait = 0;
+    try {
+      const out = await mealsApi().send(batch, keepalive);
+      if (meals !== mine) return;
+      mine.queue.splice(0, batch.length);
+      mine.state = out;
+      lastPost = ++ticks;
+      tries = 0;
+      mealsNote('');
+      saveMeals();
+      drawMeals();
+    } catch (e) {
+      if (meals !== mine) return;
+      if (e.code === 'busy') wait = 1500;   // the other phone saved in the same second
+      else if (e.code === 'body') { mine.queue.splice(0, batch.length); saveMeals(); pull(); }   // drop it: the Worker's copy is right
+      else if (e.code === 'signin') signOut();
+      else if (e.code === 'planner') dropMeals();
+      else {   // no connection, the day's free writes are used up, or the Worker failed: keep the changes and try later
+        if (!e.code) console.error(e);
+        wait = e.code === 'full' ? 300e3 : [5e3, 15e3, 30e3, 60e3][Math.min(tries++, 3)];
+        mealsNote(`${e.code ? e.message : 'Something went wrong.'} Your changes are kept on this phone and sent later.`);
+      }
+    } finally {
+      sending = false;
+      if (meals === mine) {
+        if (wait) retryT = setTimeout(() => { retryT = 0; send(); }, wait);
+        else later();   // changes made while this batch was on its way
+      }
+    }
+  }
+  // The newest copy. A POST that ends after this GET was sent answers with newer data, so then the GET's is dropped.
+  async function pull() {
+    const s = session();
+    if (!s) return;
+    const n = ++pulls, at = ++ticks;
+    lastPull = performance.now();
+    try {
+      const out = await mealsApi().get();
+      const now = session();
+      if (n !== pulls || !now || now.name !== s.name || lastPost > at) return;
+      if (planner()) meals.state = out; else meals = { name: s.name, state: out, queue: [] };
+      saveMeals();
+      drawMeals();
+      later();
+    } catch (e) {
+      if (n !== pulls) return;
+      if (e.code === 'planner') dropMeals();
+      else if (e.code === 'signin') signOut();
+    }   // no connection: the copy on this phone stays
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!planner()) return;
+    if (document.visibilityState === 'hidden') {
+      if (meals.queue.length && !sending) { clearTimeout(sendT); sendT = 0; send(true); }
+    } else {
+      retryNow();
+      if (onMeals()) pull();
+    }
+  });
+  addEventListener('online', () => { if (planner()) retryNow(); });
+  setInterval(() => { if (document.visibilityState === 'visible' && onMeals()) pull(); }, 30e3);
+
+  // A redraw replaces the buttons: the focus goes to the same one in the new list, or to the one that took its place.
+  function refocus(draw) {
+    const a = document.activeElement, d = a && a.dataset, q = (k, v) => `[data-${k}="${CSS.escape(v)}"]`;
+    const want = !d ? [] : d.key != null ? [q('key', d.key)] : d.clear ? [q('clear', d.clear), q('plan', d.clear)]
+      : d.plan ? [q('plan', d.plan), q('clear', d.plan)] : d.open ? [q('open', d.open)] : d.week ? [q('week', d.week)]
+      : d.drop ? [q('drop', d.drop), '#gAddRec'] : d.partner != null ? [q('partner', d.partner)] : [];
+    draw();
+    if (!want.length || document.contains(a)) return;
+    const b = want.map(s => document.querySelector(s)).find(Boolean);
+    if (b) b.focus({ preventScroll: true });
+  }
+  function drawMeals() {
+    const v = shown();
+    refocus(() => {
+      if (v) { drawPlan(v); drawGrocery(v); }
+      drawListBtn(v);
+      drawPartner(v);
+    });
+    drawNav();
+  }
+
+  // The meal plan: Monday to Sunday, this week or the next. Each day has a recipe, a note or nothing.
+  const by = name => `<span class="av by" role="img" aria-label="Planned by ${D.esc(name)}" style="${paint(face(name))}">${D.esc((name[0] || '?').toUpperCase())}</span>`;
+  function drawPlan(v) {
+    const now = new Date(), days = M.week(now, week), today = M.iso(now);
+    $('pWho').textContent = 'Dinners for ' + v.people.join(' and ');
+    $('pFaces').innerHTML = v.people.map(name => avatar({ name })).join('');
+    $('pWeeks').innerHTML = [0, 1].map(n => `<button type="button" data-week="${n}" aria-pressed="${n === week}"><b>${n ? 'Next week' : 'This week'}</b><span>${M.span(M.week(now, n))}</span></button>`).join('');
+    $('pDays').innerHTML = days.map(d => {
+      const p = v.days[d.date], x = `<button class="x" type="button" data-clear="${d.date}" aria-label="Clear ${d.long}">${ICON.x}</button>`;
+      let it;
+      if (p && p.recipe) {
+        const r = recipes.find(y => y.id === p.recipe), name = D.esc(r ? r.name : p.name);   // a recipe deleted since keeps its name
+        const what = r ? `<button class="what serif" type="button" data-open="${D.esc(r.id)}">${name}</button>` : `<span class="what serif">${name}</span>`;
+        it = `<div class="dinner" style="${paint(colorOf(r && r.tags[0]))}">${what}${by(p.by)}${x}</div>`;
+      } else if (p) it = `<div class="dinner note"><span class="what">${D.esc(p.note)}</span>${by(p.by)}${x}</div>`;
+      else it = `<button class="planit" type="button" data-plan="${d.date}" aria-label="Plan dinner on ${d.long}">${ICON.plan}<span>Plan dinner</span></button>`;
+      return `<li data-date="${d.date}"><span class="vh">${d.long}, ${d.month} ${d.num}${d.today ? ', today' : ''}</span>`
+        + `<div class="date${d.today ? ' today' : ''}" aria-hidden="true"><span class="dw">${d.day}</span><span class="dn serif">${d.num}</span></div>${it}</li>`;
+    }).join('');
+    // From today on, the recipes with ingredients that are not on the grocery list yet
+    const planned = days.map(d => v.days[d.date]).filter(p => p && p.recipe), listed = new Set(v.list.recipes.map(x => x.id));
+    shopping = [...new Set(days.filter(d => d.date >= today).map(d => v.days[d.date]).filter(p => p && p.recipe).map(p => p.recipe))]
+      .map(id => recipes.find(r => r.id === id)).filter(r => r && r.ingredients.length && !listed.has(r.id));
+    $('pShop').hidden = !planned.length;
+    $('pShopText').textContent = shopping.length ? `Put ${plural(shopping.length, 'dinner')} on the grocery list` : 'Open the grocery list';
+  }
+  $('pWeeks').addEventListener('click', e => { const b = e.target.closest('[data-week]'); if (b) { week = +b.dataset.week; drawMeals(); } });
+  $('pDays').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.open) openView(b.dataset.open, b);
+    else if (b.dataset.clear) change({ op: 'day', date: b.dataset.clear });
+    else if (b.dataset.plan) openPick(b.dataset.plan, b);
+  });
+  $('pShop').addEventListener('click', () => {
+    for (const r of shopping) change({ op: 'add', recipe: r.id, name: r.name, keys: M.keysOf(r, D.amount) });
+    goTab(grocery);
+  });
+
+  // The sheet that picks a dinner: a recipe, or a note such as "Leftovers"
+  function openPick(date, opener) {
+    const d = M.week(new Date(), week).find(x => x.date === date);
+    if (!d || !planner()) return;
+    pickDate = date;
+    $('pkTitle').textContent = `Dinner on ${d.long}, ${d.month} ${d.num}`;
+    $('pkQ').value = '';
+    $('pkNote').value = '';
+    drawPick();
+    open(pick, opener);
+  }
+  function drawPick() {
+    const t = $('pkQ').value.trim(), low = t.toLowerCase();
+    const list = recipes.filter(r => r.name.toLowerCase().includes(low)).sort((a, b) => a.name.localeCompare(b.name));
+    $('pkList').innerHTML = list.length
+      ? list.map(r => `<li><button type="button" data-pick="${D.esc(r.id)}" style="${paint(colorOf(r.tags[0]))}"><i></i><span>${D.esc(r.name)}</span></button></li>`).join('')
+      : `<li class="none">${t ? `No recipe has “${D.esc(t)}”.` : 'No recipes yet.'}</li>`;
+    $('pkList').scrollTop = 0;
+  }
+  // The sheet closes, and the focus goes to the day that was just planned.
+  function dayPicked(date) {
+    addEventListener('popstate', () => { const b = $('pDays').querySelector(`[data-date="${date}"] button`); if (b) b.focus({ preventScroll: true }); }, { once: true });
+    back();
+  }
+  $('pkQ').addEventListener('input', drawPick);
+  $('pkQ').addEventListener('keydown', e => { if (e.key === 'Enter') $('pkQ').blur(); });
+  $('pkList').addEventListener('click', e => {
+    const b = e.target.closest('[data-pick]'), r = b && recipes.find(x => x.id === b.dataset.pick);
+    if (r && change({ op: 'day', date: pickDate, recipe: r.id, name: r.name })) dayPicked(pickDate);
+  });
+  $('pkForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const note = $('pkNote').value.trim();
+    if (!note) { $('pkNote').focus(); return; }
+    if (change({ op: 'day', date: pickDate, note })) dayPicked(pickDate);
+  });
+
+  // The grocery list: one line for each item, so "Buns" from two recipes is one line. Ticked items go to "Got it".
+  function drawGrocery(v) {
+    const L = v.list, lines = M.groceries(L, recipes, D.amount), get = lines.filter(l => !l.got), got = lines.filter(l => l.got);
+    const n = L.recipes.length;
+    $('gSum').textContent = lines.length || n ? [n ? plural(n, 'recipe') : '', `${get.length} to get`].filter(Boolean).join(' · ') : 'Nothing to get';
+    $('gChips').innerHTML = L.recipes.map(x => {
+      const r = recipes.find(y => y.id === x.id), name = D.esc(r ? r.name : x.name);
+      return `<span class="gchip"><span>${name}</span><button type="button" data-drop="${D.esc(x.id)}" aria-label="Take ${name} off the list">${ICON.off}</button></span>`;
+    }).join('') + `<button class="addrec" id="gAddRec" type="button">${ICON.plus}<span>Add a recipe</span></button>`;
+    // under the name: the amounts, and which recipes need it
+    const item = l => {
+      const sub = l.got ? '' : [l.qty.join(' + '), l.for.length ? 'For ' + l.for.join(', ') : 'Extra'].filter(Boolean).join(' · ');
+      return `<li><label><input type="checkbox" data-key="${D.esc(l.key)}"${l.got ? ' checked' : ''}><span class="t"><span class="nm">${D.esc(l.name)}</span>${sub ? `<small>${D.esc(sub)}</small>` : ''}</span></label></li>`;
+    };
+    $('gGet').hidden = !get.length;
+    $('gGetList').innerHTML = get.map(item).join('');
+    $('gGot').hidden = !got.length;
+    $('gGotList').innerHTML = got.map(item).join('');
+    $('gEmpty').hidden = lines.length > 0;
+  }
+  $('gChips').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.id === 'gAddRec') closeAll();   // to the recipe box
+    else if (b.dataset.drop) change({ op: 'drop', recipe: b.dataset.drop });
+  });
+  $('gForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = $('gExtra'), text = input.value.replace(/\s+/g, ' ').trim(), key = M.key(D.amount(text).what);
+    if (!text || !key) { input.focus(); return; }
+    if (change({ op: 'extra', text, key })) input.value = '';
+  });
+  grocery.addEventListener('change', e => {
+    const c = e.target.closest('input[data-key]');
+    if (c) change({ op: 'got', key: c.dataset.key, on: c.checked });
+  });
+  $('gClear').addEventListener('click', () => {
+    const v = shown(), op = v && M.clearing(v.list, recipes, D.amount);
+    if (!op || (!op.keys.length && !op.recipes.length)) return;
+    change(op);
+    grocery.focus({ preventScroll: true });   // Clear itself is gone
+  });
+
+  // On the recipe card: Add to grocery list, or On the grocery list
+  function drawListBtn(v) {
+    const b = $('listBtn');
+    if (!b) return;
+    b.hidden = !v;
+    if (!v) return;
+    const on = v.list.recipes.some(x => x.id === viewId);
+    b.setAttribute('aria-pressed', on);
+    b.innerHTML = on ? `${ICON.tick}<span>On the grocery list</span>` : `${ICON.bag}<span>Add to grocery list</span>`;
+  }
+  function toggleList() {
+    const r = recipes.find(x => x.id === viewId), v = shown();
+    if (!r || !v) return;
+    change(v.list.recipes.some(x => x.id === r.id) ? { op: 'drop', recipe: r.id } : { op: 'add', recipe: r.id, name: r.name, keys: M.keysOf(r, D.amount) });
+  }
+
+  // Admin Settings: who shares the meal plan, with No one on the left
+  function drawPartner(v) {
+    const s = session(), known = !!(s && s.admin && v && 'partner' in v);
+    $('sMeal').hidden = !known;
+    if (!known) return;
+    const on = v.partner ? v.partner.key : '';
+    const list = [{ key: '', name: 'No one' }, ...folks.filter(p => p.status === 'approved')];
+    if (v.partner && !list.some(p => p.key === v.partner.key)) list.push(v.partner);
+    $('sPartners').innerHTML = list.map(p => `<button type="button" data-partner="${D.esc(p.key)}" aria-pressed="${p.key === on}"${choosing ? ' disabled' : ''}>${D.esc(p.name)}</button>`).join('');
+    $('sMealHint').hidden = !!on;
+  }
+  $('sPartners').addEventListener('click', async e => {
+    const b = e.target.closest('[data-partner]'), s = session();
+    if (!b || choosing || !s || b.getAttribute('aria-pressed') === 'true') return;
+    choosing = true;
+    said('');
+    drawPartner(shown());
+    try {
+      const out = await mealsApi().partner(b.dataset.partner);
+      if (planner()) {
+        meals.state.partner = out.partner;
+        meals.state.people = [meals.state.people[0] || s.name, ...(out.partner ? [out.partner.name] : [])];
+        saveMeals();
+      }
+      said(out.partner ? `${out.partner.name} shares the meal plan and the grocery list with you now.` : 'Only you see the meal plan and the grocery list now.');
+      pull();
+    } catch (err) {
+      said(problem(err));
+      if (err.code === 'signin') signOut();
+      else if (err.code === 'nobody') loadFolks();
+    } finally {
+      choosing = false;
+      drawMeals();
+    }
+  });
+
   applyTheme();
+  readMeals();
   account();
   load();
   checkWaiting();
+  drawMeals();
+  later();   // changes this phone kept from last time
+  pull();
 })();

@@ -21,7 +21,8 @@ try{const t=localStorage.getItem('theme');if(t==='light'||t==='dark'||t==='auror
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..800&family=Fraunces:opsz,wght,SOFT@9..144,400..900,0..100&display=swap">
 <style>
 /* A warm kitchen app: a tomato header, a box of recipe cards colored by category, and each recipe on an index card.
-   The recipe, cooking mode, the editor and Settings are full screens over the box (app.js). Themes: Day and Night.
+   The recipe, cooking mode, the editor and Settings are full screens over the box (app.js), and so are the meal plan
+   and the grocery list for the two planners. Themes: Day and Night.
    The design is the "Recipes v2" canvas; docs/recipes-handoff.md has the rules. */
 :root {
   --tomato: #C63A24; --tomato-deep: #A82F1C; --shadow: #8E2817;
@@ -341,6 +342,109 @@ body.has-nav #settings .setbody { padding-bottom: calc(96px + max(16px, env(safe
 .themes button { min-height: 44px; border: 0; border-radius: 999px; background: transparent; color: var(--ink); font-size: 15px; font-weight: 700; }
 .themes button[aria-pressed="true"] { background: var(--solid); color: var(--on-solid); }
 .oldlink { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 44px; padding: 0 4px; font-size: 15px; font-weight: 700; }
+.mealbox p { margin: 0; font-size: 15px; line-height: 1.45; }
+.mealbox .hint { font-weight: 700; color: var(--link); }
+.partners { display: flex; flex-wrap: wrap; gap: 8px; }
+.partners button { min-height: 44px; padding: 0 18px; border: 1.5px solid var(--edge); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 15px; font-weight: 700; }
+.partners button[aria-pressed="true"] { border-color: var(--solid); background: var(--solid); color: var(--on-solid); }
+
+/* the meal plan and the grocery list: tabs for the admin and the partner. The carrot and butter headers keep their
+   colors at night, with ink text. */
+.planhead, .grohead {
+  display: flex; flex-direction: column; gap: 14px; color: #2A1D17; border-radius: 0 0 28px 28px;
+  padding: calc(30px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 18px calc(20px + env(safe-area-inset-left));
+}
+.planhead { background: var(--carrot); }
+.grohead { padding-bottom: 20px; background: var(--butter); }
+.planhead h1, .grohead h1 { font-weight: 800; font-size: 44px; line-height: 1; letter-spacing: -.01em; }
+.headline { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.heading { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.heading .sub { font-size: 15px; font-weight: 700; }
+.grohead .sub { color: #5C4520; }
+.faces { flex: none; display: flex; }
+.faces .av { width: 40px; height: 40px; border: 2.5px solid var(--carrot); font-size: 18px; }
+.faces .av + .av { margin-left: -10px; }
+.weeks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 20px; background: #FFF6E6; }
+.weeks button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 52px; border: 0; border-radius: 16px; background: transparent; color: #2A1D17; }
+.weeks b { font-size: 15px; font-weight: 800; }
+.weeks span { font-size: 12px; font-weight: 600; }
+.weeks button[aria-pressed="true"] { background: #2A1D17; color: #FFF6E6; }
+.planbody, .grobody {
+  display: flex; flex-direction: column; gap: 8px; max-width: 640px; margin: 0 auto;
+  padding: 14px calc(16px + env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+}
+.grobody { gap: 6px; padding-top: 16px; }
+body.has-nav #plan .planbody, body.has-nav #grocery .grobody { padding-bottom: calc(96px + max(16px, env(safe-area-inset-bottom))); }
+.planbody .alert, .grobody .alert { margin-bottom: 6px; }
+.days { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.days li { display: flex; align-items: center; gap: 12px; }
+.date { flex: none; width: 44px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.date .dw { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); }
+.date .dn { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 999px; font-size: 19px; font-weight: 800; }
+.date.today .dw { color: var(--link); }
+.date.today .dn { background: var(--tomato); color: var(--cream); }
+.dinner { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; min-height: 60px; padding: 0 4px 0 16px; border-radius: 16px; background: var(--c); color: var(--cf); }
+.dinner.note { border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); }
+.dinner .what {
+  flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; padding: 8px 0; border: 0; background: none; color: inherit;
+  text-align: left; font-size: 18px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; -webkit-user-select: auto; user-select: auto;
+}
+.dinner.note .what { font-size: 17px; }
+.av.by { width: 28px; height: 28px; border: 2px solid #FFF6E6; font-family: inherit; font-size: 13px; }
+.dinner .x { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: inherit; }
+.planit {
+  flex: 1; display: flex; align-items: center; gap: 8px; min-height: 60px; padding: 0 16px; border: 2px dashed var(--edge); border-radius: 16px;
+  background: transparent; color: var(--soft); font-size: 16px; font-weight: 700;
+}
+.shop { width: 100%; margin-top: 10px; min-height: 56px; gap: 10px; font-size: 16px; font-weight: 800; }
+.gchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.gchip { display: flex; align-items: center; min-height: 44px; padding-left: 14px; border-radius: 999px; background: #FFF6E6; color: #2A1D17; font-size: 14px; font-weight: 700; }
+.gchip button { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: #2A1D17; }
+.addrec {
+  display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 1.5px dashed #2A1D17; border-radius: 999px;
+  background: transparent; color: #2A1D17; font-size: 14px; font-weight: 700;
+}
+.gform { display: flex; gap: 8px; padding-bottom: 4px; }
+.gform input, .pick form input {
+  flex: 1; min-width: 0; height: 50px; padding: 0 16px; border: 1.5px solid var(--edge); border-radius: 999px; background: var(--surface); font-size: 17px;
+  -webkit-appearance: none; appearance: none;
+}
+.gform .round { flex: none; display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; border: 0; border-radius: 999px; background: var(--solid); color: var(--on-solid); }
+.gsec > h2, .ghead h2 { margin: 10px 4px 0; font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--soft); }
+.ghead { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 0 4px; }
+.ghead h2 { margin: 0; }
+.ghead .pill { padding: 0 14px; }
+.items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.items label { display: flex; align-items: center; gap: 14px; min-height: 58px; padding: 8px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.items input { flex: none; width: 24px; height: 24px; margin: 0; accent-color: var(--tomato); }
+.items .t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.items .nm { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.items small { font-size: 13px; color: var(--soft); overflow-wrap: anywhere; }
+.items.got label { min-height: 52px; color: var(--soft); }
+.items.got .nm { font-weight: 400; text-decoration: line-through; }
+.gempty { margin: 24px 4px; font-size: 16px; line-height: 1.45; color: var(--soft); }
+/* the recipe card: Start cooking, and Add to grocery list for the planners */
+.acts { display: flex; flex-direction: column; gap: 12px; }
+.acts:not(:has(> :not([hidden]))) { display: none; }
+.pill.big.listbtn { min-height: 56px; gap: 10px; border: 2px solid var(--butter); background: var(--butter); color: var(--on-butter); font-size: 17px; }
+.pill.big.listbtn[aria-pressed="true"] { border-color: var(--ink); background: var(--surface); color: var(--ink); }
+/* the sheet that picks a dinner, over the meal plan */
+.over.pick .panel {
+  top: calc(96px + env(safe-area-inset-top)); gap: 12px; overflow: hidden; background: var(--ground); box-shadow: 0 -20px 40px rgba(42, 29, 23, .25);
+  padding: 20px calc(16px + env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+}
+.over.pick h2 { font-size: 22px; font-weight: 800; line-height: 1.15; text-wrap: balance; }
+.find { flex: none; display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 16px; border: 1.5px solid var(--edge); border-radius: 999px; background: var(--surface); color: var(--soft); }
+.find:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.find input { flex: 1; min-width: 0; height: 100%; border: 0; padding: 0; background: transparent; outline: none; color: var(--ink); font-size: 17px; -webkit-appearance: none; appearance: none; }
+.find input::-webkit-search-cancel-button { display: none; }
+.choices { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.choices button { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 16px; border: 0; border-radius: 14px; background: var(--surface); color: var(--ink); text-align: left; font-size: 17px; font-weight: 700; }
+.choices i { flex: none; width: 14px; height: 14px; border-radius: 999px; background: var(--c); }
+.choices .none { margin: 8px 4px; }
+.pick form { flex: none; display: flex; gap: 8px; }
+.pick form input { font-size: 16px; }
+.pick form .pill { min-height: 50px; padding: 0 20px; font-size: 16px; font-weight: 800; }
 
 .toast {
   position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 60; max-width: calc(100% - 32px); padding: 12px 18px;
@@ -391,6 +495,14 @@ body.has-nav #settings .setbody { padding-bottom: calc(96px + max(16px, env(safe
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10V5.5A1.5 1.5 0 0 1 8.5 4h7A1.5 1.5 0 0 1 17 5.5V10"/><path d="M4 10h16v8.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z"/><path d="M10 14h4"/></svg></span>
     <span>Recipes</span>
   </button>
+  <button type="button" data-go="plan" id="navPlan" hidden>
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span>
+    <span>Meal plan</span>
+  </button>
+  <button type="button" data-go="grocery" id="navGrocery" hidden>
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9.5h17l-1.6 9.1a2 2 0 0 1-2 1.65H7.1a2 2 0 0 1-2-1.65z"/><path d="M8 9.5l3-5.5M16 9.5l-3-5.5"/><path d="M9.5 13.5v3.5M14.5 13.5v3.5"/></svg></span>
+    <span>Grocery list</span>
+  </button>
   <button type="button" data-go="settings" id="navSettings">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></span>
     <span>Settings</span>
@@ -403,7 +515,7 @@ body.has-nav #settings .setbody { padding-bottom: calc(96px + max(16px, env(safe
     <div class="topbar">
       <button class="backlink" type="button" data-close>
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-        <span>Recipe box</span>
+        <span id="vBackText">Recipe box</span>
       </button>
       <button class="iconbtn" id="editBtn" type="button" aria-label="Edit recipe">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14 7l3 3"/></svg>
@@ -530,6 +642,14 @@ body.has-nav #settings .setbody { padding-bottom: calc(96px + max(16px, env(safe
         <h2>Accounts</h2>
         <div class="box people" id="sPeople"></div>
       </div>
+      <div class="group" id="sMeal" style="margin-top: 20px" hidden>
+        <h2 id="sMealLabel">Meal plan and grocery list</h2>
+        <div class="box mealbox">
+          <p>You and one other person share the meal plan and the grocery list. No one else sees them.</p>
+          <div class="partners" id="sPartners" role="group" aria-labelledby="sMealLabel"></div>
+          <p class="hint" id="sMealHint" hidden>Pick who shares them with you.</p>
+        </div>
+      </div>
     </div>
     <section class="box signform" id="aBox" hidden>
       <div class="intro">
@@ -565,10 +685,85 @@ body.has-nav #settings .setbody { padding-bottom: calc(96px + max(16px, env(safe
   </div>
 </section>
 
+<!-- the meal plan: a tab for the two planners -->
+<section class="layer fade" id="plan" aria-labelledby="pTitle" tabindex="-1" hidden>
+  <header class="planhead">
+    <div class="headline">
+      <div class="heading">
+        <h1 class="serif" id="pTitle">Meal plan</h1>
+        <span class="sub" id="pWho"></span>
+      </div>
+      <div class="faces" id="pFaces" aria-hidden="true"></div>
+    </div>
+    <div class="weeks" id="pWeeks" role="group" aria-label="Week"></div>
+  </header>
+  <div class="planbody">
+    <p class="alert" id="pNote" role="status" hidden></p>
+    <ul class="days" id="pDays" aria-label="Dinners"></ul>
+    <button class="pill butter shop" id="pShop" type="button" hidden>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9.5h17l-1.6 9.1a2 2 0 0 1-2 1.65H7.1a2 2 0 0 1-2-1.65z"/><path d="M8 9.5l3-5.5M16 9.5l-3-5.5"/><path d="M9.5 13.5v3.5M14.5 13.5v3.5"/></svg>
+      <span id="pShopText"></span>
+    </button>
+  </div>
+</section>
+<section class="layer fade over pick" id="pick" aria-labelledby="pkTitle" tabindex="-1" hidden>
+  <div class="panel">
+    <div class="row">
+      <h2 class="serif" id="pkTitle">Dinner</h2>
+      <button class="pill" type="button" data-close>Close</button>
+    </div>
+    <label class="find">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+      <span class="vh">Search recipes</span>
+      <input id="pkQ" type="search" placeholder="Search recipes" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+    </label>
+    <ul class="choices" id="pkList" aria-label="Recipes"></ul>
+    <form id="pkForm" novalidate>
+      <label class="vh" for="pkNote">Or write something else</label>
+      <input id="pkNote" type="text" placeholder="Or write something, like Leftovers" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" maxlength="80">
+      <button class="pill solid" type="submit">Add</button>
+    </form>
+  </div>
+</section>
+
+<!-- the grocery list: a tab for the two planners -->
+<section class="layer fade" id="grocery" aria-labelledby="gTitle" tabindex="-1" hidden>
+  <header class="grohead">
+    <div class="heading">
+      <h1 class="serif" id="gTitle">Grocery list</h1>
+      <span class="sub" id="gSum"></span>
+    </div>
+    <div class="gchips" id="gChips"></div>
+  </header>
+  <div class="grobody">
+    <p class="alert" id="gNote" role="status" hidden></p>
+    <form class="gform" id="gForm" novalidate>
+      <label class="vh" for="gExtra">Add something else</label>
+      <input id="gExtra" type="text" placeholder="Add something else" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" maxlength="80">
+      <button class="round" type="submit" aria-label="Add to the list">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </form>
+    <section class="gsec" id="gGet" aria-labelledby="gGetTitle" hidden>
+      <h2 id="gGetTitle">To get</h2>
+      <ul class="items" id="gGetList"></ul>
+    </section>
+    <section class="gsec" id="gGot" aria-labelledby="gGotTitle" hidden>
+      <div class="ghead">
+        <h2 id="gGotTitle">Got it</h2>
+        <button class="pill quiet" id="gClear" type="button">Clear</button>
+      </div>
+      <ul class="items got" id="gGotList"></ul>
+    </section>
+    <p class="gempty" id="gEmpty" hidden>Nothing on the list. Open a recipe and tap Add to grocery list.</p>
+  </div>
+</section>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="../shared/account.js"></script>
 <script src="data.js"></script>
+<script src="meals.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

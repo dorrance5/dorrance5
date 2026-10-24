@@ -1,6 +1,7 @@
 // Drives the Recipes page in WebKit at 390 × 844 against the API Worker run in Node (worker/test/harness.cjs), with a stand-in for GitHub:
 // the recipe box and its dividers, search, a recipe, cooking mode and its timers, theme, accounts and the admin, add, edit,
-// delete, a 409, errors and the back button.
+// delete, a 409, errors and the back button; then the meal plan and the grocery list on two phones (the admin and the
+// partner), the partner chips, batches, no connection, a busy Worker, and losing the tabs.
 // Exits 1 on a failed check or a console error.
 //   NODE_PATH=/path/to/node_modules node recipes/test/flows.cjs
 const { webkit, devices } = require('playwright');
@@ -9,7 +10,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..', '..');
-const FILE = fs.readFileSync(path.join(root, 'recipes', 'recipes.json'), 'utf8');
+// A frozen copy of the recipe book, so that the family's edits to recipes.json do not change what the checks expect.
+// It stands in for recipes.json on the site and on GitHub.
+const FILE = fs.readFileSync(path.join(__dirname, 'fixture-recipes.json'), 'utf8');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
@@ -40,6 +43,7 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   async function newContext() {
     const ctx = await browser.newContext(phone);
     await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: '' }));
+    await ctx.route('**/recipes/recipes.json', r => r.fulfill({ contentType: 'application/json', body: FILE }));
     await ctx.route('**/api/**', api.route);
     // a wake lock that counts, and a vibration that counts
     await ctx.addInitScript(() => {
@@ -94,8 +98,10 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   async function phoneRules(where, p = page) {
     const r = await p.evaluate(() => {
       const visible = el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[inert], [hidden]');
+      // a checkbox in a label: the label is what a finger taps
+      const target = el => { const l = el.closest('label'); return l && el.type === 'checkbox' ? l : el; };
       const small = [...document.querySelectorAll('button, a, input, textarea')].filter(visible)
-        .map(el => ({ el, b: el.getBoundingClientRect() })).filter(({ b }) => b.height < 44 || b.width < 44)
+        .map(el => ({ el, b: target(el).getBoundingClientRect() })).filter(({ b }) => b.height < 44 || b.width < 44)
         .map(({ el, b }) => `${el.id || el.className || el.tagName} ${Math.round(b.width)}x${Math.round(b.height)}`);
       const fonts = [...document.querySelectorAll('input, textarea')].filter(visible).map(el => parseFloat(getComputedStyle(el).fontSize)).filter(s => s < 16);
       const wide = [...document.querySelectorAll('.layer')].filter(visible).filter(l => l.scrollWidth > l.clientWidth + 1).map(l => l.id);
@@ -309,7 +315,7 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   const sess = await page.evaluate(() => JSON.parse(localStorage.getItem('dorrance-session')));
   check('signed in: the You card says who', (await text('#sMeName')) === 'Madi' && (await text('#sMeRole')) === 'Signed in' && sess.name === 'Madi' && !sess.admin);
   check('signed in: the tab bar shows Recipes and Settings, Settings picked, and no back button',
-    await page.isVisible('#nav') && (await page.$$eval('#nav button', bs => bs.map(b => b.textContent.trim() + (b.getAttribute('aria-current') ? '*' : '')).join())) === 'Recipes,Settings*' && await page.isHidden('#sBack'));
+    await page.isVisible('#nav') && (await page.$$eval('#nav button:not([hidden])', bs => bs.map(b => b.textContent.trim() + (b.getAttribute('aria-current') ? '*' : '')).join())) === 'Recipes,Settings*' && await page.isHidden('#sBack'));
   check('only the admin sees the accounts', await page.isHidden('#sAdmin'));
   check('the password is gone from the form', (await page.inputValue('#aPass')) === '');
   await tap('#nav [data-go="box"]');
@@ -477,6 +483,272 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   await page.waitForSelector('#deck .rc');
   await page.waitForFunction(n => performance.getEntriesByType('resource').some(e => e.name.endsWith('/api/auth/me')), me0);
   check('without a recent count, a page load asks once', meCalls() === me0 + 1);
+
+  /* ---- the meal plan and the grocery list: Mitchell (the admin) and the partner ---- */
+  // From here every page says it is Saturday, October 24, 2026: Date.now() stands still and the timers run.
+  const DAY0 = new Date(2026, 9, 24, 18, 0);
+  const INK = 'rgb(42, 29, 23)';
+  await api.addUser('Nicole', 'nicole-password');
+  const mealsKV = () => api.kv.get('meals:data', 'json');
+  const writes = () => api.kv.puts.filter(k => k === 'meals:data').length;
+  const queued = (p = page) => p.evaluate(() => { try { return JSON.parse(localStorage.getItem('recipes-meals')).queue.length; } catch (e) { return -1; } });
+  const sent = (p = page) => p.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('recipes-meals')).queue.length === 0; } catch (e) { return false; } });
+  const navTabs = (p = page) => p.$$eval('#nav button:not([hidden])', bs => bs.map(b => b.textContent.trim() + (b.getAttribute('aria-current') ? '*' : '')).join());
+  const chips = () => page.$$eval('#sPartners button', bs => bs.map(b => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')).join());
+  const days = (p = page) => p.$$eval('#pDays li', ls => ls.map(l => {
+    const w = l.querySelector('.what'), b = l.querySelector('.by');
+    return `${l.querySelector('.dw').textContent} ${l.querySelector('.dn').textContent}: ${w ? w.textContent : '+'}${b ? ' (' + b.getAttribute('aria-label').slice(11) + ')' : ''}`;
+  }).join(' | '));
+  const items = (sel, p = page) => p.$$eval(`${sel} li`, ls => ls.map(l => l.querySelector('.nm').textContent + (l.querySelector('small') ? ' — ' + l.querySelector('small').textContent : '')));
+  const onList = () => page.$$eval('#gChips .gchip > span', s => s.map(x => x.textContent).join());
+  const bar = (p = page) => p.$eval('meta[name="theme-color"]', m => m.content);
+  const poke = p => p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));   // back on the page
+  const posts = [];
+  page.on('request', r => { if (r.method() === 'POST' && r.url().endsWith('/api/meals')) posts.push(r.url()); });
+  // Another phone, signed in as `name`
+  async function phoneOf(name, password) {
+    const c = await newContext();
+    const s = await (await api.call('http://x/api/auth/login', { method: 'POST', body: JSON.stringify({ name, password }) })).json();
+    await c.addInitScript(s => {
+      if (sessionStorage.getItem('seeded')) return;
+      sessionStorage.setItem('seeded', '1');
+      localStorage.setItem('dorrance-session', JSON.stringify({ token: s.token, name: s.name, admin: s.admin }));
+    }, s);
+    const p = await c.newPage();
+    watch(p);
+    await p.clock.setFixedTime(DAY0);
+    await p.goto(base);
+    await p.waitForSelector('#deck .rc');
+    await p.waitForLoadState('networkidle');
+    return { c, p };
+  }
+
+  await page.clock.setFixedTime(DAY0);
+  const mealGets0 = urls.filter(u => u.endsWith('/api/meals')).length, kvPuts0 = api.kv.puts.length;
+  await page.reload();
+  await page.waitForSelector('#navPlan:not([hidden])');
+  await page.waitForLoadState('networkidle');
+  check('the admin plans dinners: four tabs, Recipes picked', (await navTabs()) === 'Recipes*,Meal plan,Grocery list,Settings' && (await page.$eval('#nav', n => getComputedStyle(n).gridTemplateColumns.split(' ').length)) === 4);
+  check('a page load reads the meal plan once and writes nothing to KV', urls.filter(u => u.endsWith('/api/meals')).length - mealGets0 === 1 && api.kv.puts.length === kvPuts0);
+
+  // Settings: who shares the plan
+  await tap('#navSettings');
+  await opened('settings');
+  await page.waitForSelector('#sPartners [data-partner="nicole"]');
+  check('Settings: "Meal plan and grocery list" after Accounts, No one on the left and picked, with a hint',
+    (await chips()) === 'No one*,Jen,Nicole' && await page.isVisible('#sMealHint')
+    && await page.evaluate(() => { const g = [...document.querySelectorAll('#sAdmin > .group > h2')].map(h => h.textContent); return g.indexOf('Meal plan and grocery list') === g.indexOf('Accounts') + 1; }));
+  await tap('#sPartners [data-partner="nicole"]');
+  await page.waitForFunction(() => document.getElementById('sSay').textContent.startsWith('Nicole'));
+  check('picking Nicole: Nicole is the partner, here and on the Worker', (await chips()) === 'No one,Jen,Nicole*' && await page.isHidden('#sMealHint')
+    && (await api.kv.get('meals:partner', 'json')).key === 'nicole' && (await text('#sSay')) === 'Nicole shares the meal plan and the grocery list with you now.');
+  await phoneRules('settings with the partner chips');
+
+  const jen = await phoneOf('Jen', 'jen-password');
+  check('Jen is not a planner: Recipes and Settings only, and nothing kept', (await navTabs(jen.p)) === 'Recipes*,Settings' && (await jen.p.evaluate(() => localStorage.getItem('recipes-meals'))) === null);
+  await jen.p.tap('#deck .rc:has-text("Burgers")');
+  await jen.p.waitForSelector('#view.open');
+  check('Jen: no Add to grocery list on a recipe', await jen.p.isHidden('#listBtn'));
+  await jen.c.close();
+  const nicole = await phoneOf('Nicole', 'nicole-password'), np = nicole.p;
+  check('Nicole is the partner: four tabs', (await navTabs(np)) === 'Recipes*,Meal plan,Grocery list,Settings');
+
+  // The meal plan
+  await tap('#nav [data-go="plan"]');
+  await opened('plan');
+  await closed('settings');
+  check('Meal plan takes the place of Settings, at the same depth', (await depth()) === 1 && (await navTabs()) === 'Recipes,Meal plan*,Grocery list,Settings');
+  check('the header: Dinners for Mitchell and Nicole, two faces, This week picked',
+    (await text('#pWho')) === 'Dinners for Mitchell and Nicole' && (await page.$$('#pFaces .av')).length === 2 && (await pressed('#pWeeks button')).join() === 'This weekOct 19–25');
+  check('Monday to Sunday, all empty, and Saturday the 24th is today',
+    (await days()) === 'Mon 19: + | Tue 20: + | Wed 21: + | Thu 22: + | Fri 23: + | Sat 24: + | Sun 25: +'
+    && await page.$eval('#pDays li[data-date="2026-10-24"] .date', d => d.classList.contains('today')) && await page.isHidden('#pShop'));
+  check('the browser bar takes the carrot header', (await bar()) === CARROT);
+  await phoneRules('meal plan');
+  await tap('#pDays [data-plan="2026-10-24"]');
+  await opened('pick');
+  check('Plan dinner opens the picker for that day, over the plan', (await text('#pkTitle')) === 'Dinner on Saturday, Oct 24' && (await depth()) === 2 && (await bar()) === CARROT);
+  await phoneRules('dinner picker');
+  await page.fill('#pkQ', 'zup');
+  check('the search in the picker finds the zuppa', (await page.$$eval('#pkList button', bs => bs.map(b => b.textContent).join())) === ZUPPA);
+  await tap('#pkList button');
+  await closed('pick');
+  check('picked: Saturday has the zuppa in tomato, planned by Mitchell, with the focus on it',
+    (await days()).includes(`Sat 24: ${ZUPPA} (Mitchell)`) && (await bg('#pDays li[data-date="2026-10-24"] .dinner')) === TOMATO
+    && await page.evaluate(() => document.activeElement.closest('li')?.dataset.date === '2026-10-24'));
+  await tap('#pDays [data-plan="2026-10-25"]');
+  await opened('pick');
+  await page.fill('#pkNote', 'Leftovers');
+  await tap('#pkForm .pill');
+  await closed('pick');
+  check('a note: Sunday is Leftovers', (await days()).includes('Sun 25: Leftovers (Mitchell)'));
+  await sent();
+  let d = await mealsKV();
+  check('the Worker keeps both, with who planned them', d.days['2026-10-24'].recipe === 'megans-zuppa-toscana' && d.days['2026-10-24'].by === 'Mitchell' && d.days['2026-10-25'].note === 'Leftovers');
+  await page.focus('#pDays [data-clear="2026-10-25"]');   // with a keyboard: a tap does not focus a button in Safari
+  await page.keyboard.press('Enter');
+  check('x clears Sunday, and the focus goes to its Plan dinner', (await days()).endsWith('Sun 25: +') && await page.evaluate(() => document.activeElement.dataset.plan === '2026-10-25'));
+  await sent();
+
+  // Nicole plans next week, and each sees the other's dinner
+  await np.tap('#nav [data-go="plan"]');
+  await opened('plan', np);
+  await poke(np);
+  await np.waitForFunction(z => document.querySelector('#pDays li[data-date="2026-10-24"] .what')?.textContent === z, ZUPPA);
+  check('Nicole sees the zuppa, planned by Mitchell, and Sunday cleared', (await days(np)).includes(`Sat 24: ${ZUPPA} (Mitchell)`) && (await days(np)).endsWith('Sun 25: +'));
+  await np.tap('#pWeeks [data-week="1"]');
+  check('Next week: Oct 26 to Nov 1', (await days(np)).startsWith('Mon 26: +') && (await days(np)).endsWith('Sun 1: +') && (await np.$eval('#pWeeks [aria-pressed="true"]', b => b.textContent)) === 'Next weekOct 26–Nov 1');
+  await np.tap('#pDays [data-plan="2026-10-26"]');
+  await opened('pick', np);
+  await np.tap('#pkList button:has-text("Pepperoncini roast")');
+  await closed('pick', np);
+  await sent(np);
+  d = await mealsKV();
+  check('the roast, planned by Nicole, is kept with Mitchell’s dinner', d.days['2026-10-26'].by === 'Nicole' && d.days['2026-10-24'].by === 'Mitchell');
+  await poke(page);
+  await tap('#pWeeks [data-week="1"]');
+  await page.waitForFunction(() => !!document.querySelector('#pDays li[data-date="2026-10-26"] .what'));
+  check('Mitchell sees the roast, planned by Nicole', (await days()).includes('Mon 26: Pepperoncini roast (Nicole)'));
+
+  // The recipe card: Add to grocery list
+  await tap('#pWeeks [data-week="0"]');
+  await tap('#pDays [data-open="megans-zuppa-toscana"]');
+  await opened('view');
+  check('a dinner opens its recipe, with ‹ Meal plan to go back', (await text('#vName')) === ZUPPA && (await text('#vBackText')) === 'Meal plan');
+  check('the recipe has Add to grocery list in butter, under Start cooking',
+    (await text('#listBtn')) === 'Add to grocery list' && (await page.getAttribute('#listBtn', 'aria-pressed')) === 'false' && (await bg('#listBtn')) === BUTTER
+    && await page.$eval('#listBtn', b => b.previousElementSibling?.id === 'cookBtn'));
+  await tap('#listBtn');
+  check('tapped: On the grocery list', (await text('#listBtn')) === 'On the grocery list' && (await page.getAttribute('#listBtn', 'aria-pressed')) === 'true');
+  await tap('#view [data-close]');
+  await closed('view');
+  check('back on the plan: the zuppa is on the list, so the button opens the list', (await text('#pShopText')) === 'Open the grocery list');
+  await tap('#pWeeks [data-week="1"]');
+  check('next week: Put 1 dinner on the grocery list (the roast)', (await text('#pShopText')) === 'Put 1 dinner on the grocery list');
+  await tap('#pShop');
+  await opened('grocery');
+  await closed('plan');
+  check('it opens the grocery list tab in place of the plan', (await depth()) === 1 && (await navTabs()) === 'Recipes,Meal plan,Grocery list*,Settings' && (await bar()) === BUTTER);
+  check('the list has both recipes as chips', (await onList()) === `${ZUPPA},Pepperoncini roast` && (await text('#gSum')).startsWith('2 recipes · '));
+  check('an item shows its amount and its recipe', (await items('#gGetList')).includes(`Chicken broth — 2 cups · For ${ZUPPA}`), await items('#gGetList'));
+
+  // Two recipes with the same item
+  await tap('#gAddRec');
+  await closed('grocery');
+  check('Add a recipe goes to the recipe box', (await depth()) === 0);
+  for (const name of ['Burgers and fries', 'Pulled pork sandwiches', 'Sheet pan breakfast burritos']) {
+    await openRecipe(name);
+    await tap('#listBtn');
+    await page.goBack();
+    await closed('view');
+  }
+  await openRecipe("Jen's tortellini pasta salad");
+  check('a recipe with no ingredients has no Add to grocery list', !(await page.$('#listBtn')));
+  await page.goBack();
+  await closed('view');
+  await tap('#nav [data-go="grocery"]');
+  await opened('grocery');
+  let get = await items('#gGetList');
+  check('Buns from two recipes is one line, for both', get.filter(l => l.startsWith('Buns')).length === 1 && get.includes('Buns — For Burgers and fries, Pulled pork sandwiches'), get);
+  check('bacon from the zuppa and the burritos is one line, with the amount', get.includes(`Bacon (thick-cut) — 5 strips · For ${ZUPPA}, Sheet pan breakfast burritos`), get);
+  check('the summary counts the recipes and the items to get', (await text('#gSum')) === `5 recipes · ${get.length} to get`);
+  await page.fill('#gExtra', '2 lb apples');
+  await page.press('#gExtra', 'Enter');
+  check('Add something else: Apples, 2 lb, Extra; the field empties', (await items('#gGetList')).includes('Apples — 2 lb · Extra') && (await page.inputValue('#gExtra')) === '');
+  await phoneRules('grocery list');
+  await sent();
+
+  // Got it, in a batch, and Clear. Burgers and fries has Ketchup too, from the 409 above.
+  const posts0 = posts.length, w0 = writes();
+  for (const k of ['burgers', 'buns', 'fries', 'ketchup']) await tap(`#gGetList [data-key="${k}"]`);
+  check('ticked items move to Got it, struck through', (await items('#gGotList')).join() === 'Burgers,Buns,Fries,Ketchup'
+    && await page.$eval('#gGotList .nm', n => getComputedStyle(n).textDecorationLine === 'line-through') && await page.isVisible('#gClear'));
+  await sent();
+  check('four quick ticks go in at most two POSTs, one KV write each', posts.length - posts0 <= 2 && writes() - w0 === posts.length - posts0, { posts: posts.length - posts0, writes: writes() - w0 });
+  await tap('#gClear');
+  await sent();
+  d = await mealsKV();
+  const cleared = { gotHidden: await page.isHidden('#gGot'), chips: await onList(), kept: d.list.recipes.map(r => r.id), gone: d.list.gone, get: await items('#gGetList') };
+  check('Clear: Got it empties; Burgers and fries has nothing left, so its chip goes; the pulled pork keeps its own item',
+    cleared.gotHidden && !cleared.chips.includes('Burgers and fries') && !cleared.kept.includes('burgers-and-fries')
+    && cleared.gone.includes('buns') && cleared.get.some(l => l.startsWith('Pulled pork')) && !cleared.get.some(l => l.startsWith('Buns')), cleared);
+  await page.focus('#gChips [data-drop="pulled-pork-sandwiches"]');
+  await page.keyboard.press('Enter');
+  check('x takes Pulled pork sandwiches off the list, and the focus goes on', !(await onList()).includes('Pulled pork') && !(await items('#gGetList')).some(l => l.startsWith('Pulled pork'))
+    && await page.evaluate(() => document.activeElement.id === 'gAddRec'));
+  await sent();
+  await np.tap('#nav [data-go="grocery"]');
+  await opened('grocery', np);
+  await poke(np);
+  await np.waitForFunction(() => document.querySelectorAll('#gChips .gchip').length === 3);
+  check('Nicole sees the same list', (await items('#gGetList', np)).join() === (await items('#gGetList')).join());
+
+  // No connection, then a busy Worker
+  gh.offline = true;
+  await tap('#gGetList [data-key="apples"]');
+  await page.waitForSelector('#gNote:not([hidden])');
+  check('no connection: the tick shows, and a note says the change waits on this phone',
+    (await text('#gNote')) === 'No connection. Your changes are kept on this phone and sent later.' && (await items('#gGotList')).includes('Apples') && (await queued()) === 1);
+  gh.offline = false;
+  await page.evaluate(() => dispatchEvent(new Event('online')));
+  await sent();
+  check('back online: it is sent, and the note goes', await page.isHidden('#gNote') && (await mealsKV()).list.got.includes('apples'));
+  api.kv.kvFail.push('KV PUT failed: 429 Too Many Requests');
+  const posts1 = posts.length;
+  await tap('#gGotList [data-key="apples"]');
+  await sent();
+  check('busy (the other phone saved that second): it sends again by itself, with no note', posts.length - posts1 === 2 && !(await mealsKV()).list.got.includes('apples') && await page.isHidden('#gNote'));
+
+  // Night: the headers keep their colors, with ink text
+  await page.evaluate(() => { localStorage.setItem('theme', 'dark'); dispatchEvent(new StorageEvent('storage', { key: 'theme' })); });
+  check('Night: the grocery header stays butter, with ink text, on the night ground',
+    (await bg('#grocery .grohead')) === BUTTER && (await page.$eval('#gTitle', h => getComputedStyle(h).color)) === INK && (await bg('#grocery')) === 'rgb(28, 21, 18)');
+  await tap('#nav [data-go="plan"]');
+  await opened('plan');
+  check('Night: the plan header stays carrot, with ink text', (await bg('#plan .planhead')) === CARROT && (await page.$eval('#pTitle', h => getComputedStyle(h).color)) === INK);
+  await page.evaluate(() => { localStorage.setItem('theme', 'auto'); dispatchEvent(new StorageEvent('storage', { key: 'theme' })); });
+  await page.goBack();
+  await closed('plan');
+  check('the back button goes from a tab to the box', (await depth()) === 0 && (await navTabs()) === 'Recipes*,Meal plan,Grocery list,Settings');
+
+  // No one, then the partner's account removed
+  await tap('#navSettings');
+  await opened('settings');
+  await page.waitForSelector('#sPartners [data-partner=""]');
+  await tap('#sPartners [data-partner=""]');
+  await page.waitForFunction(() => document.getElementById('sSay').textContent.startsWith('Only you'));
+  check('No one: only Mitchell plans now', (await chips()) === 'No one*,Jen,Nicole' && !(await api.kv.get('meals:partner', 'json')) && (await text('#pWho')) === 'Dinners for Mitchell');
+  await poke(np);
+  await np.waitForSelector('#navPlan', { state: 'hidden' });
+  await closed('grocery', np);
+  check('Nicole: the next read says not a planner, so the tabs and what the phone kept go', (await navTabs(np)) === 'Recipes*,Settings'
+    && (await np.evaluate(() => localStorage.getItem('recipes-meals'))) === null, { tabs: await navTabs(np), kept: await np.evaluate(() => localStorage.getItem('recipes-meals')) });
+  await nicole.c.close();
+  await tap('#sPartners [data-partner="nicole"]');
+  await page.waitForFunction(() => document.querySelector('#sPartners [data-partner="nicole"]')?.getAttribute('aria-pressed') === 'true');
+  await tap('#sPeople [data-remove="nicole"]');
+  await tap('#sPeople [data-remove="nicole"]');
+  await page.waitForFunction(() => document.querySelector('#sPartners [data-partner=""]')?.getAttribute('aria-pressed') === 'true');
+  check('removing the partner’s account: No one shares the plan', (await chips()) === 'No one*,Jen' && (await text('#pWho')) === 'Dinners for Mitchell');
+
+  // A sign-in that ended, and Sign out: the tabs and the kept plan go
+  await tap('#nav [data-go="grocery"]');
+  await opened('grocery');
+  for (const k of [...api.kv.m.keys()]) if (k.startsWith('auth:session:')) api.kv.m.delete(k);
+  await page.fill('#gExtra', 'Milk');
+  await page.press('#gExtra', 'Enter');
+  await page.waitForFunction(() => !localStorage.getItem('dorrance-session'));
+  await closed('grocery');
+  check('a sign-in that ended: signed out, back on the box, the tabs and the kept plan gone',
+    (await page.evaluate(() => localStorage.getItem('recipes-meals'))) === null && await page.isHidden('#nav') && (await depth()) === 0);
+  await tap('#signInBtn');
+  await opened('settings');
+  await signIn(api.ADMIN, api.ADMIN_PASSWORD);
+  await page.waitForSelector('#navPlan:not([hidden])');
+  check('signed in again: the tabs come back from the Worker', (await navTabs()) === 'Recipes,Meal plan,Grocery list,Settings*');
+  await tap('#aOut');
+  await page.waitForSelector('#aBox:not([hidden])');
+  check('Sign out: the kept plan goes too', (await page.evaluate(() => localStorage.getItem('recipes-meals'))) === null && await page.isHidden('#nav'));
 
   check('no console errors', errors.length === 0, errors);
   await browser.close();
