@@ -40,7 +40,8 @@ This is a static site of small phone apps. GitHub Pages deploys `main` with `.gi
 ## Recipes
 
 - `recipes/` is a standalone page, not one of the apps. It has no `manifest.json` and no `sw.js`, so there is no `CACHE` to increase. Do not add it to the home page.
-- `recipes/recipes.json` is the only copy of the recipes. The page saves to it with the GitHub contents API. `docs/recipes-handoff.md` has the data format.
+- `recipes/recipes.json` is the only copy of the recipes. The page saves to it through the API Worker (`worker/recipes.js`), which holds the GitHub token and the accounts. `docs/recipes-handoff.md` has the data format.
+- A push does not deploy the Worker. After a change in `worker/`, run `npx wrangler deploy` in `worker/`, then check that `https://dorrance.me/api/tvmount/lib` still answers.
 - Run the unit tests: `node --test recipes/test/*.test.js`
 - Run the browser checks: `NODE_PATH=<folder with playwright> node recipes/test/flows.cjs`
 - Make the screenshots: `NODE_PATH=<folder with playwright> node recipes/test/shots.cjs <output folder>`

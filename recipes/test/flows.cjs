@@ -1,6 +1,6 @@
-// Drives the Recipes page in WebKit at 390 × 844 against a stand-in for the GitHub contents API:
-// search, the deck of cards and the pile, the recipe sheet, theme and Aurora, token, add, edit, delete, a 409, 401/403/offline errors
-// and the back button.
+// Drives the Recipes page in WebKit at 390 × 844 against the API Worker run in Node (api.cjs), with a stand-in for GitHub:
+// search, the deck of cards and the pile, the recipe sheet, theme and Aurora, accounts and the admin, add, edit, delete,
+// a 409, errors and the back button.
 // Exits 1 on a failed check or a console error.
 //   NODE_PATH=/path/to/node_modules node recipes/test/flows.cjs
 const { webkit, devices } = require('playwright');
@@ -20,51 +20,25 @@ const server = http.createServer((req, res) => {
   res.end(fs.readFileSync(f));
 });
 
-const GOOD = 'github_pat_TEST_good', BAD = 'github_pat_TEST_bad';
 const results = [];
 const check = (name, ok, info) => { results.push({ name, ok: !!ok }); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${info !== undefined && !ok ? ' — ' + JSON.stringify(info) : ''}`); };
-
-// The stand-in for api.github.com: one file with a sha, like the contents API.
-const gh = { text: FILE, sha: 's0', n: 0, gets: 0, puts: [], urls: [], getStatus: 0, putQueue: [], offline: false };
-const wrap = s => Buffer.from(s).toString('base64').replace(/(.{60})/g, '$1\n');
 const decoded = body => Buffer.from(body.content, 'base64').toString('utf8');
 const recipeIn = (text, id) => JSON.parse(text).recipes.find(r => r.id === id);
-async function api(route) {
-  const req = route.request();
-  gh.urls.push(req.url());
-  const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept, X-GitHub-Api-Version', 'Access-Control-Expose-Headers': 'x-ratelimit-remaining' };
-  if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
-  if (gh.offline) return route.abort('internetdisconnected');
-  const reply = (status, body) => route.fulfill({ status, headers: cors, contentType: 'application/json', body: JSON.stringify(body) });
-  if (req.headers().authorization !== 'Bearer ' + GOOD) return reply(401, { message: 'Bad credentials' });
-  if (req.method() === 'GET') {
-    gh.gets++;
-    if (gh.getStatus) return reply(gh.getStatus, { message: 'nope' });
-    return reply(200, { sha: gh.sha, encoding: 'base64', content: wrap(gh.text) });
-  }
-  const body = JSON.parse(req.postData());
-  if (!body.content) return reply(422, { message: 'Invalid request.' });   // the write test in Settings
-  gh.puts.push(body);
-  const forced = gh.putQueue.shift();
-  if (forced === 409) {   // someone else saved first: Claude adds Ketchup to the burgers
-    gh.text = gh.text.replace('"Fries"', '"Fries",\n        "Ketchup"');
-    gh.sha = 's' + ++gh.n;
-    return reply(409, { message: 'conflict' });
-  }
-  if (forced) return reply(forced, { message: 'nope' });
-  if (body.sha !== gh.sha || body.branch !== 'main') return reply(409, { message: 'sha' });
-  gh.text = decoded(body);
-  gh.sha = 's' + ++gh.n;
-  return reply(200, { content: { sha: gh.sha } });
-}
 
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}/recipes/`;
+  const api = await require('./api.cjs')(FILE), gh = api.gh;
+  await api.addUser('Madi', 'madi-password');
+  await api.addUser('Jen', 'jen-password', true);
+  const user = key => api.kv.get('recipes:user:' + key, 'json');
+  const sessions = () => [...api.kv.m.keys()].filter(k => k.startsWith('recipes:session:')).length;
   const browser = await webkit.launch();
   const ctx = await browser.newContext({ ...devices['iPhone 13'], viewport: { width: 390, height: 844 } });
   await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: '' }));
-  await ctx.route('https://api.github.com/**', api);
+  await ctx.route('**/api/**', api.route);
+  // a GitHub token left on the phone from before accounts, which the page removes
+  await ctx.addInitScript(() => { if (!sessionStorage.getItem('old')) { sessionStorage.setItem('old', '1'); localStorage.setItem('recipes-token', 'github_pat_OLD'); } });
   // a wake lock that the test can refuse or grant
   await ctx.addInitScript(() => {
     window.__wake = { requests: 0, releases: 0, refuse: true };
@@ -78,8 +52,10 @@ async function api(route) {
   });
   const page = await ctx.newPage();
   const errors = [];
-  // A failed status from the stand-in API shows in the console as "Failed to load resource"; that is the test, not a bug.
-  page.on('console', m => { if (m.type() === 'error' && !(/^Failed to load resource/.test(m.text()) && /api\.github\.com/.test(m.location().url || ''))) errors.push(m.text()); });
+  // A failed status from the API shows in the console as "Failed to load resource"; that is the test, not a bug.
+  page.on('console', m => { if (m.type() === 'error' && !(/^Failed to load resource/.test(m.text()) && /\/api\//.test(m.location().url || ''))) errors.push(m.text()); });
+  const urls = [];
+  page.on('request', r => urls.push(r.url()));
   page.on('pageerror', e => errors.push(e.message));
   let answer = null;   // the reply to the next confirm()
   page.on('dialog', d => { (answer ? d.accept() : d.dismiss()).catch(() => {}); answer = null; });
@@ -125,7 +101,8 @@ async function api(route) {
   check('a recipe with no ingredients says so', (await page.textContent('#vBody')).includes('No ingredients yet'));
   await page.goBack();
   await closed('view');
-  check('API not called without a token', gh.gets === 0);
+  check('the file comes from the site without a sign-in', gh.gets === 0);
+  check('an old GitHub token is removed from the phone', (await page.evaluate(() => localStorage.getItem('recipes-token'))) === null);
   await phoneRules('list');
   const addBtn = await page.$eval('#addBtn', b => { const r = b.getBoundingClientRect(); return { right: innerWidth - r.right, bottom: innerHeight - r.bottom }; });
   check('Add recipe floats at the bottom right', addBtn.right >= 16 && addBtn.bottom >= 16, addBtn);
@@ -242,14 +219,14 @@ async function api(route) {
   await openRecipe('Salmon bowls');
   await tap('#editBtn');
   await opened('settings');
-  check('Edit without a token opens Settings and says why', await page.isVisible('#sNeed') && (await page.textContent('#sNeed')).includes('Connect GitHub to add or edit recipes.'));
+  check('Edit without a sign-in opens Settings and says why', await page.isVisible('#sNeed') && (await page.textContent('#sNeed')).includes('Sign in to add or edit recipes.'));
   await page.goBack();
   await closed('settings');
   await page.goBack();
   await closed('view');
   await tap('#addBtn');
   await opened('settings');
-  check('Add without a token opens Settings too', await page.isVisible('#sNeed'));
+  check('Add without a sign-in opens Settings too', await page.isVisible('#sNeed'));
   await phoneRules('settings');
 
   /* ---- theme ---- */
@@ -262,17 +239,42 @@ async function api(route) {
   th = await page.evaluate(() => ({ key: localStorage.getItem('theme'), attr: document.documentElement.dataset.theme, meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content) }));
   check('Auto writes "auto" and follows the phone', th.key === 'auto' && th.attr === undefined && th.meta.join() === '#eadcc2,#18130f', th);
 
-  /* ---- token ---- */
-  await page.fill('#tok', BAD);
-  await tap('#tokSave');
-  await page.waitForSelector('#sResult:not([hidden])');
-  check('a wrong token gets a plain 401 message and is not kept', (await page.textContent('#sResult')).includes('wrong or expired') && !(await page.evaluate(() => localStorage.getItem('recipes-token'))));
-  await page.fill('#tok', GOOD);
-  await tap('#tokSave');
-  await page.waitForSelector('#sResult.ok');
-  check('Save and test connects', (await page.textContent('#sResult')).includes('Connected') && (await page.evaluate(() => localStorage.getItem('recipes-token'))) === GOOD);
-  check('the token is a password field', (await page.getAttribute('#tok', 'type')) === 'password');
-  check('Save and test makes no commit', gh.puts.length === 0 && gh.text === FILE);
+  /* ---- accounts ---- */
+  const said = async kind => { await page.waitForSelector(`#sResult${kind === 'ok' ? '.ok' : ':not(.ok)'}:not([hidden])`); const t = await page.textContent('#sResult'); return t; };
+  const signIn = async (name, pw) => { await page.fill('#aName', name); await page.fill('#aPass', pw); await tap('#aGo'); };
+  const form0 = await page.evaluate(() => ({ form: !document.getElementById('aForm').hidden, signedIn: !document.getElementById('aIn').hidden, go: document.getElementById('aGo').textContent,
+    type: document.getElementById('aPass').type, ac: document.getElementById('aPass').autocomplete }));
+  check('signed out, Settings has the sign-in form', form0.form && !form0.signedIn && form0.go === 'Sign in' && form0.type === 'password' && form0.ac === 'current-password', form0);
+  await tap('#aSwap');
+  const form1 = await page.evaluate(() => ({ go: document.getElementById('aGo').textContent, ac: document.getElementById('aPass').autocomplete, hint: !document.getElementById('aPassHint').hidden }));
+  check('"Create an account" turns it into the new account form', form1.go === 'Create account' && form1.ac === 'new-password' && form1.hint, form1);
+  await page.fill('#aName', 'Megan');
+  await page.fill('#aPass', 'short');
+  await tap('#aGo');
+  check('a short password is refused on the phone', (await said()).includes('8 characters') && !(await user('megan')));
+  await page.fill('#aPass', 'pasta-night-42');
+  await tap('#aGo');
+  let msg = await said('ok');
+  check('a new account waits for the admin', msg.includes('waiting for Mitchell to approve it') && (await user('megan')).status === 'pending', msg);
+  check('then the form is back to Sign in, with the name kept', (await page.textContent('#aGo')) === 'Sign in' && (await page.inputValue('#aName')) === 'Megan' && (await page.inputValue('#aPass')) === '');
+  await signIn('Megan', 'pasta-night-42');
+  msg = await said();
+  check('before approval, sign in says the account is waiting', msg === 'Your account is waiting for approval.' && !(await page.evaluate(() => localStorage.getItem('recipes-session'))), msg);
+  await tap('#aSwap');
+  await page.fill('#aName', 'madi');
+  await page.fill('#aPass', 'another-password');
+  await tap('#aGo');
+  check('a name in use is refused', (await said()).includes('That name is taken'));
+  await tap('#aSwap');
+  await signIn('Madi', 'wrong-password');
+  check('a wrong password gets a plain message', (await said()) === 'That name and password do not match.');
+  await signIn('Madi', 'madi-password');
+  msg = await said('ok');
+  const sess = await page.evaluate(() => JSON.parse(localStorage.getItem('recipes-session')));
+  check('sign in keeps a sign-in on the phone', msg.startsWith('Signed in') && sess && sess.name === 'Madi' && sess.admin === false && /^[\w-]{40,}$/.test(sess.token), sess);
+  check('Settings says who is signed in; no Accounts list for Madi', (await page.textContent('#aWho')).startsWith('Signed in as Madi.') && await page.isHidden('#aForm') && await page.isHidden('#aAdmin'));
+  check('the phone never gets the GitHub token', !(await page.evaluate(() => JSON.stringify(localStorage))).includes(api.env.GITHUB_TOKEN));
+  await phoneRules('settings, signed in');
   await page.goBack();
   await closed('settings');
 
@@ -301,12 +303,12 @@ async function api(route) {
   check('add: the PUT body decodes to valid JSON', !!parsed && saved.endsWith('}\n') && saved.includes('\n  "recipes": [\n'));
   check('add: accents and the apostrophe survive', !!brulee && brulee.name === 'Grandma’s crème brûlée', brulee);
   check('add: the recipe is saved in file order', !!brulee && JSON.stringify(brulee) === JSON.stringify({ id: 'grandmas-creme-brulee', name: 'Grandma’s crème brûlée', tags: ['Dessert', 'French'], ingredients: ['4 egg yolks', '2 cups heavy cream', '1/2 cup sugar', '1 tsp vanilla'], steps: ['Heat the oven to 325.', 'Heat the cream.', 'Whisk the yolks and sugar.', 'Bake 40 minutes.'], source: 'https://example.com/brulee' }), brulee);
-  check('add: commit title, sha and branch', put.message === 'Recipes: add Grandma’s crème brûlée' && put.sha === 's0' && put.branch === 'main', { message: put.message, sha: put.sha });
+  check('add: commit title with the name, sha and branch', put.message === 'Recipes: add Grandma’s crème brûlée (Madi)' && put.sha === 's0' && put.branch === 'main', { message: put.message, sha: put.sha });
   check('add: the other recipes are untouched', JSON.stringify(parsed.recipes.slice(0, 11)) === JSON.stringify(JSON.parse(FILE).recipes));
   check('add: the new recipe opens', (await page.textContent('#vName')) === 'Grandma’s crème brûlée' && await page.isHidden('#editor'));
   check('add: it is in the list and in the saved copy', (await names()).includes('Grandma’s crème brûlée') && (await page.evaluate(() => localStorage.getItem('recipes-cache'))).includes('grandmas-creme-brulee'));
   check('add: a toast says it saved', (await page.textContent('#toast')).startsWith('Saved'));
-  check('the token is never in a URL', gh.urls.every(u => !u.includes('TEST')));
+  check('the sign-in is never in a URL, and the page never calls GitHub itself', urls.every(u => !u.includes(sess.token) && !u.includes('github.com/repos')));
   await page.goBack();
   await closed('view');
   check('add: back from the new recipe goes to the list', await page.evaluate(() => !history.state || !history.state.sheets));
@@ -323,7 +325,7 @@ async function api(route) {
   await closed('editor');
   put = gh.puts.at(-1);
   const salmon = recipeIn(decoded(put), 'salmon-bowls');
-  check('edit: the change is in the PUT', put.message === 'Recipes: edit Salmon bowls' && salmon.servings === '2' && salmon.ingredients.at(-1) === 'Avocado', salmon);
+  check('edit: the change is in the PUT', put.message === 'Recipes: edit Salmon bowls (Madi)' && salmon.servings === '2' && salmon.ingredients.at(-1) === 'Avocado', salmon);
   const others = t => JSON.stringify(JSON.parse(t).recipes.filter(r => r.id !== 'salmon-bowls'));
   check('edit: only that recipe changed', others(decoded(put)) === others(before));
   check('edit: the sheet shows the change', (await page.textContent('#vBody .chip')) === 'Serves 2' && (await page.$$('#vBody .checks li')).length === 6);
@@ -351,14 +353,15 @@ async function api(route) {
   await opened('editor');
   await page.fill('#fNotes', 'Add any garnish wanted. Lime!');
   const tacosBefore = gh.text;
-  gh.getStatus = 401;
+  api.env.GITHUB_TOKEN = 'github_pat_TEST_wrong';
   await tap('#eSave');
   await page.waitForSelector('#eError:not([hidden])');
-  check('401: plain message, Settings button, nothing saved', (await page.textContent('#eError')).includes('wrong or expired. The change is not saved.') && await page.isVisible('#eError [data-settings]') && gh.text === tacosBefore, await page.textContent('#eError'));
+  check('a bad GitHub token in the Worker: plain message, nothing saved', (await page.textContent('#eError')).includes('check its GitHub token. The change is not saved.') && !(await page.isVisible('#eError [data-settings]')) && gh.text === tacosBefore, await page.textContent('#eError'));
+  api.env.GITHUB_TOKEN = 'github_pat_TEST_good';
   gh.getStatus = 403;
   await tap('#eSave');
-  await page.waitForFunction(() => document.getElementById('eError').textContent.includes('Read and write'));
-  check('403: says the token cannot reach the repo or write', true);
+  await page.waitForFunction(() => document.getElementById('eError').textContent.includes('hourly limit'));
+  check('GitHub’s rate limit: says to try later', true);
   gh.getStatus = 0;
   gh.offline = true;
   await tap('#eSave');
@@ -388,14 +391,58 @@ async function api(route) {
   check('Delete asks for a second tap', (await page.textContent('#eDelete')) === 'Tap again to delete' && gh.text === tacosBefore);
   await tap('#eDelete');
   await closed('view');
-  check('delete: one PUT with the recipe gone', gh.puts.at(-1).message === 'Recipes: delete Tacos and beans' && !recipeIn(gh.text, 'tacos-and-beans') && JSON.parse(gh.text).recipes.length === 11);
+  check('delete: one PUT with the recipe gone', gh.puts.at(-1).message === 'Recipes: delete Tacos and beans (Madi)' && !recipeIn(gh.text, 'tacos-and-beans') && JSON.parse(gh.text).recipes.length === 11);
   check('delete: both sheets close and the card is gone', await page.isHidden('#editor') && !(await names()).includes('Tacos and beans') && await page.evaluate(() => !history.state || !history.state.sheets));
 
-  /* ---- with a token the file comes from the API ---- */
+  /* ---- signed in, the file comes through the Worker ---- */
   gh.text = gh.text.replace('"name": "Burgers and fries"', '"name": "Burgers and fries (from chat)"');
   await page.reload();
   await page.waitForFunction(() => [...document.querySelectorAll('#list .nm')].some(e => e.textContent.includes('from chat')));
-  check('with a token, a change from chat shows at once', true);
+  check('signed in, a change from chat shows at once', true);
+
+  /* ---- a sign-in that ended ---- */
+  for (const k of [...api.kv.m.keys()]) if (k.startsWith('recipes:session:')) api.kv.m.delete(k);
+  await openRecipe('Salmon bowls');
+  await tap('#editBtn');
+  await opened('editor');
+  await page.fill('#fServings', '3');
+  await tap('#eSave');
+  await page.waitForSelector('#eError:not([hidden])');
+  check('an ended sign-in: plain message and a Settings button', (await page.textContent('#eError')).includes('You are signed out. Sign in again. The change is not saved.') && await page.isVisible('#eError [data-settings]'));
+  check('and the phone forgets the sign-in', !(await page.evaluate(() => localStorage.getItem('recipes-session'))));
+  await tap('#eError [data-settings]');
+  await opened('settings');
+  check('the button opens the sign-in form', await page.isVisible('#aForm'));
+
+  /* ---- the admin approves accounts ---- */
+  await signIn('mitchell', api.ADMIN_PASSWORD);
+  await said('ok');
+  await page.waitForSelector('#people [data-approve]');
+  const rows = () => page.$$eval('#people li', ls => ls.map(l => l.querySelector('b').textContent + ':' + [...l.querySelectorAll('button')].map(b => b.textContent).join('/')));
+  check('the admin sees who is waiting first, then who can edit', (await rows()).join() === 'Jen:Approve/Deny,Megan:Approve/Deny,Madi:Remove', await rows());
+  check('Settings says Mitchell is the admin', (await page.textContent('#aWho')).startsWith('Signed in as Mitchell, the admin.'));
+  const dot = () => page.evaluate(() => ({ on: document.getElementById('menuBtn').classList.contains('dot'), label: document.getElementById('menuBtn').getAttribute('aria-label') }));
+  check('a dot on the menu button says accounts are waiting', (await dot()).on && (await dot()).label === 'Menu, 2 accounts waiting for approval', await dot());
+  await phoneRules('settings for the admin');
+  await tap('#people [data-approve="megan"]');
+  await page.waitForFunction(() => document.getElementById('toast').textContent.startsWith('Megan can'));
+  check('Approve lets Megan in', (await user('megan')).status === 'approved' && (await rows()).join() === 'Jen:Approve/Deny,Madi:Remove,Megan:Remove', await rows());
+  await tap('#people [data-remove="jen"]');
+  check('Deny asks for a second tap', (await page.textContent('#people [data-remove="jen"]')) === 'Tap again' && !!(await user('jen')));
+  await tap('#people [data-remove="jen"]');
+  await page.waitForFunction(() => !document.querySelector('#people [data-remove="jen"]'));
+  check('Deny removes the account; no one is waiting, so no dot', !(await user('jen')) && !(await dot()).on);
+  await tap('#people [data-remove="madi"]');
+  await tap('#people [data-remove="madi"]');
+  await page.waitForFunction(() => !document.querySelector('#people [data-remove="madi"]'));
+  check('Remove takes an account away', !(await user('madi')) && (await rows()).join() === 'Megan:Remove');
+  await page.goBack();
+  await closed('settings');
+  answer = true;
+  await page.goBack();   // the editor from before asks about its change: "yes"
+  await closed('editor');
+  await page.goBack();
+  await closed('view');
 
   /* ---- Aurora: a secret theme, as in the apps ---- */
   const aurora = () => page.evaluate(() => {
@@ -422,8 +469,11 @@ async function api(route) {
   th = await aurora();
   check('the fifth tap turns Aurora on and shows its button', th.key === 'aurora' && th.attr === 'aurora' && th.shown && th.on === 'Aurora' && (await page.textContent('#toast')) === 'Aurora', th);
   await phoneRules('settings in Aurora');
-  await tap('#tokOff');
-  check('Disconnect removes the token', !(await page.evaluate(() => localStorage.getItem('recipes-token'))) && (await page.textContent('#sStatus')).startsWith('Not connected'));
+  const live = sessions();
+  await tap('#aOut');
+  check('Sign out forgets the sign-in on the phone', !(await page.evaluate(() => localStorage.getItem('recipes-session'))) && await page.isVisible('#aForm') && (await page.textContent('#sResult')) === 'Signed out.');
+  await page.waitForTimeout(300);
+  check('and on the Worker', sessions() === live - 1, { live, now: sessions() });
 
   check('no console errors', errors.length === 0, errors);
   await browser.close();

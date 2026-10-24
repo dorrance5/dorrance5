@@ -1,17 +1,22 @@
 /* Recipes — the page: the list, the recipe sheet, the editor and Settings.
-   The data file and the GitHub calls are in data.js (window.RecipeData). */
+   The data file and the calls to the API Worker are in data.js (window.RecipeData). */
 (function () {
   'use strict';
   const D = window.RecipeData;
   const $ = id => document.getElementById(id);
   const root = document.documentElement;
-  const TOKEN = 'recipes-token', CACHE = 'recipes-cache';
+  const SESSION = 'recipes-session', CACHE = 'recipes-cache';
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
     del(k) { try { localStorage.removeItem(k); } catch (e) {} }
   };
-  const token = () => store.get(TOKEN) || '';
+  // The sign-in from the API Worker, { token, name, admin }, or null.
+  function session() {
+    try { const s = JSON.parse(store.get(SESSION)); return s && s.token ? s : null; } catch (e) { return null; }
+  }
+  const worker = () => D.api(session() && session().token);
+  store.del('recipes-token');   // a GitHub token from before accounts: the Worker holds the token now
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const ICON = {
@@ -64,15 +69,16 @@
   }
   function note(msg) { $('notice').hidden = !msg; $('notice').textContent = msg; }
 
-  // The saved copy shows at once. With a token the file comes from the API, so a change shows before the site updates.
+  // The saved copy shows at once. Signed in, the file comes from GitHub through the Worker, so a change shows
+  // before the site updates.
   async function load() {
     try { setData(D.parse(store.get(CACHE)), true); } catch (e) { $('none').textContent = 'Loading…'; $('none').hidden = false; }
-    const tok = token();
-    if (tok) {
-      try { setData((await D.github(tok).read()).data); note(''); return; }
+    if (session()) {
+      try { setData((await worker().read()).data); note(''); return; }
       catch (e) {
         if (e.code === 'network') return offline();
-        note(`${e.message} Showing the copy on the site. Open the menu to fix the token.`);
+        if (e.code === 'signin') signOut();
+        note(`${e.message} Showing the copy on the site.`);
       }
     }
     let res;
@@ -417,7 +423,7 @@
     eBody.scrollTop = y;
   }
   function openEditor(r) {
-    if (!token()) return openSettings(true);
+    if (!session()) return openSettings(true);
     editId = r ? r.id : null;
     const v = D.toForm(r || {});
     for (const k in F) { F[k].value = v[k]; F[k].classList.remove('bad'); }
@@ -449,7 +455,8 @@
     if (!e.code) console.error(e);
     return `${e.code ? e.message : 'Something went wrong.'} ${what}`;
   };
-  const needsSettings = e => e.code === 401 || e.code === 403 || e.code === 404;
+  // A save that failed because the sign-in ended: sign out here too, and offer Settings to sign in again.
+  const needsSettings = e => { if (e.code === 'signin') signOut(); return e.code === 'signin'; };
 
   editor.querySelectorAll('textarea').forEach(ta => ta.addEventListener('input', () => { grow(ta); counts(); }));
   // A pasted list loses its leading "-", "•", "*", "1." and "1)" marks, one item on each line.
@@ -487,12 +494,11 @@
     if (busy) return;
     const v = values();
     if (!v.name.trim()) { error('Give the recipe a name.'); F.name.classList.add('bad'); F.name.focus(); return; }
-    const tok = token();
-    if (!tok) return openSettings(true);
+    if (!session()) return openSettings(true);
     error('');
     setBusy(eSave, 'Saving…');
     try {
-      const out = await D.github(tok).save(editId ? { type: 'edit', id: editId, form: v } : { type: 'add', form: v });
+      const out = await worker().save(editId ? { type: 'edit', id: editId, form: v } : { type: 'add', form: v });
       start = JSON.stringify(values());
       setData(out.data);
       toast('Saved. The site updates in about a minute.');
@@ -517,12 +523,11 @@
       return;
     }
     disarm();
-    const tok = token();
-    if (!tok) return openSettings(true);
+    if (!session()) return openSettings(true);
     error('');
     setBusy(eDelete, 'Deleting…');
     try {
-      const out = await D.github(tok).save({ type: 'delete', id: editId });
+      const out = await worker().save({ type: 'delete', id: editId });
       setData(out.data);
       toast(out.recipe ? `Deleted ${out.recipe.name}.` : 'Deleted.');
       viewId = null;
@@ -535,63 +540,147 @@
   });
   fab.addEventListener('click', () => openEditor(null));
 
-  /* ---- settings ---- */
-  const tok = $('tok'), tokSave = $('tokSave'), sResult = $('sResult');
-  function statusLine() {
-    $('sStatus').innerHTML = token()
-      ? `Connected. Saves go to <b>${D.REPO}</b>.`
-      : 'Not connected. Anyone can read the recipes. To add or edit them, paste a GitHub token.';
-  }
+  /* ---- settings: the theme, the account, and for the admin, the accounts to approve ---- */
+  const aForm = $('aForm'), aName = $('aName'), aPass = $('aPass'), aGo = $('aGo'), aSwap = $('aSwap');
+  const sResult = $('sResult'), people = $('people'), menuBtn = $('menuBtn');
+  let making = false;   // the form asks for a new account instead of signing in
+  let folks = [];       // the admin's list: { key, name, status, created }
   function result(msg, kind) {
     sResult.hidden = !msg;
     sResult.textContent = msg;
     sResult.className = 'alert' + (kind ? ' ' + kind : '');
   }
+  const problem = e => { if (!e.code) console.error(e); return e.code ? e.message : 'Something went wrong.'; };
+  function account() {
+    const s = session();
+    aForm.hidden = !!s;
+    $('aIn').hidden = !s;
+    $('aAdmin').hidden = !(s && s.admin);
+    if (s) $('aWho').innerHTML = `Signed in as <b>${D.esc(s.name)}</b>${s.admin ? ', the admin' : ''}. You can add and edit recipes.`;
+    $('aStatus').textContent = making ? 'Pick a name and a password. The admin approves new accounts.' : 'Sign in to add and edit recipes.';
+    aPass.autocomplete = making ? 'new-password' : 'current-password';
+    $('aPassHint').hidden = !making;
+    aGo.textContent = making ? 'Create account' : 'Sign in';
+    aSwap.textContent = making ? 'I have an account' : 'New here? Create an account';
+  }
   function openSettings(need) {
     $('sNeed').hidden = !need;
-    tok.value = token();
     result('');
-    statusLine();
+    making = false;
+    account();
+    if (session() && session().admin) loadFolks();
     applyTheme();
     open(settings);
   }
-  $('menuBtn').addEventListener('click', () => openSettings(false));
-  async function saveToken() {
-    const t = tok.value.trim();
-    if (!t) { result('Paste a token first.'); return; }
-    if (!/^[\x21-\x7e]+$/.test(t)) { result('That does not look like a GitHub token. Copy it again from GitHub.'); return; }
-    tokSave.disabled = true;
-    tokSave.textContent = 'Testing…';
+  menuBtn.addEventListener('click', () => openSettings(false));
+  aSwap.addEventListener('click', () => { making = !making; result(''); account(); });
+  aName.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); aPass.focus(); } });
+  aForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (aGo.disabled) return;
+    const name = aName.value.trim().replace(/\s+/g, ' '), pw = aPass.value;
+    if (!name) { result('Type your name.'); aName.focus(); return; }
+    if (!pw) { result('Type your password.'); aPass.focus(); return; }
+    if (making && pw.length < 8) { result(D.fail('password').message); aPass.focus(); return; }
+    aGo.disabled = aSwap.disabled = true;
+    aGo.textContent = making ? 'Creating…' : 'Signing in…';
     result('');
     try {
-      const gh = D.github(t);
-      const { data: d } = await gh.read();
-      store.set(TOKEN, t);
-      setData(d);
-      note('');
-      $('sNeed').hidden = true;
-      statusLine();
-      try { await gh.canWrite(); result('Connected. You can add and edit recipes now.', 'ok'); }
-      catch (e) {
-        if (e.code === 403 || e.code === 404) result('Saved, but this token can only read. In GitHub, set Contents to “Read and write”, or saves will fail.');
-        else result('Connected. You can add and edit recipes now.', 'ok');
+      if (making) {
+        const out = await D.api().signup(name, pw);
+        making = false;
+        aPass.value = '';
+        result(`Thanks, ${out.name}. Your account is waiting for ${out.admin} to approve it. Then sign in here.`, 'ok');
+      } else {
+        const out = await D.api().login(name, pw);
+        store.set(SESSION, JSON.stringify({ token: out.token, name: out.name, admin: out.admin }));
+        aPass.value = '';
+        $('sNeed').hidden = true;
+        result('Signed in. You can add and edit recipes now.', 'ok');
+        if (out.admin) loadFolks();
+        load();   // the newest copy, from GitHub
       }
-    } catch (e) {
-      result(failText(e, 'The token is not saved.'));
+    } catch (err) {
+      result(problem(err));
     } finally {
-      tokSave.disabled = false;
-      tokSave.textContent = 'Save and test';
+      aGo.disabled = aSwap.disabled = false;
+      account();
     }
+  });
+  function signOut() { store.del(SESSION); dot(0); }
+  $('aOut').addEventListener('click', () => {
+    const s = session();
+    signOut();
+    account();
+    result('Signed out.', 'ok');
+    if (s) D.api(s.token).logout().catch(() => {});   // ends the sign-in on the Worker too
+  });
+
+  // A dot on the menu button while accounts wait for the admin.
+  function dot(n) {
+    menuBtn.classList.toggle('dot', n > 0);
+    menuBtn.setAttribute('aria-label', n > 0 ? `Menu, ${plural(n, 'account')} waiting for approval` : 'Menu');
   }
-  tokSave.addEventListener('click', saveToken);
-  tok.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); saveToken(); } });
-  $('tokOff').addEventListener('click', () => {
-    store.del(TOKEN);
-    tok.value = '';
-    statusLine();
-    result('Disconnected. The token is removed from this phone.', 'ok');
+  async function checkWaiting() {
+    const s = session();
+    if (!s || !s.admin) return;
+    try { dot((await D.api(s.token).me()).waiting); } catch (e) { if (e.code === 'signin') signOut(); }
+  }
+  async function loadFolks() {
+    const s = session();
+    people.innerHTML = '<li class="none">Loading…</li>';
+    try { folks = await D.api(s.token).users(); }
+    catch (e) {
+      if (e.code === 'signin') { signOut(); account(); }
+      people.innerHTML = `<li class="none">${D.esc(problem(e))}</li>`;
+      return;
+    }
+    drawFolks();
+  }
+  const day = iso => { const d = new Date(iso + 'T12:00:00'); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
+  function drawFolks() {
+    const later = p => p.status === 'pending' ? 0 : 1;   // the people waiting come first
+    folks.sort((a, b) => later(a) - later(b) || a.name.localeCompare(b.name));
+    dot(folks.filter(p => p.status === 'pending').length);
+    people.innerHTML = folks.length ? folks.map(p => {
+      const k = D.esc(p.key), name = `<span class="who"><b>${D.esc(p.name)}</b>`;
+      return p.status === 'pending'
+        ? `<li>${name}<small>Asked ${day(p.created)}</small></span><button class="btn solid" type="button" data-approve="${k}">Approve</button><button class="btn" type="button" data-remove="${k}" data-label="Deny">Deny</button></li>`
+        : `<li>${name}<small>Can add and edit</small></span><button class="btn" type="button" data-remove="${k}" data-label="Remove">Remove</button></li>`;
+    }).join('') : '<li class="none">No one has asked for an account yet.</li>';
+  }
+  function unarm() { people.querySelectorAll('.armed').forEach(b => { b.classList.remove('armed'); b.textContent = b.dataset.label; }); }
+  people.addEventListener('click', async e => {
+    const b = e.target.closest('button'), s = session();
+    if (!b || b.disabled || !s) return;
+    const key = b.dataset.approve ?? b.dataset.remove, p = folks.find(x => x.key === key);
+    if (b.dataset.remove != null && !b.classList.contains('armed')) {   // Deny and Remove ask for a second tap
+      unarm();
+      b.classList.add('armed');
+      b.textContent = 'Tap again';
+      return;
+    }
+    unarm();
+    b.disabled = true;
+    result('');
+    try {
+      if (b.dataset.approve != null) {
+        await D.api(s.token).approve(key);
+        p.status = 'approved';
+        toast(`${p.name} can add and edit recipes now.`);
+      } else {
+        await D.api(s.token).remove(key);
+        folks = folks.filter(x => x !== p);
+        toast(p.status === 'pending' ? `${p.name} is turned down.` : `${p.name} is removed.`);
+      }
+      drawFolks();
+    } catch (err) {
+      result(problem(err));
+      if (err.code === 'nobody') loadFolks(); else b.disabled = false;
+    }
   });
 
   applyTheme();
   load();
+  checkWaiting();
 })();

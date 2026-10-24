@@ -96,39 +96,37 @@ test('search finds names, tags, ingredients, steps and notes', () => {
   assert.equal(D.safeUrl('https://example.com/x'), 'https://example.com/x');
 });
 
-// A stand-in for the GitHub contents API: one file with a sha.
-function fakeGitHub(text, { status, conflicts = 0, putStatus } = {}) {
-  const gh = { text, sha: 'sha0', gets: 0, puts: [], n: 0 };
-  gh.fetch = async (url, opts) => {
-    assert.match(url, /^https:\/\/api\.github\.com\/repos\/dorrance5\/dorrance5\/contents\/recipes\/recipes\.json/);
+// A stand-in for the Worker's /api/recipes/file: one file with a sha. `error` is [status, code] for every call.
+function fakeWorker(text, { error, conflicts = 0 } = {}) {
+  const w = { text, sha: 'sha0', gets: 0, puts: [], n: 0 };
+  w.fetch = async (url, opts) => {
+    assert.equal(url, '/api/recipes/file');
     assert.equal(opts.headers.Authorization, 'Bearer tok');
     assert.equal(opts.cache, 'no-store');
-    const reply = (s, body) => ({ ok: s < 300, status: s, headers: new Map(), json: async () => body });
-    if (status) return reply(status, {});
-    if (!opts.method) {
-      assert.match(url, /\?ref=main$/);
-      gh.gets++;
-      return reply(200, { sha: gh.sha, content: Buffer.from(gh.text).toString('base64').replace(/(.{60})/g, '$1\n') });
+    const reply = (s, body) => ({ ok: s < 300, status: s, json: async () => body });
+    if (error) return reply(error[0], { error: error[1] });
+    if (opts.method === 'GET') {
+      w.gets++;
+      return reply(200, { sha: w.sha, content: Buffer.from(w.text).toString('base64').replace(/(.{60})/g, '$1\n') });
     }
     const body = JSON.parse(opts.body);
-    gh.puts.push(body);
-    if (putStatus) return reply(putStatus, {});
-    if (conflicts > 0) { conflicts--; gh.text = gh.text.replace('"Fries"', '"Fries",\n        "Ketchup"'); gh.sha = 'sha' + ++gh.n; return reply(409, {}); }
-    if (body.sha !== gh.sha) return reply(409, {});
-    gh.text = Buffer.from(body.content, 'base64').toString('utf8');
-    gh.sha = 'sha' + ++gh.n;
-    return reply(200, { content: { sha: gh.sha } });
+    w.puts.push(body);
+    if (conflicts > 0) { conflicts--; w.text = w.text.replace('"Fries"', '"Fries",\n        "Ketchup"'); w.sha = 'sha' + ++w.n; return reply(409, { error: 'changed' }); }
+    if (body.sha !== w.sha) return reply(409, { error: 'changed' });
+    w.text = Buffer.from(body.content, 'base64').toString('utf8');
+    w.sha = 'sha' + ++w.n;
+    return reply(200, { content: { sha: w.sha } });
   };
-  return gh;
+  return w;
 }
 
-test('save reads, applies one change and writes base64 UTF-8 to main', async () => {
-  const gh = fakeGitHub(FILE);
-  const out = await D.github('tok', gh.fetch).save({ type: 'add', form: form({ name: 'Crème brûlée', ingredients: '4 egg yolks\nMegan’s vanilla' }) });
-  assert.equal(gh.puts.length, 1);
-  const put = gh.puts[0];
+test('save reads, applies one change and writes base64 UTF-8', async () => {
+  const w = fakeWorker(FILE);
+  const out = await D.api('tok', w.fetch).save({ type: 'add', form: form({ name: 'Crème brûlée', ingredients: '4 egg yolks\nMegan’s vanilla' }) });
+  assert.equal(w.puts.length, 1);
+  const put = w.puts[0];
+  assert.deepEqual(Object.keys(put).sort(), ['content', 'message', 'sha']);   // the Worker adds the branch and the name
   assert.equal(put.message, 'Recipes: add Crème brûlée');
-  assert.equal(put.branch, 'main');
   assert.equal(put.sha, 'sha0');
   const saved = Buffer.from(put.content, 'base64').toString('utf8');
   assert.ok(saved.endsWith('}\n'));
@@ -138,29 +136,44 @@ test('save reads, applies one change and writes base64 UTF-8 to main', async () 
 });
 
 test('a 409 reads the file again, keeps the other change, and saves once more', async () => {
-  const gh = fakeGitHub(FILE, { conflicts: 1 });
-  await D.github('tok', gh.fetch).save({ type: 'edit', id: 'salmon-bowls', form: form({ name: 'Salmon bowls', ingredients: 'Salmon\nRice' }) });
-  assert.equal(gh.gets, 2);
-  assert.equal(gh.puts.length, 2);
-  assert.equal(gh.puts[1].sha, 'sha1');
-  const saved = JSON.parse(gh.text);
+  const w = fakeWorker(FILE, { conflicts: 1 });
+  await D.api('tok', w.fetch).save({ type: 'edit', id: 'salmon-bowls', form: form({ name: 'Salmon bowls', ingredients: 'Salmon\nRice' }) });
+  assert.equal(w.gets, 2);
+  assert.equal(w.puts.length, 2);
+  assert.equal(w.puts[1].sha, 'sha1');
+  const saved = JSON.parse(w.text);
   assert.deepEqual(saved.recipes.find(x => x.id === 'salmon-bowls').ingredients, ['Salmon', 'Rice']);
   assert.ok(saved.recipes.find(x => x.id === 'burgers-and-fries').ingredients.includes('Ketchup'), 'the change made in between is kept');
 });
 
 test('two 409s in a row give up with a plain error', async () => {
-  const gh = fakeGitHub(FILE, { conflicts: 2 });
-  await assert.rejects(D.github('tok', gh.fetch).save({ type: 'delete', id: 'salmon-bowls' }), e => e.code === 409 && /kept changing/.test(e.message));
-  assert.equal(gh.puts.length, 2);
+  const w = fakeWorker(FILE, { conflicts: 2 });
+  await assert.rejects(D.api('tok', w.fetch).save({ type: 'delete', id: 'salmon-bowls' }), e => e.code === 'changed' && /kept changing/.test(e.message));
+  assert.equal(w.puts.length, 2);
 });
 
 test('errors are plain', async () => {
-  await assert.rejects(D.github('tok', fakeGitHub(FILE, { status: 401 }).fetch).read(), e => e.code === 401 && /wrong or expired/.test(e.message));
-  await assert.rejects(D.github('tok', fakeGitHub(FILE, { status: 404 }).fetch).read(), e => /Read and write/.test(e.message));
-  await assert.rejects(D.github('tok', async () => { throw new TypeError('Load failed'); }).read(), e => e.code === 'network' && e.message === 'No connection.');
-  await assert.rejects(D.github('tok', fakeGitHub('{oops').fetch).read(), e => e.code === 'json');
-  const rate = { status: 403, headers: new Map([['x-ratelimit-remaining', '0']]) };
-  assert.equal(D.fail(rate).code, 'rate');
-  await assert.rejects(D.github('tok', fakeGitHub(FILE, { putStatus: 403 }).fetch).canWrite(), e => e.code === 403);
-  assert.equal(await D.github('tok', fakeGitHub(FILE, { putStatus: 422 }).fetch).canWrite(), true);
+  await assert.rejects(D.api('tok', fakeWorker(FILE, { error: [401, 'signin'] }).fetch).read(), e => e.code === 'signin' && e.message === 'You are signed out. Sign in again.');
+  await assert.rejects(D.api('tok', fakeWorker(FILE, { error: [502, 'github'] }).fetch).read(), e => /check its GitHub token/.test(e.message));
+  await assert.rejects(D.api('tok', fakeWorker(FILE, { error: [429, 'rate'] }).fetch).read(), e => e.code === 'rate');
+  await assert.rejects(D.api('tok', fakeWorker(FILE, { error: [500, 'no such code'] }).fetch).read(), e => e.code === 500 && e.message === 'The server answered with error 500.');
+  await assert.rejects(D.api('tok', async () => { throw new TypeError('Load failed'); }).read(), e => e.code === 'network' && e.message === 'No connection.');
+  await assert.rejects(D.api('tok', fakeWorker('{oops').fetch).read(), e => e.code === 'json');
+});
+
+test('the account calls', async () => {
+  const calls = [];
+  const f = async (url, opts) => { calls.push([opts.method, url, opts.body && JSON.parse(opts.body), opts.headers.Authorization]); return { ok: true, status: 200, json: async () => ({ users: [] }) }; };
+  await D.api(null, f).signup('Megan', 'pasta-night-42');
+  await D.api(null, f).login('Megan', 'pasta-night-42');
+  await D.api('tok', f).users();
+  await D.api('tok', f).approve("jo ann");
+  await D.api('tok', f).remove('jo/ann');
+  assert.deepEqual(calls, [
+    ['POST', '/api/recipes/signup', { name: 'Megan', password: 'pasta-night-42' }, undefined],
+    ['POST', '/api/recipes/login', { name: 'Megan', password: 'pasta-night-42' }, undefined],
+    ['GET', '/api/recipes/users', undefined, 'Bearer tok'],
+    ['POST', '/api/recipes/users/jo%20ann/approve', undefined, 'Bearer tok'],
+    ['DELETE', '/api/recipes/users/jo%2Fann', undefined, 'Bearer tok']
+  ]);
 });

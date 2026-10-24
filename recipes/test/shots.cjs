@@ -1,5 +1,6 @@
 // Phone-size screenshots of the Recipes page in WebKit, Day, Night and Aurora; exits 1 on any console error or page error.
-// The GitHub API is a stand-in, so nothing is saved. The fonts load from Google when there is a connection.
+// The API Worker runs in Node (api.cjs) with a stand-in for GitHub, so nothing is saved. The fonts load from Google
+// when there is a connection.
 //   NODE_PATH=/path/to/node_modules node recipes/test/shots.cjs [outdir]
 const { webkit, devices } = require('playwright');
 const http = require('node:http');
@@ -39,40 +40,47 @@ const scenes = [
   { name: '11-recipe-aurora', theme: 'aurora', act: openRecipe("Megan's zuppa toscana") },
   { name: '12-recipe-no-ingredients-night', theme: 'dark', act: openRecipe("Jen's tortellini pasta salad") },
   { name: '13-pulling-out-day', wait: 140, act: async p => { await p.evaluate(() => scrollTo(0, 300)); await p.waitForTimeout(100); await p.click('#list .card:has-text("Salmon bowls")'); } },
-  { name: '14-edit-day', token: true, act: async p => { await openRecipe("Megan's zuppa toscana")(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); } },
-  { name: '15-edit-bottom-night', theme: 'dark', token: true, act: async p => { await openRecipe('Pepperoncini roast')(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); await p.evaluate(() => { const b = document.getElementById('eBody'); b.scrollTop = b.scrollHeight; }); await p.click('#eDelete'); } },
-  { name: '16-new-day', token: true, act: async p => { await p.click('#addBtn'); await p.waitForSelector('#editor.open'); await p.fill('#fName', 'Grandma’s crème brûlée'); } },
-  { name: '17-save-error-day', token: true, apiStatus: 401, act: async p => { await openRecipe('Salmon bowls')(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); await p.click('#eSave'); await p.waitForSelector('#eError:not([hidden])'); } },
+  { name: '14-edit-day', as: 'Madi', act: async p => { await openRecipe("Megan's zuppa toscana")(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); } },
+  { name: '15-edit-bottom-night', theme: 'dark', as: 'Madi', act: async p => { await openRecipe('Pepperoncini roast')(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); await p.evaluate(() => { const b = document.getElementById('eBody'); b.scrollTop = b.scrollHeight; }); await p.click('#eDelete'); } },
+  { name: '16-new-day', as: 'Madi', act: async p => { await p.click('#addBtn'); await p.waitForSelector('#editor.open'); await p.fill('#fName', 'Grandma’s crème brûlée'); } },
+  { name: '17-save-error-day', as: 'Madi', act: async p => { await openRecipe('Salmon bowls')(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); signOutAll(); await p.click('#eSave'); await p.waitForSelector('#eError:not([hidden])'); } },
   { name: '18-settings-need-day', act: async p => { await p.click('#addBtn'); await p.waitForSelector('#settings.open'); } },
-  { name: '19-settings-connected-night', theme: 'dark', token: true, act: settings },
-  { name: '20-settings-aurora', theme: 'aurora', token: true, act: settings },
-  { name: '21-desktop-day', desktop: true, act: openRecipe("Megan's zuppa toscana") }
+  { name: '19-settings-admin-night', theme: 'dark', as: 'Mitchell', act: async p => { await settings(p); await p.waitForSelector('#people [data-approve]'); await p.evaluate(() => { const b = document.querySelector('#settings .body'); b.scrollTop = b.scrollHeight; }); } },
+  { name: '20-settings-aurora', theme: 'aurora', as: 'Madi', act: settings },
+  { name: '21-desktop-day', desktop: true, act: openRecipe("Megan's zuppa toscana") },
+  { name: '22-new-account-day', act: async p => { await settings(p); await p.click('#aSwap'); await p.fill('#aName', 'Megan'); await p.fill('#aPass', 'pasta-night-42'); await p.click('#aGo'); await p.waitForSelector('#sResult.ok'); } },
+  { name: '23-menu-dot-day', as: 'Mitchell', act: async p => { await p.waitForSelector('#menuBtn.dot'); } }
 ];
+let signOutAll;   // ends every sign-in on the Worker, for the scene where a save finds the sign-in gone
 
 (async () => {
   await new Promise(res => server.listen(0, '127.0.0.1', res));
   const base = `http://127.0.0.1:${server.address().port}/recipes/`;
+  const api = await require('./api.cjs')(FILE);
+  await api.addUser('Madi', 'madi-password');
+  await api.addUser('Jen', 'jen-password', true);
+  signOutAll = () => { for (const k of [...api.kv.m.keys()]) if (k.startsWith('recipes:session:')) api.kv.m.delete(k); };
+  const PASSWORDS = { Madi: 'madi-password', Mitchell: api.ADMIN_PASSWORD };
   const browser = await webkit.launch();
   const problems = [];
   for (const sc of scenes) {
     const ctx = await browser.newContext(sc.desktop
       ? { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }
       : { ...devices['iPhone 13'], viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-    await ctx.addInitScript(([theme, token]) => {
+    let session = null;
+    if (sc.as) {
+      const res = await api.call('http://x/api/recipes/login', { method: 'POST', body: JSON.stringify({ name: sc.as, password: PASSWORDS[sc.as] }) });
+      const { token, name, admin } = await res.json();
+      session = { token, name, admin };
+    }
+    await ctx.addInitScript(([theme, session]) => {
       if (sessionStorage.getItem('seeded')) return;
       sessionStorage.setItem('seeded', '1');
       localStorage.clear();
       if (theme) localStorage.setItem('theme', theme);
-      if (token) localStorage.setItem('recipes-token', 'github_pat_SHOTS');
-    }, [sc.theme || null, !!sc.token]);
-    await ctx.route('https://api.github.com/**', r => {
-      const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept, X-GitHub-Api-Version' };
-      if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
-      if (sc.apiStatus && r.request().method() === 'PUT') return r.fulfill({ status: sc.apiStatus, headers: cors, contentType: 'application/json', body: '{}' });
-      if (sc.apiStatus && sc.loaded) return r.fulfill({ status: sc.apiStatus, headers: cors, contentType: 'application/json', body: '{}' });
-      sc.loaded = true;
-      return r.fulfill({ headers: cors, contentType: 'application/json', body: JSON.stringify({ sha: 's0', content: Buffer.from(FILE).toString('base64') }) });
-    });
+      if (session) localStorage.setItem('recipes-session', JSON.stringify(session));
+    }, [sc.theme || null, session]);
+    await ctx.route('**/api/**', api.route);
     if (sc.many) await ctx.route('**/recipes/recipes.json', r => r.fulfill({ contentType: 'application/json', body: MANY }));
     const page = await ctx.newPage();
     page.on('console', m => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) problems.push(`${sc.name}: console: ${m.text()}`); });

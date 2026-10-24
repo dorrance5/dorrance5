@@ -1,6 +1,7 @@
-/* Recipes — the data file and the GitHub contents API. Plain functions, no DOM.
-   recipes/recipes.json is the only copy of the recipes. The page reads it, and saves one change at a time
-   straight to GitHub, so edits that Claude makes to the file from chat are kept.
+/* Recipes — the data file and the calls to the API Worker. Plain functions, no DOM.
+   recipes/recipes.json is the only copy of the recipes. The page reads it, and saves one change at a time to GitHub
+   through the Worker (worker/recipes.js), so edits that Claude makes to the file from chat are kept. The Worker
+   holds the GitHub token and the accounts; the page holds only a sign-in.
    Browser: window.RecipeData. Node: require('./data.js'). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -9,7 +10,7 @@
   'use strict';
 
   const REPO = 'dorrance5/dorrance5';
-  const API = `https://api.github.com/repos/${REPO}/contents/recipes/recipes.json`;
+  const API = '/api/recipes/';
   // Field order in the file. Fields the page does not know about go after these and are kept as they are.
   const ORDER = ['id', 'name', 'servings', 'tags', 'ingredients', 'steps', 'notes', 'source'];
 
@@ -161,41 +162,59 @@
   }
 
   /* ---- errors ---- */
+  // The words for each error code. The Worker answers with { error: CODE }.
   const PROBLEMS = {
     network: 'No connection.',
-    401: 'The GitHub token is wrong or expired.',
-    403: `The token cannot reach ${REPO}, or it does not have “Contents: Read and write”.`,
-    409: 'recipes.json kept changing on GitHub during the save.',
+    signin: 'You are signed out. Sign in again.',
+    wrong: 'That name and password do not match.',
+    waiting: 'Your account is waiting for approval.',
+    tries: 'Too many tries. Wait 15 minutes, then try again.',
+    taken: 'That name is taken. Pick another one.',
+    name: 'Use 2 to 24 letters or numbers for your name.',
+    password: 'Use 8 characters or more for your password.',
+    full: 'Too many accounts are waiting for approval. Try again later.',
+    admin: 'Only the admin can do that.',
+    nobody: 'That account is gone already.',
+    setup: 'Saving is not set up yet. The admin needs to finish the setup.',
+    github: 'The recipe book cannot reach GitHub. The admin needs to check its GitHub token.',
+    changed: 'recipes.json kept changing on GitHub during the save.',
     rate: 'GitHub’s hourly limit is used up. Try again later.',
     json: 'recipes.json on GitHub is not valid JSON. Fix it in GitHub first.',
+    file: 'The change would break recipes.json, so it is not saved.',
     gone: 'This recipe is no longer in recipes.json. Someone deleted it after this page loaded.'
   };
-  PROBLEMS[404] = PROBLEMS[403];
-  // An Error with a plain message. `code` is a status number or one of the words above. Takes a code or a response.
-  function fail(x) {
-    let code = x;
-    if (x && typeof x === 'object') code = x.status === 403 && x.headers && x.headers.get('x-ratelimit-remaining') === '0' ? 'rate' : x.status;
-    const e = new Error(PROBLEMS[code] || `GitHub answered with error ${code}.`);
+  // An Error with a plain message. `code` is one of the words above, or a status number.
+  function fail(code) {
+    const e = new Error(PROBLEMS[code] || `The server answered with error ${code}.`);
     e.code = code;
     return e;
   }
+  async function failFrom(res) {
+    let code = res.status;
+    try { const b = await res.json(); if (b && PROBLEMS[b.error]) code = b.error; } catch (e) {}
+    return fail(code);
+  }
 
-  /* ---- GitHub contents API ---- */
-  // `fetchFn` is for tests. The token goes only in the Authorization header.
-  function github(token, fetchFn) {
+  /* ---- the API Worker ---- */
+  // `token` is the sign-in that login() gave; it goes only in the Authorization header. `fetchFn` is for tests.
+  function api(token, fetchFn) {
     const f = fetchFn || ((url, opts) => fetch(url, opts));
-    const headers = { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token, 'X-GitHub-Api-Version': '2022-11-28' };
-    async function call(url, opts = {}) {
-      try { return await f(url, { cache: 'no-store', ...opts, headers: { ...headers, ...opts.headers } }); }
+    async function call(path, method = 'GET', body) {
+      const headers = {};
+      if (token) headers.Authorization = 'Bearer ' + token;
+      if (body) headers['Content-Type'] = 'application/json';
+      try { return await f(API + path, { method, headers, cache: 'no-store', body: body ? JSON.stringify(body) : undefined }); }
       catch (e) { throw fail('network'); }
     }
-    const put = body => call(API, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    async function send(path, method, body) {
+      const res = await call(path, method, body);
+      if (!res.ok) throw await failFrom(res);
+      return res.json();
+    }
 
     // The file on main and its sha.
     async function read() {
-      const res = await call(API + '?ref=main');
-      if (!res.ok) throw fail(res);
-      const body = await res.json();
+      const body = await send('file');
       let data;
       try { data = parse(fromBase64(body.content)); } catch (e) { throw fail('json'); }
       return { data, sha: body.sha };
@@ -207,22 +226,25 @@
         const { data, sha } = await read();
         const out = apply(data, change);
         if (!out.message) return out;
-        const res = await put({ message: out.message, content: toBase64(serialize(out.data)), sha, branch: 'main' });
+        const res = await call('file', 'PUT', { message: out.message, content: toBase64(serialize(out.data)), sha });
         if (res.status === 409 && attempt < 2) continue;
-        if (!res.ok) throw fail(res);
+        if (!res.ok) throw await failFrom(res);
         return out;
       }
     }
-    // Whether the token can write, without a commit: a PUT with no message and no content cannot make one.
-    // GitHub checks access first, so 403 or 404 means the token can only read; 422 means it could write.
-    async function canWrite() {
-      const res = await put({});
-      if (res.status === 401 || res.status === 403 || res.status === 404) throw fail(res);
-      return true;
-    }
-    return { read, save, canWrite };
+    const at = key => 'users/' + encodeURIComponent(key);
+    return {
+      read, save,
+      signup: (name, password) => send('signup', 'POST', { name, password }),
+      login: (name, password) => send('login', 'POST', { name, password }),
+      me: () => send('me'),
+      logout: () => send('logout', 'POST'),
+      users: async () => (await send('users')).users,
+      approve: key => send(at(key) + '/approve', 'POST'),
+      remove: key => send(at(key), 'DELETE')
+    };
   }
 
   return { REPO, API, slug, uniqueId, cleanLine, cleanPaste, lines, tagList, normUrl, safeUrl, fromForm, toForm, parse, serialize,
-    forView, apply, hl, esc, match, toBase64, fromBase64, fail, github };
+    forView, apply, hl, esc, match, toBase64, fromBase64, fail, api };
 });

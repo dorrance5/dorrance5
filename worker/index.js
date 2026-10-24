@@ -3,7 +3,10 @@
    GET    /api/tvmount/lib              -> { tvs: [], mounts: [] }   (anyone)
    PUT    /api/tvmount/lib/tv|mount     body: item, saved by model     (passcode)
    DELETE /api/tvmount/lib/tv|mount/ID                                  (passcode)
-   Writes need the header X-Passcode equal to the PASSCODE secret. */
+   Writes need the header X-Passcode equal to the PASSCODE secret.
+   Recipes accounts and saves: /api/recipes/*, in recipes.js. */
+import { recipes } from './recipes.js';
+
 const KEY = 'tvmount.lib';
 const LIST = { tv: 'tvs', mount: 'mounts' };
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
@@ -19,6 +22,7 @@ async function read(env) {
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
+    if (url.pathname.startsWith('/api/recipes/')) return recipes(req, env, url);
     const m = url.pathname.match(/^\/api\/tvmount\/lib(?:\/(tv|mount)(?:\/([\w-]+))?)?\/?$/);
     if (!m) return json({ error: 'not found' }, 404);
     const [, kind, id] = m;

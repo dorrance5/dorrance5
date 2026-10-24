@@ -441,10 +441,18 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 .status b { color: var(--ink); }
 .row-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .row-btns .btn { flex: 1 1 auto; }
-.setup { margin: 10px 0 0; padding-left: 1.4em; font-size: 16px; color: var(--muted); }
-.setup li { margin: 4px 0; }
-.setup b { color: var(--ink); }
-.ext { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; }
+.status.fine { margin-top: 18px; font-size: 15px; font-style: italic; }
+/* account: sign in or ask for an account; the admin approves people in the list under it */
+.swap { width: 100%; margin-top: 6px; }
+.people { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.people li { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.people .who { flex: 1; min-width: 0; }
+.people .who b { display: block; font-size: 18px; overflow-wrap: anywhere; }
+.people .who small { display: block; color: var(--muted); font-size: 15px; font-style: italic; }
+.people .btn { padding: 0 14px; font-size: 16px; }
+.people .btn.armed { background: var(--danger); border-color: var(--danger); color: var(--surface); }
+.people .none { color: var(--muted); font-style: italic; }
+#menuBtn.dot::after { content: ""; position: absolute; top: 5px; right: 5px; width: 11px; height: 11px; border-radius: 50%; background: var(--accent); border: 2px solid var(--card); }
 .homelink { margin-top: 26px; padding-top: 6px; border-top: 1px solid var(--line); }
 .homelink a { display: inline-flex; align-items: center; min-height: 44px; color: var(--muted); text-decoration: none; font-weight: 700; }
 
@@ -525,26 +533,29 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
       <button class="btn quiet" type="button" data-close>Done</button>
     </div>
     <div class="body">
-      <div class="alert info" id="sNeed" hidden>Connect GitHub to add or edit recipes.</div>
+      <div class="alert info" id="sNeed" hidden>Sign in to add or edit recipes.</div>
       <span class="label" id="themeLabel">Theme</span>
       <div class="seg" id="themeSeg" role="group" aria-label="Theme">
         <button type="button" data-t="auto">Auto</button><button type="button" data-t="light">Day</button><button type="button" data-t="dark">Night</button><button type="button" data-t="aurora" hidden>Aurora</button>
       </div>
-      <span class="label">GitHub</span>
-      <p class="status" id="sStatus"></p>
-      <div class="field"><label for="tok">Token</label><input id="tok" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" placeholder="github_pat_…"></div>
-      <div class="row-btns">
-        <button class="btn solid" id="tokSave" type="button">Save and test</button>
-        <button class="btn" id="tokOff" type="button">Disconnect</button>
+      <span class="label">Account</span>
+      <form id="aForm" novalidate>
+        <p class="status" id="aStatus"></p>
+        <div class="field"><label for="aName">Name</label><input id="aName" name="username" type="text" autocomplete="username" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="next" maxlength="24"></div>
+        <div class="field"><label for="aPass">Password</label><input id="aPass" name="password" type="password" autocomplete="current-password" enterkeyhint="go" maxlength="200"><small id="aPassHint" hidden>8 characters or more.</small></div>
+        <div class="row-btns"><button class="btn solid" id="aGo" type="submit">Sign in</button></div>
+        <button class="btn quiet swap" id="aSwap" type="button">New here? Create an account</button>
+      </form>
+      <div id="aIn" hidden>
+        <p class="status" id="aWho"></p>
+        <div class="row-btns"><button class="btn" id="aOut" type="button">Sign out</button></div>
       </div>
       <div class="alert" id="sResult" role="status" hidden></div>
-      <ol class="setup">
-        <li>Open <a class="ext" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub token settings</a>.</li>
-        <li>Under <b>Repository access</b>, pick <b>Only select repositories</b>, then <b>dorrance5/dorrance5</b>.</li>
-        <li>Under <b>Permissions</b>, set <b>Contents</b> to <b>Read and write</b>.</li>
-        <li>Generate the token, copy it, paste it above and tap <b>Save and test</b>.</li>
-      </ol>
-      <p class="status" style="margin-top:8px">The token stays on this phone. Each save is a commit to recipes.json, and the site updates in about a minute.</p>
+      <div id="aAdmin" hidden>
+        <span class="label">Accounts</span>
+        <ul class="people" id="people"></ul>
+      </div>
+      <p class="status fine">Anyone can read the recipes. Each save is a commit to recipes.json with your name on it, and the site updates in about a minute.</p>
       <div class="homelink"><a href="../">&lsaquo; dorrance.me</a></div>
     </div>
   </section>
