@@ -64,6 +64,7 @@ This is a static site of small phone apps. GitHub Pages deploys `main` with `.gi
 - `worker/` is the API Worker on `dorrance.me/api/*`: the TV Mount library, the dorrance.me accounts (`worker/auth.js`) and the Recipes saves. `docs/accounts.md` tells how the accounts work and how to use them in an app.
 - Run the Worker checks: `node --test worker/test/*.test.js`
 - A push does not deploy the Worker. After a change in `worker/`, run the Worker checks and the checks of the apps that use the changed routes, then run `npx wrangler deploy` in `worker/`. Then check that `https://dorrance.me/api/tvmount/lib` still answers.
+- `recipes/meals.js` is part of the Worker too: `worker/meals.js` imports it for the Recipes meal plan. A change to it needs the same Worker checks and deploy.
 
 ## Commits
 

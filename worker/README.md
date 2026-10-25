@@ -1,7 +1,11 @@
 # dorrance.me API worker
 
 This Cloudflare Worker stores the shared TV Mount library of saved TVs and mounts. It also keeps the dorrance.me
-accounts (`auth.js`, see `docs/accounts.md`) and saves Recipes to GitHub (`recipes.js`, see `docs/recipes-handoff.md`).
+accounts (`auth.js`, see `docs/accounts.md`), saves Recipes to GitHub (`recipes.js`, see `docs/recipes-handoff.md`),
+and keeps the Recipes meal plan and grocery list (`meals.js`).
+
+`meals.js` imports `../recipes/meals.js`, which the Recipes page uses too, and `npx wrangler deploy` bundles it into the
+Worker. So a change to `recipes/meals.js` also needs a Worker deploy.
 
 ## Set up
 
@@ -28,6 +32,13 @@ in the same KV namespace, under keys that start with `auth:`. The admin's name i
    - `npx wrangler secret put ADMIN_PASSWORD`, then type the admin password.
    - `npx wrangler secret put GITHUB_TOKEN`, then paste the token.
 3. Open `https://dorrance.me/api/auth/me`. You see `{"error":"signin"}`.
+
+## Meal plan
+
+The route is `dorrance.me/api/meals` (and `/api/meals/partner` for the admin). It needs no setup: it uses the same KV
+namespace, under `meals:data` and `meals:partner`. The meal plan is private, so it stays in KV and never goes to the
+public GitHub repository. A GET only reads; a POST of a batch of changes is one read and one write. The comment at the
+top of `meals.js` lists the routes and the error codes.
 
 Run the checks with `node --test worker/test/*.test.js`. A change to this folder goes live only with
 `npx wrangler deploy`. A push to `main` does not deploy the Worker.

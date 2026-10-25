@@ -18,16 +18,14 @@ This is version 2. Version 1, the aged recipe book with the Rolodex deck, stays 
 ## Plan for version 2
 
 1. **Done:** v1 moved to `/oldrecipes`. The new look: the recipe box, the recipe card, cooking mode with timers, add and edit, and Settings.
-2. **Next:** the meal plan and the grocery list, kept by the Worker, for the owner and one other account (Nicole) only. The tab bar then has four items for those two: Recipes, Meal plan, Grocery list, Settings. Admin Settings gets "Meal plan and grocery list" with a chip for each account to pick the partner. The recipe card gets "Add to grocery list". The canvas has both screens.
-   - The meal plan is one shared week of dinners, Monday to Sunday, this week and next. Each dinner shows who planned it. A day can hold a recipe or a note ("Leftovers").
-   - The grocery list merges the same item from several recipes, has "Add something else", and moves items to "Got it".
-   - Mind the KV limits in `CLAUDE.md`: no KV write, delete or list on a page load.
-3. **Later:** import from a link, for signed-in people only. The Worker reads the page's schema.org Recipe data and the form fills in.
+2. **Done:** the meal plan and the grocery list, kept by the Worker, for the owner and one partner account that the owner picks in Settings (Nicole). See "The meal plan and the grocery list" below.
+3. **Next:** import from a link, for signed-in people only. The Worker reads the page's schema.org Recipe data and the form fills in.
 - Still open: an "Add to meal plan" button on the recipe card.
 
 ## Current state
 
 - `recipes/index.html` has the markup and the styles. `recipes/app.js` runs the page. `recipes/data.js` has the data format, the search, the amounts and timers, and the saves, and Node can test it. The page loads `shared/account.js` for the sign-in.
+- `recipes/meals.js` has the meal plan's data format and changes (ops), the merged grocery list and the weeks. The page and the Worker (`worker/meals.js`) both use it, so a change to it needs a Worker deploy. Its header comment documents the format.
 - `oldrecipes/` is a frozen copy of version 1 (`index.html`, `app.js`, `data.js`, the icons and its checks in `oldrecipes/test/`). It reads `../recipes/recipes.json` and saves through the same Worker route. Change it only to keep it working.
 - `worker/recipes.js` is the Recipes part of the dorrance.me API Worker (`worker/`, on the route `dorrance.me/api/*`). It holds the GitHub token. The accounts are in `worker/auth.js`. `worker/README.md` has the setup.
 - The checks are in `recipes/test/`. `CLAUDE.md` has the commands.
@@ -44,16 +42,31 @@ This is version 2. Version 1, the aged recipe book with the Rolodex deck, stays 
 ## Screens
 
 1. **Recipe box.** A tomato header: "Dorrance Family" over "Recipe Book", a search field, and on the right a butter + (signed in) or a "Sign in" pill (signed out). Under it, divider tabs that stick to the top: All on the left, then each category A to Z, each with its count. The open tab is taller and filled with its color, and a band of that color runs under the tabs. Then the deck: cards 104 px tall that overlap so that each shows a 58 px strip with its name and its first category. A search shows why each card matched (the ingredients, a piece of a step or note, or a category) under the name, and that card's strip grows to show it.
-2. **Recipe card.** "‹ Recipe box" and, signed in, a pencil to edit. An index card: a strip in the recipe's color, chips for the categories and "Serves", the name, a red rule, an Ingredients · N / Steps · N switch (only when there are steps), then the list on blue lines. The amount at the start of each ingredient is bold, and 1/4 shows as ¼. Below: "Start cooking" (only with steps), the notes on butter, and "From saltandlavender.com ↗" (a link opens in a new tab; text that is not a link shows as "From Grandma Dorrance").
+2. **Recipe card.** "‹ Recipe box" (or "‹ Meal plan" when it opened from the plan) and, signed in, a pencil to edit. An index card: a strip in the recipe's color, chips for the categories and "Serves", the name, a red rule, an Ingredients · N / Steps · N switch (only when there are steps), then the list on blue lines. The amount at the start of each ingredient is bold, and 1/4 shows as ¼. Below: "Start cooking" (only with steps); for the two meal planners and a recipe with ingredients, "Add to grocery list" (butter, with a basket), which turns into "On the grocery list" (outlined, with a tick); the notes on butter, and "From saltandlavender.com ↗" (a link opens in a new tab; text that is not a link shows as "From Grandma Dorrance").
 3. **Cooking mode.** Slides up. × to leave, the recipe name, and Ingredients (a sheet over the step). A progress bar, "Step N of M", the step in large Fraunces, Back and Next step (Done on the last step, which goes back to the card). The left and right arrow keys move between steps.
    - **Timers.** The first time a step names ("5 minutes", "10 to 15 minutes", "20-25 mins", "6 hours", "1 hour 30 minutes", "30 seconds") gives the step a timer, starting at the shorter time of a range. Start, Pause, Resume, Again and Reset. A timer keeps running on another step; a button at the top shows it and goes back to it. At the end it says "Time’s up", buzzes the phone and beeps. Leaving cooking mode while a timer runs asks first, and leaving stops the timers.
 4. **Add and edit.** A full screen: Cancel, "New recipe" or "Edit recipe", Save. Fields: Name, Category (chips: None on the left, each category in the box, and "New" for a new one; more than one can be picked, and the first picked colors the card), Serves, Ingredients and Steps (one per line, with a count), Notes, and "Where it’s from" (a link, a cookbook or a person). Pasted lists lose their `-`, `•`, `*`, `1.` and `1)` marks. Edit has "Delete recipe", which asks for a second tap. Cancel or the back button with changes asks first.
 5. **Settings.** A tab for anyone signed in; for someone signed out, a screen with "‹ Recipe box". Opened over the editor to sign in again during a save, it has "‹ Back" and no tab bar.
    - Signed in: a card with who is signed in ("Admin · signed in" or "Signed in") and Sign out.
    - The admin: "Waiting for you" (a card for each account that waits, with Approve and Deny), then "Accounts" (each with Remove). Deny and Remove ask for a second tap. A dot on Settings in the tab bar while accounts wait.
+   - The admin, then: "Meal plan and grocery list", with a chip for each approved account to pick the partner, and "No one" on the left. With no partner, "Pick who shares them with you." Removing the partner's account leaves no partner.
    - Signed out: "Sign in", or "Ask for an account" with "New here? Ask for an account".
    - "Theme on this phone": Auto, Day, Night. A link to the old recipe book.
-6. **Tab bar.** Signed in: Recipes and Settings, on the box and on Settings. Signed out: no tab bar. Step 2 adds Meal plan and Grocery list for the two meal planners.
+6. **Tab bar.** Signed in: Recipes and Settings, on the box and on the tabs. The two meal planners also get Meal plan and Grocery list, between them. Signed out: no tab bar. From the box a tab opens over it; from one tab, the next takes its place at the same history depth, so the back button goes to the box.
+7. **Meal plan.** A carrot header: "Meal plan", "Dinners for Mitchell and Nicole" and their faces, and a This week / Next week switch with the dates. Then Monday to Sunday: the day and its number (today in tomato), and the dinner. A recipe is colored like its card, and its name opens it; a note ("Leftovers") is on the surface color. Each shows a small face for who planned it, and an × to clear the day. An empty day has a dashed "Plan dinner", which opens a sheet: "Dinner on Saturday, Oct 24", Close, a search, the recipes A to Z with a dot in their color, and "Or write something, like Leftovers" with Add. At the bottom, "Put N dinners on the grocery list" adds the week's recipes from today on that are not on the list yet, and opens the list; when there are none left to add, "Open the grocery list".
+8. **Grocery list.** A butter header: "Grocery list", "3 recipes · 12 to get", a chip for each recipe on the list with an × to take it off, and a dashed "Add a recipe" that goes to the box. "Add something else", then "To get": a checkbox per item, with the amounts and "For <recipes>" (or "Extra") under the name. The same item from two recipes is one line ("Buns"). Ticked items go to "Got it", struck through, with Clear. Empty: "Nothing on the list. Open a recipe and tap Add to grocery list."
+   - At night the carrot and butter headers keep their colors, with ink text; the rest uses the Night colors.
+
+## The meal plan and the grocery list
+
+- Two people share them: the admin and the partner the admin picks. They are private, so the Worker keeps them in KV (`meals:data`, `meals:partner`), never in the public repository. `worker/meals.js` has the routes: `GET /api/meals`, `POST /api/meals` with `{ ops }`, and `PUT /api/meals/partner` for the admin.
+- A signed-in page load asks once with a GET, which only reads. A 403 `planner` means not a planner: no tabs. The page keeps the answer and the changes not sent yet in localStorage (`recipes-meals`, for that name), so the tabs show at once, and shows the answer with those changes on top (`Meals.apply`).
+- Each change is an op (`recipes/meals.js`). The page sends them in batches: one POST at a time, at most one each 1.2 s. The Worker applies a batch to the newest data, so two phones do not undo each other. Each POST is one KV read and one write.
+  - `busy` (429: the other phone saved in the same second): send again in 1.5 s.
+  - No connection, `full` (503: the day's free KV writes are used up) or another error: keep the changes, show "… Your changes are kept on this phone and sent later.", and try again later, or at once when the phone is back online or the page is shown again.
+  - `body` (400): drop that batch and read again. `signin` (401): sign out. `planner` (403): the tabs go.
+- A GET that was sent before a POST ended is ignored, since the POST's answer is newer. While a meal screen shows, the page reads again every 30 s and when it is shown again. When the page is hidden, it sends what is left with `keepalive`.
+- Signing out forgets what the phone kept.
 
 ## Data format
 
@@ -130,7 +143,8 @@ The site is static, so the page saves through the API Worker, and the Worker sav
 ## How to check
 
 1. Run the unit tests, the browser checks and the screenshots in `CLAUDE.md`, for `recipes/` and `oldrecipes/`. Look at the screenshots in Day and in Night.
-2. The browser checks run the Worker in Node with KV in memory and a stand-in for GitHub (`worker/test/harness.cjs`), and route the page's `/api/**` requests to it. They cover: the box, dividers and search; the recipe card; cooking mode and its timers (on a test clock); the theme; asking for an account, signing in, a wrong password, an account that waits; approve, deny and remove as the admin; add, edit and delete; a 409 on the first PUT; a sign-in that ended, a bad GitHub token and no connection; the back button; tap sizes and sideways scroll.
+2. The browser checks run the Worker in Node with KV in memory and a stand-in for GitHub (`worker/test/harness.cjs`), and route the page's `/api/**` requests to it. They cover: the box, dividers and search; the recipe card; cooking mode and its timers (on a test clock); the theme; asking for an account, signing in, a wrong password, an account that waits; approve, deny and remove as the admin; add, edit and delete; a 409 on the first PUT; a sign-in that ended, a bad GitHub token and no connection; the back button; tap sizes and sideways scroll. Then the meal plan on two phones (Mitchell and Nicole, on Saturday, Oct 24, 2026): the partner chips, the plan and the picker, the grocery list and its merged items, batches, no connection, a busy Worker, Night, and losing the tabs.
+   - The browser checks use `recipes/test/fixture-recipes.json`, a frozen copy of the recipe book, in place of `recipes/recipes.json`, so the family's edits do not change what they expect. The screenshots use the real book.
 3. There must be no console errors. A blocked Google Fonts request in the sandbox is not an error.
 4. Push, then check that the "Deploy static content to Pages" run starts.
 

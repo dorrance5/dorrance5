@@ -53,9 +53,11 @@ Today the admin approves accounts in Recipes: Settings > "Waiting for you" has A
 
    ```js
    import { json, who } from './auth.js';
-   const me = await who(req, env);   // { name, admin }, or null
+   const me = await who(req, env);   // { key, id, name, admin }, or null
    if (!me) return json({ error: 'signin' }, 401);
    ```
+
+   `key` is the account's name in lower case, as in the KV key `auth:user:<key>`. `id` tells an account apart from a removed one that had the same name; the admin has no `id`. To remember one account (as the meal plan remembers its partner), keep both and check both. `adminName(env)` is the admin's name.
 
    When a call answers `signin`, the sign-in ended: call `Account.keep(null)` and ask the person to sign in again.
 
