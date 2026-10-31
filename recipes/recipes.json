@@ -18,7 +18,8 @@
         "Cilantro",
         "Chives",
         "Cream cheese"
-      ]
+      ],
+      "owner": "Nicole"
     },
     {
       "id": "salmon-bowls",
@@ -29,7 +30,8 @@
         "Mayo",
         "Sriracha",
         "Cucumbers"
-      ]
+      ],
+      "owner": "Nicole"
     },
     {
       "id": "grilled-chicken-and-potatoes",
@@ -40,7 +42,8 @@
       "ingredients": [
         "Grilled chicken",
         "Potatoes"
-      ]
+      ],
+      "owner": "Nicole"
     },
     {
       "id": "pulled-pork-sandwiches",
@@ -48,7 +51,8 @@
       "ingredients": [
         "Pulled pork (Costco)",
         "Buns"
-      ]
+      ],
+      "owner": "Nicole"
     },
     {
       "id": "madis-pasta-salad",
@@ -61,12 +65,14 @@
         "Mayo",
         "Salami or pepperoni",
         "Red onion"
-      ]
+      ],
+      "owner": "Nicole"
     },
     {
       "id": "jens-tortellini-pasta-salad",
       "name": "Jen's tortellini pasta salad",
-      "ingredients": []
+      "ingredients": [],
+      "owner": "Nicole"
     },
     {
       "id": "sheet-pan-breakfast-burritos",
@@ -78,7 +84,8 @@
         "Milk",
         "Bacon",
         "Large tortillas"
-      ]
+      ],
+      "owner": "Nicole"
     },
     {
       "id": "pepperoncini-roast",
@@ -98,7 +105,8 @@
         "Add the au jus packet, ranch packet, and pepperoncinis.",
         "Cut the butter into slices and spread them over the top.",
         "Cook on high for 6 hours or low for 8 hours."
-      ]
+      ],
+      "owner": "Nicole"
     },
     {
       "id": "tacos-and-beans",
@@ -109,7 +117,8 @@
         "Taco seasoning",
         "Tortillas"
       ],
-      "notes": "Add any garnish wanted."
+      "notes": "Add any garnish wanted.",
+      "owner": "Nicole"
     },
     {
       "id": "burgers-and-fries",
@@ -121,7 +130,8 @@
         "Burgers",
         "Buns",
         "Fries"
-      ]
+      ],
+      "owner": "Nicole"
     },
     {
       "id": "megans-zuppa-toscana",
@@ -155,7 +165,8 @@
         "Season with salt and pepper."
       ],
       "notes": "Hot Italian sausage or 1/4 tsp red pepper flakes adds heat. Half-and-half works in place of cream. Keeps 3 to 4 days in the fridge.",
-      "source": "https://www.saltandlavender.com/sausage-bacon-potato-and-kale-soup/"
+      "source": "https://www.saltandlavender.com/sausage-bacon-potato-and-kale-soup/",
+      "owner": "Nicole"
     }
   ]
 }

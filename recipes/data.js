@@ -12,7 +12,7 @@
   const REPO = 'dorrance5/dorrance5';
   const API = '/api/recipes/';
   // Field order in the file. Fields the page does not know about go after these and are kept as they are.
-  const ORDER = ['id', 'name', 'servings', 'tags', 'ingredients', 'steps', 'notes', 'source'];
+  const ORDER = ['id', 'name', 'servings', 'tags', 'ingredients', 'steps', 'notes', 'source', 'owner', 'shared'];
 
   /* ---- ids ---- */
   // "Megan's zuppa toscana" -> "megans-zuppa-toscana". Accents fold to plain letters: "Crème brûlée" -> "creme-brulee".
@@ -51,9 +51,10 @@
     try { const u = new URL(s); return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null; } catch (e) { return null; }
   }
 
-  // The editor's fields to a recipe in file order. Empty optional fields are left out.
-  // `old` is the recipe as it is in the file now; fields this page does not know about are kept.
-  function fromForm(f, id, old) {
+  // The editor's fields to a recipe in file order. Empty optional fields are left out, and so is `shared` when the
+  // recipe is shared. `old` is the recipe as it is in the file now: it keeps its owner and the fields this page does not
+  // know about. A new recipe gets `owner`.
+  function fromForm(f, id, old, owner) {
     const r = { id, name: String(f.name || '').trim() };
     const servings = String(f.servings || '').trim();
     if (servings) r.servings = servings;
@@ -66,6 +67,9 @@
     if (notes) r.notes = notes;
     const source = normUrl(f.source);
     if (source) r.source = source;
+    const who = old ? old.owner : owner;
+    if (who) r.owner = who;
+    if (f.shared === false) r.shared = false;
     if (old) for (const k of Object.keys(old)) if (!ORDER.includes(k)) r[k] = old[k];
     return r;
   }
@@ -73,9 +77,33 @@
   function toForm(r) {
     return {
       name: r.name || '', servings: r.servings || '', tags: (r.tags || []).join(', '),
-      ingredients: (r.ingredients || []).join('\n'), steps: (r.steps || []).join('\n'), notes: r.notes || '', source: r.source || ''
+      ingredients: (r.ingredients || []).join('\n'), steps: (r.steps || []).join('\n'), notes: r.notes || '', source: r.source || '',
+      shared: r.shared !== false
     };
   }
+
+  /* ---- whose recipe: everyone has a book ---- */
+  // `who` is the person looking, { key, name, partner }, or null when signed out. `key` is the name in lower case;
+  // `partner` is the key of the person who shares their meal plan, their household. A recipe's `owner` is a name.
+  // A recipe with no owner (one from before owners) belongs to everyone, like the recipes did before.
+  const same = (owner, key) => !!owner && !!key && String(owner).toLowerCase() === key;
+  // The owner and their household change a recipe; anyone else edits a copy of it.
+  const canEdit = (r, who) => !r.owner || (!!who && (same(r.owner, who.key) || same(r.owner, who.partner)));
+  const booksOf = data => data.books && typeof data.books === 'object' && !Array.isArray(data.books) ? data.books : {};
+  const listOf = (data, key) => key && Array.isArray(booksOf(data)[key]) ? booksOf(data)[key] : [];
+  // The recipes added from others to the household's book, as ids.
+  const pulledBy = (data, who) => new Set([...listOf(data, who.key), ...listOf(data, who.partner)]);
+  // What the box shows: `book`, the person's own recipes, their household's and the shared ones they added; and
+  // `others`, the shared recipes of everyone else ("Shared with you"). Signed out, the book is every shared recipe.
+  // `recipes` is forView(data).
+  function shelves(data, recipes, who) {
+    if (!who) return { book: recipes.filter(r => r.shared), others: [] };
+    const pulled = pulledBy(data, who);
+    const mine = r => canEdit(r, who) || (r.shared && pulled.has(r.id));
+    return { book: recipes.filter(mine), others: recipes.filter(r => r.shared && !mine(r)) };
+  }
+  // "Megan's zuppa toscana" -> "Megan's zuppa toscana (Hayden's version)"
+  const versionName = (name, who) => `${name} (${who.name}'s version)`;
 
   /* ---- the file ---- */
   function parse(text) {
@@ -91,31 +119,71 @@
     const strs = a => Array.isArray(a) ? a.filter(x => x != null && x !== '').map(String) : [];
     return data.recipes.filter(r => r && typeof r === 'object' && r.id && r.name).map(r => ({
       ...r, id: String(r.id), name: String(r.name), tags: strs(r.tags), ingredients: strs(r.ingredients), steps: strs(r.steps),
-      servings: r.servings == null ? '' : String(r.servings), notes: r.notes == null ? '' : String(r.notes), source: r.source ? String(r.source) : ''
+      servings: r.servings == null ? '' : String(r.servings), notes: r.notes == null ? '' : String(r.notes), source: r.source ? String(r.source) : '',
+      owner: r.owner ? String(r.owner) : '', shared: r.shared !== false
     })).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
   }
 
+  // The books with `ids` taken out of the household's lists; a list that is left empty goes, and so do the books.
+  function without(data, ids, keys) {
+    const books = { ...booksOf(data) };
+    let changed = false;
+    for (const k of Object.keys(books)) {
+      if (keys && !keys.includes(k)) continue;
+      const kept = Array.isArray(books[k]) ? books[k].filter(id => !ids.includes(id)) : [];
+      if (kept.length === (books[k] || []).length) continue;
+      changed = true;
+      if (kept.length) books[k] = kept; else delete books[k];
+    }
+    if (!changed) return data;
+    const out = { ...data, books };
+    if (!Object.keys(books).length) delete out.books;
+    return out;
+  }
   // Applies one change to the data that was just read from GitHub. Returns { data, recipe, message };
-  // message is null when there is nothing to commit (the recipe to delete is gone already).
+  // message is null when there is nothing to commit (the recipe to delete is gone already). `who` is the person
+  // signed in (see shelves()).
   //   { type: 'add', form } | { type: 'edit', id, form } | { type: 'delete', id }
-  function apply(data, change) {
+  //   { type: 'copy', id, form }: a copy of someone else's recipe, in the place of theirs in the book
+  //   { type: 'pull', id }: someone else's shared recipe into the book    { type: 'unpull', id }: out of the book
+  function apply(data, change, who) {
     const list = data.recipes.slice();
-    const at = list.findIndex(r => r && r.id === change.id);
+    const at = list.findIndex(r => r && r.id === change.id), old = list[at];
+    const house = who ? [who.key, who.partner].filter(Boolean) : [];
     if (change.type === 'add') {
-      const recipe = fromForm(change.form, uniqueId(change.form.name, list));
+      const recipe = fromForm(change.form, uniqueId(change.form.name, list), null, who && who.name);
       list.push(recipe);
       return { data: { ...data, recipes: list }, recipe, message: `Recipes: add ${recipe.name}` };
     }
+    if (change.type === 'copy') {
+      if (at < 0) throw fail('gone');
+      const recipe = fromForm(change.form, uniqueId(change.form.name, list), null, who && who.name);
+      list.push(recipe);
+      return { data: without({ ...data, recipes: list }, [old.id], house), recipe, message: `Recipes: copy ${old.name} as ${recipe.name}` };
+    }
     if (change.type === 'edit') {
       if (at < 0) throw fail('gone');
-      const recipe = fromForm(change.form, change.id, list[at]);
+      if (!canEdit(old, who)) throw fail('notyours');
+      const recipe = fromForm(change.form, change.id, old);
       list[at] = recipe;
       return { data: { ...data, recipes: list }, recipe, message: `Recipes: edit ${recipe.name}` };
     }
     if (change.type === 'delete') {
       if (at < 0) return { data, recipe: null, message: null };
-      const [gone] = list.splice(at, 1);
-      return { data: { ...data, recipes: list }, recipe: gone, message: `Recipes: delete ${gone.name}` };
+      if (!canEdit(old, who)) throw fail('notyours');
+      list.splice(at, 1);
+      return { data: without({ ...data, recipes: list }, [old.id]), recipe: old, message: `Recipes: delete ${old.name}` };
+    }
+    if (change.type === 'pull') {
+      if (at < 0 || old.shared === false || !who) throw fail('gone');
+      if (canEdit(old, who) || pulledBy(data, who).has(old.id)) return { data, recipe: old, message: null };
+      const books = { ...booksOf(data), [who.key]: [...listOf(data, who.key), old.id] };
+      return { data: { ...data, books }, recipe: old, message: `Recipes: add ${old.name} to a book` };
+    }
+    if (change.type === 'unpull') {
+      const out = who ? without(data, [change.id], house) : data;
+      const name = old ? old.name : change.id;
+      return { data: out, recipe: old || null, message: out === data ? null : `Recipes: take ${name} out of a book` };
     }
     throw new Error('unknown change ' + change.type);
   }
@@ -206,7 +274,8 @@
     rate: 'GitHub’s hourly limit is used up. Try again later.',
     json: 'recipes.json on GitHub is not valid JSON. Fix it in GitHub first.',
     file: 'The change would break recipes.json, so it is not saved.',
-    gone: 'This recipe is no longer in recipes.json. Someone deleted it after this page loaded.'
+    gone: 'This recipe is no longer in recipes.json. Someone deleted it after this page loaded.',
+    notyours: 'This recipe is someone else’s now. Edit makes your own copy of it.'
   };
   // An Error with a plain message. `code` is one of the words above, or a status number.
   function fail(code) {
@@ -244,12 +313,12 @@
       try { data = parse(fromBase64(body.content)); } catch (e) { throw fail('json'); }
       return { data, sha: body.sha };
     }
-    // Reads the file, applies the one change, and writes it back. A 409 means the file changed in between
+    // Reads the file, applies the one change as `who`, and writes it back. A 409 means the file changed in between
     // (Claude saved from chat, or another phone): read and apply once more.
-    async function save(change) {
+    async function save(change, who) {
       for (let attempt = 1; ; attempt++) {
         const { data, sha } = await read();
-        const out = apply(data, change);
+        const out = apply(data, change, who);
         if (!out.message) return out;
         const res = await call('file', 'PUT', { message: out.message, content: toBase64(serialize(out.data)), sha });
         if (res.status === 409 && attempt < 2) continue;
@@ -261,5 +330,5 @@
   }
 
   return { REPO, API, slug, uniqueId, cleanLine, cleanPaste, lines, tagList, normUrl, safeUrl, fromForm, toForm, parse, serialize,
-    forView, apply, hl, esc, match, amount, timerFor, clock, toBase64, fromBase64, fail, api };
+    forView, canEdit, shelves, versionName, apply, hl, esc, match, amount, timerFor, clock, toBase64, fromBase64, fail, api };
 });

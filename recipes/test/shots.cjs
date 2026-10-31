@@ -10,8 +10,14 @@ const path = require('node:path');
 const root = path.join(__dirname, '..', '..');
 const out = path.resolve(process.argv[2] || path.join(__dirname, 'shots'));
 fs.mkdirSync(out, { recursive: true });
-const FILE = fs.readFileSync(path.join(root, 'recipes', 'recipes.json'), 'utf8');
-const MANY = require('./many.cjs')(FILE);   // 30 recipes, for the scenes with "many"
+// Madi has added three in four of Nicole's recipes to their book; the rest are Shared with you.
+const withBooks = text => {
+  const d = JSON.parse(text);
+  d.books = { madi: d.recipes.filter((r, i) => i % 4 !== 1).map(r => r.id) };
+  return JSON.stringify(d, null, 2) + '\n';
+};
+const FILE = withBooks(fs.readFileSync(path.join(root, 'recipes', 'recipes.json'), 'utf8'));
+const MANY = withBooks(require('./many.cjs')(FILE));   // 30 recipes, for the scenes with "many"
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const server = http.createServer((req, res) => {
@@ -53,6 +59,11 @@ const MEALS = {
 const planner = p => p.waitForSelector('#navPlan:not([hidden])');
 const tab = go => async p => { await planner(p); await p.click(`#nav [data-go="${go}"]`); await p.waitForSelector(`#${go}.open`); };
 const pickDay = date => async p => { await tab('plan')(p); await p.click(`#pDays [data-plan="${date}"]`); await p.waitForSelector('#pick.open'); };
+// The bottom of the box: Shared with you
+const sharedWithYou = async p => {
+  await p.waitForSelector('#others:not([hidden])');
+  await p.$eval('#others', s => s.scrollIntoView({ block: 'end' }));
+};
 // Settings, at "Meal plan and grocery list", once it shows `sel`
 const sharing = sel => async p => {
   await planner(p);
@@ -83,9 +94,9 @@ const scenes = [
   { name: '14-cooking-ingredients-night', theme: 'dark', act: async p => { await cook(ZUPPA)(p); await p.click('#cIngBtn'); await p.waitForSelector('#cookIng.open'); } },
   { name: '15-cooking-day', act: async p => { await cook('Pepperoncini roast')(p); for (let i = 0; i < 3; i++) await p.click('#cNext'); } },
   { name: '16-new-day', as: 'Madi', act: async p => { await p.click('#addBtn'); await p.waitForSelector('#editor.open'); await p.fill('#fName', 'Grandma’s crème brûlée'); await p.click('#fCats [data-new]'); await p.fill('#fNew', 'Dessert'); } },
-  { name: '17-edit-day', as: 'Madi', act: async p => { await openRecipe(ZUPPA)(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); } },
-  { name: '18-edit-end-night', theme: 'dark', as: 'Madi', act: async p => { await openRecipe(ZUPPA)(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); await layerEnd('editor')(p); await p.click('#eDelete'); } },
-  { name: '19-save-error-day', as: 'Madi', act: async p => { await openRecipe('Salmon bowls')(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); signOutAll(); await p.click('#eSave'); await p.waitForSelector('#eError:not([hidden])'); } },
+  { name: '17-edit-day', as: 'Mitchell', act: async p => { await openRecipe(ZUPPA)(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); } },
+  { name: '18-edit-end-night', theme: 'dark', as: 'Mitchell', act: async p => { await openRecipe(ZUPPA)(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); await layerEnd('editor')(p); await p.click('#eDelete'); } },
+  { name: '19-save-error-day', as: 'Mitchell', act: async p => { await openRecipe('Salmon bowls')(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); signOutAll(); await p.click('#eSave'); await p.waitForSelector('#eError:not([hidden])'); } },
   { name: '20-settings-admin-day', as: 'Mitchell', act: async p => { await settings(p); await p.waitForSelector('#sWaitList [data-approve]'); } },
   { name: '21-settings-family-night', theme: 'dark', as: 'Madi', act: settings },
   { name: '22-settings-signed-out-day', act: settings },
@@ -108,7 +119,12 @@ const scenes = [
   { name: '39-settings-waiting-night', theme: 'dark', as: 'Hayden', day0: true, act: sharing('[data-share="cancel"]') },
   { name: '40-plan-own-day', as: 'Madi', day0: true, act: tab('plan') },
   { name: '41-settings-ask-day', as: 'Ellie', day0: true, act: sharing('[data-ask]') },
-  { name: '42-settings-ask-night', theme: 'dark', as: 'Ellie', day0: true, act: sharing('[data-ask]') }
+  { name: '42-settings-ask-night', theme: 'dark', as: 'Ellie', day0: true, act: sharing('[data-ask]') },
+  { name: '43-box-shared-with-you-day', as: 'Madi', act: sharedWithYou },
+  { name: '44-recipe-to-add-day', as: 'Madi', act: async p => { await sharedWithYou(p); await p.click('#otherList .sw-open'); await p.waitForSelector('#view.open'); await p.$eval('#vBody .bookbtn', b => b.scrollIntoView({ block: 'center' })); } },
+  { name: '45-editor-share-switch-day', as: 'Mitchell', act: async p => { await openRecipe(ZUPPA)(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); await layerEnd('editor')(p); } },
+  { name: '46-your-copy-day', as: 'Madi', act: async p => { await openRecipe(ZUPPA)(p); await p.click('#editBtn'); await p.waitForSelector('#editor.open'); } },
+  { name: '47-box-shared-with-you-night', theme: 'dark', as: 'Madi', act: sharedWithYou }
 ];
 let signOutAll;   // ends every sign-in on the Worker, for the scene where a save finds the sign-in gone
 
@@ -161,7 +177,7 @@ let signOutAll;   // ends every sign-in on the Worker, for the scene where a sav
     page.on('console', m => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) problems.push(`${sc.name}: console: ${m.text()}`); });
     page.on('pageerror', e => problems.push(`${sc.name}: page error: ${e.message}`));
     await page.goto(base, { waitUntil: 'load' });
-    await page.waitForSelector('#deck .rc');
+    await page.waitForSelector('#deck .rc, #others:not([hidden])');   // a book, or only recipes shared with you
     await page.evaluate(() => document.fonts.ready);
     if (sc.act) await sc.act(page);
     await page.waitForTimeout(sc.wait || 600);

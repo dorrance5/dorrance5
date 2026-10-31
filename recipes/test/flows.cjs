@@ -13,6 +13,8 @@ const root = path.join(__dirname, '..', '..');
 // A frozen copy of the recipe book, so that the family's edits to recipes.json do not change what the checks expect.
 // It stands in for recipes.json on the site and on GitHub.
 const FILE = fs.readFileSync(path.join(__dirname, 'fixture-recipes.json'), 'utf8');
+const site = { text: FILE };   // recipes.json on the site, for a page that is signed out
+const D = require('../data.js');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
@@ -43,7 +45,7 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   async function newContext() {
     const ctx = await browser.newContext(phone);
     await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: '' }));
-    await ctx.route('**/recipes/recipes.json', r => r.fulfill({ contentType: 'application/json', body: FILE }));
+    await ctx.route('**/recipes/recipes.json', r => r.fulfill({ contentType: 'application/json', body: site.text }));
     await ctx.route('**/api/**', api.route);
     // a wake lock that counts, and a vibration that counts
     await ctx.addInitScript(() => {
@@ -277,7 +279,6 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   await opened('settings');
   check('signed out, Settings has a back button to the box and no tab bar', await page.isVisible('#sBack') && (await text('#sBackText')) === 'Recipe box' && await page.isHidden('#nav'));
   check('Settings shows the sign-in form', await page.isVisible('#aForm') && await page.isHidden('#sMe'));
-  check('the old recipe book is linked', (await page.$eval('.oldlink', a => a.href)).endsWith('/oldrecipes/'));
   check('Theme: Auto, Day, Night, with Auto on the left and picked', (await page.$$eval('#themeSeg button', bs => bs.map(b => b.textContent).join())) === 'Auto,Day,Night' && (await pressed('#themeSeg button')).join() === 'Auto');
   await tap('#themeSeg [data-t="dark"]');
   check('Night: saved for the whole site, and the page turns dark', (await page.evaluate(() => [localStorage.getItem('theme'), document.documentElement.dataset.theme].join())) === 'dark,dark' && (await bg('body')) === 'rgb(28, 21, 18)');
@@ -358,7 +359,7 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   await closed('editor');
   let put = gh.puts.at(-1);
   const brulee = recipeIn(decoded(put), 'grandmas-creme-brulee');
-  check('add: the recipe is saved in file order, and a source that is not a link stays as typed', JSON.stringify(brulee) === JSON.stringify({ id: 'grandmas-creme-brulee', name: 'Grandma’s crème brûlée', servings: '4', tags: ['Dessert'], ingredients: ['4 egg yolks', '2 cups heavy cream', '1/2 cup sugar', '1 tsp vanilla'], steps: ['Heat the oven to 325.', 'Bake 40 minutes.'], source: 'Grandma Dorrance' }), brulee);
+  check('add: the recipe is saved in file order, with Madi as its owner, and a source that is not a link stays as typed', JSON.stringify(brulee) === JSON.stringify({ id: 'grandmas-creme-brulee', name: 'Grandma’s crème brûlée', servings: '4', tags: ['Dessert'], ingredients: ['4 egg yolks', '2 cups heavy cream', '1/2 cup sugar', '1 tsp vanilla'], steps: ['Heat the oven to 325.', 'Bake 40 minutes.'], source: 'Grandma Dorrance', owner: 'Madi' }), brulee);
   check('add: commit title with the name', put.message === 'Recipes: add Grandma’s crème brûlée (Madi)' && put.sha === 's0', put.message);
   check('add: the other recipes are untouched', JSON.stringify(JSON.parse(decoded(put)).recipes.slice(0, 11)) === JSON.stringify(JSON.parse(FILE).recipes));
   check('add: the new recipe opens, with "From Grandma Dorrance" as plain text', (await text('#vName')) === 'Grandma’s crème brûlée' && (await text('#vBody p.source')) === 'From Grandma Dorrance' && await page.isHidden('#editor'));
@@ -793,6 +794,94 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   await tap('#aOut');
   await page.waitForSelector('#aBox:not([hidden])');
   check('Sign out: the kept plan goes too', (await page.evaluate(() => localStorage.getItem('recipes-meals'))) === null && await page.isHidden('#nav'));
+
+  /* ---- everyone's book: owners, Shared with you, a copy, the switch, and a household ---- */
+  // Hayden owns the zuppa, the roast and the burgers (not shared); Ellie owns the salmon; the rest are from before owners.
+  const owned = JSON.parse(FILE);
+  const own = (id, owner, shared) => Object.assign(owned.recipes.find(r => r.id === id), { owner }, shared === false ? { shared } : {});
+  own('megans-zuppa-toscana', 'Hayden');
+  own('burgers-and-fries', 'Hayden', false);
+  own('pepperoncini-roast', 'Hayden');
+  own('salmon-bowls', 'Ellie');
+  gh.text = site.text = D.serialize(owned);
+  const fileNow = () => JSON.parse(gh.text);
+  const sharedNames = p => p.$$eval('#otherList .nm', ns => ns.map(n => n.textContent).join());
+  const inDeck = (p, name) => p.waitForFunction(n => [...document.querySelectorAll('#deck .rc .nm')].some(x => x.textContent === n), name);
+  await page.reload();
+  await page.waitForSelector('#deck .rc');
+  check('signed out: only shared recipes, and no Shared with you', !(await names()).includes('Burgers and fries') && (await names()).includes(ZUPPA) && await page.isHidden('#others'));
+
+  await api.addUser('Hayden', 'hayden-password');
+  await api.addUser('Ellie', 'ellie-password');
+  const ellie = await phoneOf('Ellie', 'ellie-password'), ep = ellie.p;
+  check('Ellie’s book: Ellie’s salmon and the recipes from before owners; Hayden’s shared ones are Shared with you, the burgers not',
+    (await names(ep)).includes('Salmon bowls') && (await names(ep)).includes('Tacos and beans') && !(await names(ep)).includes(ZUPPA)
+    && (await sharedNames(ep)) === `${ZUPPA},Pepperoncini roast`, { book: await names(ep), shared: await sharedNames(ep) });
+  await phoneRules('the box with Shared with you', ep);
+  await ep.tap('#otherList [data-pull="pepperoncini-roast"]');
+  await inDeck(ep, 'Pepperoncini roast');
+  check('Add: the roast is in Ellie’s book, kept in recipes.json', fileNow().books.ellie.join() === 'pepperoncini-roast'
+    && gh.puts.at(-1).message === 'Recipes: add Pepperoncini roast to a book (Ellie)' && !(await sharedNames(ep)).includes('Pepperoncini'));
+  const later = fileNow();
+  later.recipes.find(r => r.id === 'pepperoncini-roast').notes = 'Hayden’s tip: a splash of the jar juice.';
+  gh.text = D.serialize(later);   // Hayden changes it, from another phone or a Claude chat
+  await ep.reload();
+  await inDeck(ep, 'Pepperoncini roast');
+  await openRecipe('Pepperoncini roast', ep);
+  check('the roast follows Hayden’s changes, says whose it is, and offers Remove and a copy',
+    (await ep.textContent('#vBody .notes p')) === 'Hayden’s tip: a splash of the jar juice.' && (await ep.$$eval('#vBody .chip', cs => cs.map(c => c.textContent))).includes('Hayden’s recipe')
+    && (await ep.textContent('#vBody .bookbtn')) === 'Remove from my book' && (await ep.getAttribute('#editBtn', 'aria-label')) === 'Make your own copy');
+  await ep.tap('#editBtn');
+  await opened('editor', ep);
+  check('Edit on Hayden’s recipe: Your copy, named for Ellie, shared, no Delete',
+    (await ep.textContent('#eTitle')) === 'Your copy' && (await ep.inputValue('#fName')) === "Pepperoncini roast (Ellie's version)" && (await ep.getAttribute('#fShare', 'aria-checked')) === 'true' && await ep.isHidden('#eDelete'));
+  await phoneRules('the editor with the share switch', ep);
+  await ep.tap('#eSave');
+  await closed('editor', ep);
+  const copy = fileNow().recipes.find(r => r.id === 'pepperoncini-roast-ellies-version');
+  check('the copy is Ellie’s, in the place of the roast, which stays Hayden’s', !!copy && copy.owner === 'Ellie' && !fileNow().books
+    && fileNow().recipes.find(r => r.id === 'pepperoncini-roast').owner === 'Hayden' && (await ep.textContent('#vName')) === "Pepperoncini roast (Ellie's version)");
+  await ep.goBack();
+  await closed('view', ep);
+  check('the box: the copy in the book, the roast Shared with you again', (await names(ep)).includes("Pepperoncini roast (Ellie's version)") && (await sharedNames(ep)).includes('Pepperoncini roast'));
+  await ep.tap(`#otherList [data-pull="megans-zuppa-toscana"]`);
+  await inDeck(ep, ZUPPA);
+  await openRecipe(ZUPPA, ep);
+  await ep.tap('#vBody [data-unpull]');
+  await ep.waitForSelector('#vBody [data-pull]');
+  check('Remove from my book: the zuppa is Shared with you again', !fileNow().books && !(await names(ep)).includes(ZUPPA) && (await sharedNames(ep)).includes(ZUPPA));
+  await ep.goBack();
+  await closed('view', ep);
+
+  await openRecipe('Salmon bowls', ep);
+  await ep.tap('#editBtn');
+  await opened('editor', ep);
+  check('Ellie’s own recipe: Edit recipe, shared', (await ep.textContent('#eTitle')) === 'Edit recipe' && (await ep.getAttribute('#fShare', 'aria-checked')) === 'true');
+  await ep.tap('#fShare');
+  check('the switch: off, and it says who sees the recipe', (await ep.getAttribute('#fShare', 'aria-checked')) === 'false' && (await ep.textContent('#fShareHint')) === 'Only you and the person you share a meal plan with see it.');
+  await ep.tap('#eSave');
+  await closed('editor', ep);
+  check('not shared: saved as "shared": false, with a Not shared chip', fileNow().recipes.find(r => r.id === 'salmon-bowls').shared === false
+    && (await ep.$$eval('#vBody .chip', cs => cs.map(c => c.textContent))).includes('Not shared'));
+  await ep.goBack();
+  await closed('view', ep);
+
+  const hayden = await phoneOf('Hayden', 'hayden-password'), hp = hayden.p;
+  check('Hayden: the burgers are in Hayden’s book; Ellie’s copy is shared with Hayden, the salmon not',
+    (await names(hp)).includes('Burgers and fries') && (await sharedNames(hp)) === "Pepperoncini roast (Ellie's version)", { book: await names(hp), shared: await sharedNames(hp) });
+  // Hayden and Ellie share a meal plan: a household, and one book
+  const tokenOf = p => p.evaluate(() => JSON.parse(localStorage.getItem('dorrance-session')).token);
+  const share = async (p, body) => api.call('http://x/api/meals/share', { method: 'POST', headers: { authorization: 'Bearer ' + await tokenOf(p) }, body: JSON.stringify(body) });
+  await share(hp, { do: 'ask', key: 'ellie' });
+  await share(ep, { do: 'join' });
+  await ep.reload();
+  await inDeck(ep, 'Burgers and fries');
+  check('a household: Ellie’s book has all of Hayden’s recipes, the burgers too, and nothing is left to share with Ellie',
+    (await names(ep)).includes(ZUPPA) && (await names(ep)).includes('Pepperoncini roast') && await ep.isHidden('#others'));
+  await openRecipe('Burgers and fries', ep);
+  check('Ellie edits Hayden’s recipes now, with no copy', (await ep.getAttribute('#editBtn', 'aria-label')) === 'Edit recipe' && !(await ep.$('#vBody .bookbtn')));
+  await hayden.c.close();
+  await ellie.c.close();
 
   check('no console errors', errors.length === 0, errors);
   await browser.close();

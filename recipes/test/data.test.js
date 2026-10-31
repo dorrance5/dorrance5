@@ -6,6 +6,8 @@ const path = require('node:path');
 const D = require('../data.js');
 
 const FILE = fs.readFileSync(path.join(__dirname, '..', 'recipes.json'), 'utf8');
+// The frozen copy of the book that the browser checks use, so the family's edits do not change what these expect
+const FIXED = fs.readFileSync(path.join(__dirname, 'fixture-recipes.json'), 'utf8');
 const form = o => ({ name: '', servings: '', tags: '', ingredients: '', steps: '', notes: '', source: '', ...o });
 
 test('recipes.json is valid and in the written format', () => {
@@ -56,7 +58,7 @@ test('the form makes a recipe in file order and leaves out empty fields', () => 
 });
 
 test('one change applies to fresh data and keeps the rest', () => {
-  const data = D.parse(FILE);
+  const data = D.parse(FIXED);
   data.recipes[0].photo = 'chili.jpg';   // a field the page does not know
   const add = D.apply(data, { type: 'add', form: form({ name: 'Salmon bowls', ingredients: 'Salmon' }) });
   assert.equal(add.recipe.id, 'salmon-bowls-2');
@@ -81,11 +83,11 @@ test('base64 keeps accents and apostrophes', () => {
   assert.equal(D.fromBase64(D.toBase64(s)), s);
   assert.equal(D.toBase64(s), Buffer.from(s, 'utf8').toString('base64'));
   // GitHub wraps the base64 at 60 characters
-  assert.equal(D.fromBase64(Buffer.from(FILE).toString('base64').replace(/(.{60})/g, '$1\n')), FILE);
+  assert.equal(D.fromBase64(Buffer.from(FIXED).toString('base64').replace(/(.{60})/g, '$1\n')), FIXED);
 });
 
 test('search finds names, tags, ingredients, steps and notes', () => {
-  const rs = D.forView(D.parse(FILE));
+  const rs = D.forView(D.parse(FIXED));
   assert.deepEqual(rs.map(r => r.name), [...rs.map(r => r.name)].sort((a, b) => a.localeCompare(b)));
   const burritos = rs.find(r => r.id === 'sheet-pan-breakfast-burritos');
   assert.deepEqual(D.match(burritos, 'red').ingredients, ['Red bell pepper', 'Red onion']);
@@ -125,7 +127,7 @@ function fakeWorker(text, { error, conflicts = 0 } = {}) {
 }
 
 test('save reads, applies one change and writes base64 UTF-8', async () => {
-  const w = fakeWorker(FILE);
+  const w = fakeWorker(FIXED);
   const out = await D.api('tok', w.fetch).save({ type: 'add', form: form({ name: 'Crème brûlée', ingredients: '4 egg yolks\nMegan’s vanilla' }) });
   assert.equal(w.puts.length, 1);
   const put = w.puts[0];
@@ -140,7 +142,7 @@ test('save reads, applies one change and writes base64 UTF-8', async () => {
 });
 
 test('a 409 reads the file again, keeps the other change, and saves once more', async () => {
-  const w = fakeWorker(FILE, { conflicts: 1 });
+  const w = fakeWorker(FIXED, { conflicts: 1 });
   await D.api('tok', w.fetch).save({ type: 'edit', id: 'salmon-bowls', form: form({ name: 'Salmon bowls', ingredients: 'Salmon\nRice' }) });
   assert.equal(w.gets, 2);
   assert.equal(w.puts.length, 2);
@@ -151,16 +153,16 @@ test('a 409 reads the file again, keeps the other change, and saves once more', 
 });
 
 test('two 409s in a row give up with a plain error', async () => {
-  const w = fakeWorker(FILE, { conflicts: 2 });
+  const w = fakeWorker(FIXED, { conflicts: 2 });
   await assert.rejects(D.api('tok', w.fetch).save({ type: 'delete', id: 'salmon-bowls' }), e => e.code === 'changed' && /kept changing/.test(e.message));
   assert.equal(w.puts.length, 2);
 });
 
 test('errors are plain', async () => {
-  await assert.rejects(D.api('tok', fakeWorker(FILE, { error: [401, 'signin'] }).fetch).read(), e => e.code === 'signin' && e.message === 'You are signed out. Sign in again.');
-  await assert.rejects(D.api('tok', fakeWorker(FILE, { error: [502, 'github'] }).fetch).read(), e => /check its GitHub token/.test(e.message));
-  await assert.rejects(D.api('tok', fakeWorker(FILE, { error: [429, 'rate'] }).fetch).read(), e => e.code === 'rate');
-  await assert.rejects(D.api('tok', fakeWorker(FILE, { error: [500, 'no such code'] }).fetch).read(), e => e.code === 500 && e.message === 'The server answered with error 500.');
+  await assert.rejects(D.api('tok', fakeWorker(FIXED, { error: [401, 'signin'] }).fetch).read(), e => e.code === 'signin' && e.message === 'You are signed out. Sign in again.');
+  await assert.rejects(D.api('tok', fakeWorker(FIXED, { error: [502, 'github'] }).fetch).read(), e => /check its GitHub token/.test(e.message));
+  await assert.rejects(D.api('tok', fakeWorker(FIXED, { error: [429, 'rate'] }).fetch).read(), e => e.code === 'rate');
+  await assert.rejects(D.api('tok', fakeWorker(FIXED, { error: [500, 'no such code'] }).fetch).read(), e => e.code === 500 && e.message === 'The server answered with error 500.');
   await assert.rejects(D.api('tok', async () => { throw new TypeError('Load failed'); }).read(), e => e.code === 'network' && e.message === 'No connection.');
   await assert.rejects(D.api('tok', fakeWorker('{oops').fetch).read(), e => e.code === 'json');
 });
@@ -194,4 +196,73 @@ test('a time in a step gives a timer, from the first time it names', () => {
   assert.equal(D.clock(59), '0:59');
   assert.equal(D.clock(5400), '1:30:00');
   assert.equal(D.clock(-3), '0:00');
+});
+
+// Everyone has a book: Nicole owns two recipes (one not shared), Hayden one, and one recipe from before owners.
+const BOOK = {
+  recipes: [
+    { id: 'tacos', name: 'Tacos', ingredients: ['Tortillas'], owner: 'Nicole' },
+    { id: 'burgers', name: 'Burgers', ingredients: ['Buns'], owner: 'Nicole', shared: false },
+    { id: 'chili', name: 'Chili', ingredients: ['Beans'], owner: 'Hayden' },
+    { id: 'salad', name: 'Salad', ingredients: ['Lettuce'] }
+  ]
+};
+const NICOLE = { key: 'nicole', name: 'Nicole', partner: null }, HAYDEN = { key: 'hayden', name: 'Hayden', partner: null };
+const MITCHELL = { key: 'mitchell', name: 'Mitchell', partner: 'nicole' };   // shares a meal plan with Nicole
+const ids = rs => rs.map(r => r.id).join();
+
+test('a recipe keeps its owner, and shared is written only when it is not shared', () => {
+  const r = D.fromForm(form({ name: 'Soup', ingredients: 'Water', shared: false }), 'soup', null, 'Madi');
+  assert.deepEqual(Object.keys(r), ['id', 'name', 'ingredients', 'owner', 'shared']);
+  assert.equal(r.owner, 'Madi');
+  assert.equal(r.shared, false);
+  const again = D.fromForm(form({ name: 'Soup', ingredients: 'Water', shared: true }), 'soup', r, 'Someone else');
+  assert.equal(again.owner, 'Madi', 'an edit keeps the owner');
+  assert.ok(!('shared' in again), 'shared again: the field goes');
+  assert.equal(D.toForm(r).shared, false);
+  const v = D.forView(BOOK);
+  assert.deepEqual(v.map(x => [x.id, x.owner, x.shared]), [['burgers', 'Nicole', false], ['chili', 'Hayden', true], ['salad', '', true], ['tacos', 'Nicole', true]]);
+});
+
+test('the book: your recipes, your household’s, and the shared ones you add; the rest of the shared ones are shared with you', () => {
+  const v = D.forView(BOOK);
+  let s = D.shelves(BOOK, v, null);
+  assert.equal(ids(s.book), 'chili,salad,tacos', 'signed out: only shared recipes');
+  assert.equal(ids(s.others), '');
+  s = D.shelves(BOOK, v, NICOLE);
+  assert.equal(ids(s.book), 'burgers,salad,tacos');
+  assert.equal(ids(s.others), 'chili');
+  s = D.shelves(BOOK, v, HAYDEN);
+  assert.equal(ids(s.book), 'chili,salad');
+  assert.equal(ids(s.others), 'tacos', 'Nicole’s Burgers are not shared');
+  s = D.shelves(BOOK, v, MITCHELL);
+  assert.equal(ids(s.book), 'burgers,salad,tacos', 'the household sees all of Nicole’s recipes');
+  assert.ok(D.canEdit(v.find(r => r.id === 'burgers'), MITCHELL) && !D.canEdit(v.find(r => r.id === 'chili'), MITCHELL));
+  const withBooks = { ...BOOK, books: { nicole: ['chili'] } };
+  assert.equal(ids(D.shelves(withBooks, v, MITCHELL).book), 'burgers,chili,salad,tacos', 'what Nicole adds is in Mitchell’s book too');
+});
+
+test('adding to the book, taking out, and a copy in place of someone else’s recipe', () => {
+  let out = D.apply(BOOK, { type: 'pull', id: 'chili' }, NICOLE);
+  assert.deepEqual(out.data.books, { nicole: ['chili'] });
+  assert.equal(out.message, 'Recipes: add Chili to a book');
+  assert.equal(D.apply(out.data, { type: 'pull', id: 'chili' }, MITCHELL).message, null, 'in the household’s book already');
+  assert.throws(() => D.apply(BOOK, { type: 'pull', id: 'burgers' }, HAYDEN), e => e.code === 'gone', 'not shared');
+  const unpulled = D.apply(out.data, { type: 'unpull', id: 'chili' }, MITCHELL);
+  assert.ok(!('books' in unpulled.data), 'the household takes it out; an empty list and empty books go');
+  assert.equal(unpulled.message, 'Recipes: take Chili out of a book');
+
+  assert.throws(() => D.apply(BOOK, { type: 'edit', id: 'chili', form: form({ name: 'Chili!', ingredients: 'Beans' }) }, NICOLE), e => e.code === 'notyours');
+  assert.throws(() => D.apply(BOOK, { type: 'delete', id: 'chili' }, NICOLE), e => e.code === 'notyours');
+  assert.equal(D.apply(BOOK, { type: 'edit', id: 'tacos', form: form({ name: 'Tacos', ingredients: 'Shells' }) }, MITCHELL).recipe.owner, 'Nicole', 'the household edits, the owner stays');
+  assert.equal(D.versionName('Chili', NICOLE), "Chili (Nicole's version)");
+  out = D.apply(out.data, { type: 'copy', id: 'chili', form: form({ name: D.versionName('Chili', NICOLE), ingredients: 'Beans\nCorn' }) }, NICOLE);
+  assert.deepEqual(out.recipe, { id: 'chili-nicoles-version', name: "Chili (Nicole's version)", ingredients: ['Beans', 'Corn'], owner: 'Nicole' });
+  assert.ok(!('books' in out.data), 'the copy takes the place of the original in the book');
+  assert.equal(out.data.recipes.find(r => r.id === 'chili').name, 'Chili', 'the original is as it was');
+  assert.equal(out.message, "Recipes: copy Chili as Chili (Nicole's version)");
+  const added = D.apply(BOOK, { type: 'add', form: form({ name: 'Pie', ingredients: 'Apples' }) }, HAYDEN).recipe;
+  assert.equal(added.owner, 'Hayden');
+  const gone = D.apply({ ...BOOK, books: { nicole: ['chili'], madi: ['chili', 'tacos'] } }, { type: 'delete', id: 'chili' }, HAYDEN);
+  assert.deepEqual(gone.data.books, { madi: ['tacos'] }, 'a deleted recipe leaves every book');
 });

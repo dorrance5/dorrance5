@@ -57,7 +57,8 @@ This is a static site of small phone apps. GitHub Pages deploys `main` with `.gi
 - Run the browser checks: `NODE_PATH=<folder with playwright> node recipes/test/flows.cjs`
 - Make the screenshots: `NODE_PATH=<folder with playwright> node recipes/test/shots.cjs <output folder>`
 - Render the icons: `NODE_PATH=<folder with playwright> node docs/icons/render-recipes.cjs`
-- `oldrecipes/` is version 1 of Recipes, kept at dorrance.me/oldrecipes. It reads and saves the same `recipes/recipes.json`. Do not add features to it. When a change could affect it (`recipes/recipes.json`, the Worker's recipes routes, `shared/account.js`), run its checks too: `NODE_PATH=<folder with playwright> node oldrecipes/test/flows.cjs` and `NODE_PATH=<folder with playwright> node oldrecipes/test/shots.cjs <output folder>`.
+- Each recipe in `recipes/recipes.json` has an `owner`: the name of the account it belongs to. When you add a recipe from chat, set `owner` to the person it is for, and leave out `shared` unless they do not want it shared (`"shared": false`). `docs/recipes-handoff.md` has the format.
+- The browser checks and most unit tests use `recipes/test/fixture-recipes.json`, a frozen copy of the book, so edits to `recipes/recipes.json` do not break them.
 
 ## Accounts and the API Worker
 

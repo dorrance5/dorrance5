@@ -4,7 +4,7 @@
 
 `recipes/` is a mobile-first family recipe book that the owner edits from a phone: add, edit and delete recipes, and cook from them one step at a time.
 
-This is version 2. Version 1, the aged recipe book with the Rolodex deck, stays at dorrance.me/oldrecipes (`oldrecipes/`). Both read and save the same `recipes/recipes.json`.
+This is version 2. Version 1, the aged recipe book with the Rolodex deck, was at dorrance.me/oldrecipes; the owner retired it on 2026-10-31, and it is gone from the repository.
 
 ## Decisions from the owner
 
@@ -12,12 +12,13 @@ This is version 2. Version 1, the aged recipe book with the Rolodex deck, stays 
 - **The theme setting is shared.** The page reads the `theme` key in localStorage (`auto`, `light`, `dark`, `aurora`) and writes `auto`, `light` or `dark`. Settings has Auto, Day and Night, with Auto on the left. This page has no Aurora look: a saved `aurora` shows as Night, with Night picked, and stays saved until another theme is picked. Do not change the format of that key.
 - **Mobile first.** Phone width (390 × 844) is the main target. Desktop must work; the content is at most 640 px wide.
 - **Editing must be easy.** Some recipes have amounts and steps. Some have only a list of ingredient names. Both must be valid.
-- **Accounts with a name and a password.** Recipes uses the dorrance.me accounts (`docs/accounts.md`), one sign-in for the whole site. The owner is the admin. Anyone can ask for an account; it waits until the admin approves it in Settings. Approved people can add, edit and delete recipes. Reading needs no account.
+- **Accounts with a name and a password.** Recipes uses the dorrance.me accounts (`docs/accounts.md`), one sign-in for the whole site. The owner is the admin. Anyone can ask for an account; it waits until the admin approves it in Settings. Approved people can add recipes, and change their own and their household’s. Reading the shared recipes needs no account.
+- **Everyone has a book.** Each recipe has an owner. A recipe is shared with the family unless its owner turns that off; that is about keeping the book tidy, not about privacy (the file is public). The family’s other shared recipes are "Shared with you", and can be added to your book, where they follow the owner’s changes. To change someone else’s recipe, you edit your own copy of it. Two people who share a meal plan are a household, and share one book.
 - **The design is the "Recipes v2" canvas** (a claude.ai Design artifact): a warm kitchen app. The owner approved it on 2026-10-24.
 
 ## Plan for version 2
 
-1. **Done:** v1 moved to `/oldrecipes`. The new look: the recipe box, the recipe card, cooking mode with timers, add and edit, and Settings.
+1. **Done:** v1 moved to `/oldrecipes` (retired since). The new look: the recipe box, the recipe card, cooking mode with timers, add and edit, and Settings.
 2. **Done:** the meal plan and the grocery list, kept by the Worker. Everyone signed in has their own, and two people can share one: one asks in Settings, the other says yes. See "The meal plan and the grocery list" below.
 3. **Next:** import from a link, for signed-in people only. The Worker reads the page's schema.org Recipe data and the form fills in.
 - Still open: an "Add to meal plan" button on the recipe card.
@@ -26,7 +27,6 @@ This is version 2. Version 1, the aged recipe book with the Rolodex deck, stays 
 
 - `recipes/index.html` has the markup and the styles. `recipes/app.js` runs the page. `recipes/data.js` has the data format, the search, the amounts and timers, and the saves, and Node can test it. The page loads `shared/account.js` for the sign-in.
 - `recipes/meals.js` has the meal plan's data format and changes (ops), the merged grocery list and the weeks. The page and the Worker (`worker/meals.js`) both use it, so a change to it needs a Worker deploy. Its header comment documents the format.
-- `oldrecipes/` is a frozen copy of version 1 (`index.html`, `app.js`, `data.js`, the icons and its checks in `oldrecipes/test/`). It reads `../recipes/recipes.json` and saves through the same Worker route. Change it only to keep it working.
 - `worker/recipes.js` is the Recipes part of the dorrance.me API Worker (`worker/`, on the route `dorrance.me/api/*`). It holds the GitHub token. The accounts are in `worker/auth.js`. `worker/README.md` has the setup.
 - The checks are in `recipes/test/`. `CLAUDE.md` has the commands.
 
@@ -42,16 +42,19 @@ This is version 2. Version 1, the aged recipe book with the Rolodex deck, stays 
 ## Screens
 
 1. **Recipe box.** A tomato header: "Dorrance Family" over "Recipe Book", a search field, and on the right a butter + (signed in) or a "Sign in" pill (signed out). Under it, divider tabs that stick to the top: All on the left, then each category A to Z, each with its count. The open tab is taller and filled with its color, and a band of that color runs under the tabs. Then the deck: cards 104 px tall that overlap so that each shows a 58 px strip with its name and its first category. A search shows why each card matched (the ingredients, a piece of a step or note, or a category) under the name, and that card's strip grows to show it.
+   - The deck is your book: your recipes, your household’s, and the shared ones you added. Signed out, it is every shared recipe.
+   - Signed in, under the deck: "Shared with you", the family’s shared recipes that are not in your book (the search finds them too). Each row has the name, "Nicole’s recipe" and Add; the name opens the recipe.
 2. **Recipe card.** "‹ Recipe box" (or "‹ Meal plan" when it opened from the plan) and, signed in, a pencil to edit. An index card: a strip in the recipe's color, chips for the categories and "Serves", the name, a red rule, an Ingredients · N / Steps · N switch (only when there are steps), then the list on blue lines. The amount at the start of each ingredient is bold, and 1/4 shows as ¼. Below: "Start cooking" (only with steps); signed in, for a recipe with ingredients, "Add to grocery list" (butter, with a basket), which turns into "On the grocery list" (outlined, with a tick); the notes on butter, and "From saltandlavender.com ↗" (a link opens in a new tab; text that is not a link shows as "From Grandma Dorrance").
 3. **Cooking mode.** Slides up. × to leave, the recipe name, and Ingredients (a sheet over the step). A progress bar, "Step N of M", the step in large Fraunces, Back and Next step (Done on the last step, which goes back to the card). The left and right arrow keys move between steps.
    - **Timers.** The first time a step names ("5 minutes", "10 to 15 minutes", "20-25 mins", "6 hours", "1 hour 30 minutes", "30 seconds") gives the step a timer, starting at the shorter time of a range. Start, Pause, Resume, Again and Reset. A timer keeps running on another step; a button at the top shows it and goes back to it. At the end it says "Time’s up", buzzes the phone and beeps. Leaving cooking mode while a timer runs asks first, and leaving stops the timers.
-4. **Add and edit.** A full screen: Cancel, "New recipe" or "Edit recipe", Save. Fields: Name, Category (chips: None on the left, each category in the box, and "New" for a new one; more than one can be picked, and the first picked colors the card), Serves, Ingredients and Steps (one per line, with a count), Notes, and "Where it’s from" (a link, a cookbook or a person). Pasted lists lose their `-`, `•`, `*`, `1.` and `1)` marks. Edit has "Delete recipe", which asks for a second tap. Cancel or the back button with changes asks first.
+4. **Add and edit.** A full screen: Cancel, "New recipe" or "Edit recipe", Save. Fields: Name, Category (chips: None on the left, each category in the box, and "New" for a new one; more than one can be picked, and the first picked colors the card), Serves, Ingredients and Steps (one per line, with a count), Notes, and "Where it’s from" (a link, a cookbook or a person). Pasted lists lose their `-`, `•`, `*`, `1.` and `1)` marks. Last, a "Share with the family" switch, on for a new recipe, with a line that says who sees it. Edit has "Delete recipe", which asks for a second tap.
+   - The pencil on someone else’s recipe opens "Your copy": the recipe, named "Megan's zuppa toscana (Madi's version)", with no Delete. Saving adds the copy as yours, in the place of the original in your book. Cancel or the back button with changes asks first.
 5. **Settings.** A tab for anyone signed in; for someone signed out, a screen with "‹ Recipe box". Opened over the editor to sign in again during a save, it has "‹ Back" and no tab bar.
    - Signed in: a card with who is signed in ("Admin · signed in" or "Signed in") and Sign out.
    - The admin: "Waiting for you" (a card for each account that waits, with Approve and Deny), then "Accounts" (each with Remove). Deny and Remove ask for a second tap. A dot on Settings in the tab bar while accounts wait.
    - Signed in, after the admin's groups: "Meal plan and grocery list". Not sharing: "Share your meal plan and grocery list with one other person. They join when they say yes." and a chip for each other account; a tap asks that person. Asked someone: their face, "Waiting for Madi to say yes" and Cancel. Sharing: their face, "Shares your meal plan and grocery list" and Stop sharing, which asks for a second tap. Asked by someone: above that, a card "Hayden asked to share" with Join and No thanks (and, if you share with someone now, that you stop sharing with them), and a dot on Settings in the tab bar.
    - Signed out: "Sign in", or "Ask for an account" with "New here? Ask for an account".
-   - "Theme on this phone": Auto, Day, Night. A link to the old recipe book.
+   - "Theme on this phone": Auto, Day, Night.
 6. **Tab bar.** Signed in: Recipes, Meal plan, Grocery list and Settings, on the box and on the tabs. The meal tabs show once the plan has loaded. Signed out: no tab bar. From the box a tab opens over it; from one tab, the next takes its place at the same history depth, so the back button goes to the box.
 7. **Meal plan.** A carrot header: "Meal plan", "Dinners for Mitchell and Nicole" and their faces, and a This week / Next week switch with the dates. Then Monday to Sunday: the day and its number (today in tomato), and the dinner. A recipe is colored like its card, and its name opens it; a note ("Leftovers") is on the surface color. Each shows a small face for who planned it, and an × to clear the day. An empty day has a dashed "Plan dinner", which opens a sheet: "Dinner on Saturday, Oct 24", Close, a search, the recipes A to Z with a dot in their color, and "Or write something, like Leftovers" with Add. At the bottom, "Put N dinners on the grocery list" adds the week's recipes from today on that are not on the list yet, and opens the list; when there are none left to add, "Open the grocery list".
 8. **Grocery list.** A butter header: "Grocery list", "3 recipes · 12 to get", a chip for each recipe on the list with an × to take it off, and a dashed "Add a recipe" that goes to the box. "Add something else", then "To get": a checkbox per item, with the amounts and "For <recipes>" (or "Extra") under the name. The same item from two recipes is one line ("Buns"). Ticked items go to "Got it", struck through, with Clear. Empty: "Nothing on the list. Open a recipe and tap Add to grocery list."
@@ -96,6 +99,9 @@ This is version 2. Version 1, the aged recipe book with the Rolodex deck, stays 
 - `ingredients` can be an empty array. The page shows "No ingredients yet." for an empty array.
 - `source` is a link, or plain text such as a cookbook or a person. Text that looks like a web address without `https://` gets it; other text stays as typed.
 - Make the `id` from the name: lower case, remove apostrophes, put a hyphen in place of other characters that are not letters or numbers. If the `id` already exists, add `-2`, `-3` and so on.
+- `owner` is the name of the account the recipe belongs to, as it signs in ("Nicole"). A new recipe gets the name of whoever adds it; when you add one from a Claude chat, set `owner` to the person it is for. A recipe with no owner belongs to everyone: anyone signed in can change it.
+- `"shared": false` keeps a recipe out of "Shared with you" and away from people who are signed out. Leave the field out for a shared recipe.
+- `books` (next to `recipes`) lists, for each account by its name in lower case, the ids of the shared recipes of others that it added to its book: `"books": { "madi": ["megans-zuppa-toscana"] }`. Leave it out when it is empty.
 - Fields the page does not know are kept when a recipe is edited.
 - Write the file with 2-space indentation and a newline at the end, so that the diffs are easy to read.
 
@@ -105,7 +111,7 @@ The site is static, so the page saves through the API Worker, and the Worker sav
 
 - The page calls `/api/recipes/file` with `Authorization: Bearer <sign-in>`. `worker/recipes.js` lists its routes.
 - The Worker calls `https://api.github.com/repos/dorrance5/dorrance5/contents/recipes/recipes.json` with the GitHub token in the secret `GITHUB_TOKEN`: a fine-grained personal access token for the `dorrance5/dorrance5` repo only, with "Contents: Read and write". The token never goes to a phone. The page deletes an old `recipes-token` that it finds in localStorage.
-- Keep the last good copy of the data under `recipes-cache` (shared with the old book).
+- Keep the last good copy of the data under `recipes-cache`.
 - Save steps:
   1. GET the file. Read `content` and `sha`.
   2. Decode the content as base64 UTF-8. Do not use plain `atob`. It breaks non-ASCII text.
@@ -144,7 +150,7 @@ The site is static, so the page saves through the API Worker, and the Worker sav
 
 ## How to check
 
-1. Run the unit tests, the browser checks and the screenshots in `CLAUDE.md`, for `recipes/` and `oldrecipes/`. Look at the screenshots in Day and in Night.
+1. Run the unit tests, the browser checks and the screenshots in `CLAUDE.md`, for `recipes/`. Look at the screenshots in Day and in Night.
 2. The browser checks run the Worker in Node with KV in memory and a stand-in for GitHub (`worker/test/harness.cjs`), and route the page's `/api/**` requests to it. They cover: the box, dividers and search; the recipe card; cooking mode and its timers (on a test clock); the theme; asking for an account, signing in, a wrong password, an account that waits; approve, deny and remove as the admin; add, edit and delete; a 409 on the first PUT; a sign-in that ended, a bad GitHub token and no connection; the back button; tap sizes and sideways scroll. Then the meal plan on three phones (Mitchell, Jen and Nicole, on Saturday, Oct 24, 2026): asking, No thanks, the dot, Join, the plan and the picker, the grocery list and its merged items, batches, no connection, a busy Worker, Night, Stop sharing, a removed account, and signing out.
    - The browser checks use `recipes/test/fixture-recipes.json`, a frozen copy of the recipe book, in place of `recipes/recipes.json`, so the family's edits do not change what they expect. The screenshots use the real book.
 3. There must be no console errors. A blocked Google Fonts request in the sandbox is not an error.

@@ -165,6 +165,20 @@ h1, h2, h3 { margin: 0; }
 .rc .hit { font-size: 15px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 mark { background: rgba(255, 246, 230, .9); color: #2A1D17; border-radius: 3px; padding: 0 1px; }
 .none { margin: 8px calc(20px + env(safe-area-inset-right)) 0 calc(20px + env(safe-area-inset-left)); font-size: 16px; line-height: 1.45; color: var(--soft); }
+/* Shared with you: the family's shared recipes that are not in the book */
+.others { display: flex; flex-direction: column; gap: 10px; padding: 20px calc(16px + env(safe-area-inset-right)) 28px calc(16px + env(safe-area-inset-left)); }
+.others h2 { margin: 0 4px; font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--soft); }
+.others > p { margin: 0 4px; font-size: 15px; line-height: 1.45; color: var(--soft); }
+.others ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.others li { display: flex; align-items: center; gap: 4px; padding-right: 8px; border-radius: 16px; background: var(--surface); box-shadow: 0 1px 0 var(--lift-edge); }
+.others .sw-open {
+  flex: 1; min-width: 0; display: grid; grid-template-columns: 14px 1fr; column-gap: 12px; align-items: center; min-height: 60px; padding: 8px 0 8px 16px;
+  border: 0; background: none; color: var(--ink); text-align: left; -webkit-user-select: auto; user-select: auto;
+}
+.others .sw-open i { grid-row: 1 / 3; width: 14px; height: 14px; border-radius: 999px; background: var(--c); }
+.others .sw-open .nm { font-size: 18px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.others .sw-open small { font-size: 13px; color: var(--soft); }
+.others .pill { flex: none; border-color: var(--edge); padding: 0 18px; }
 #page { max-width: 640px; margin: 0 auto; }
 body.has-nav #page { padding-bottom: calc(72px + max(16px, env(safe-area-inset-bottom))); }
 
@@ -341,7 +355,6 @@ body.has-nav #settings .setbody { padding-bottom: calc(96px + max(16px, env(safe
 .themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 999px; background: var(--tint); }
 .themes button { min-height: 44px; border: 0; border-radius: 999px; background: transparent; color: var(--ink); font-size: 15px; font-weight: 700; }
 .themes button[aria-pressed="true"] { background: var(--solid); color: var(--on-solid); }
-.oldlink { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 44px; padding: 0 4px; font-size: 15px; font-weight: 700; }
 .mealbox p { margin: 0; font-size: 15px; line-height: 1.45; }
 .mealbox .soft { color: var(--soft); }
 .mealbox .row { display: flex; align-items: center; gap: 14px; margin: -4px -8px -4px 0; }
@@ -430,6 +443,14 @@ body.has-nav #plan .planbody, body.has-nav #grocery .grobody { padding-bottom: c
 /* the recipe card: Start cooking, and Add to grocery list for the planners */
 .acts { display: flex; flex-direction: column; gap: 12px; }
 .acts:not(:has(> :not([hidden]))) { display: none; }
+.pill.big.bookbtn { min-height: 56px; gap: 10px; border: 2px solid var(--ink); background: var(--surface); color: var(--ink); font-size: 17px; }
+/* the "Share with the family" switch in the editor */
+.field.switchrow { flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; }
+.switch { flex: none; position: relative; width: 64px; height: 44px; padding: 0; border: 0; background: none; }
+.switch::before { content: ''; position: absolute; left: 2px; top: 6px; width: 60px; height: 32px; border-radius: 999px; background: var(--edge); transition: background .16s; }
+.switch i { position: absolute; top: 10px; left: 6px; width: 24px; height: 24px; border-radius: 999px; background: #FFF6E6; transition: transform .16s; }
+.switch[aria-checked="true"]::before { background: var(--tomato); }
+.switch[aria-checked="true"] i { transform: translateX(28px); }
 .pill.big.listbtn { min-height: 56px; gap: 10px; border: 2px solid var(--butter); background: var(--butter); color: var(--on-butter); font-size: 17px; }
 .pill.big.listbtn[aria-pressed="true"] { border-color: var(--ink); background: var(--surface); color: var(--ink); }
 /* the sheet that picks a dinner, over the meal plan */
@@ -458,7 +479,7 @@ body.has-nav #plan .planbody, body.has-nav #grocery .grobody { padding-bottom: c
 .toast.on { transform: translate(-50%, 0); opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
-  .layer, .rc, .toast { transition: none; }
+  .layer, .rc, .toast, .switch::before, .switch i { transition: none; }
 }
 </style>
 </head>
@@ -492,6 +513,11 @@ body.has-nav #plan .planbody, body.has-nav #grocery .grobody { padding-bottom: c
   <p class="notice" id="notice" role="status" hidden></p>
   <ul class="deck" id="deck" aria-label="Recipes"></ul>
   <p class="none" id="none" hidden></p>
+  <section class="others" id="others" aria-labelledby="othersTitle" hidden>
+    <h2 id="othersTitle">Shared with you</h2>
+    <p>The family’s recipes. Add one to your book, and it stays up to date.</p>
+    <ul id="otherList"></ul>
+  </section>
 </div>
 
 <nav class="nav" id="nav" aria-label="Sections" hidden>
@@ -616,6 +642,10 @@ body.has-nav #plan .planbody, body.has-nav #grocery .grobody { padding-bottom: c
       <label for="fSource">Where it’s from</label>
       <input id="fSource" type="text" placeholder="A link, a cookbook or a person" autocomplete="off" autocapitalize="off" enterkeyhint="done">
     </div>
+    <div class="field switchrow">
+      <div class="labels"><label for="fShare">Share with the family</label><span id="fShareHint"></span></div>
+      <button class="switch" id="fShare" type="button" role="switch" aria-checked="true" aria-describedby="fShareHint"><i></i></button>
+    </div>
     <button class="pill danger" id="eDelete" type="button" hidden>Delete recipe</button>
   </div>
 </section>
@@ -678,10 +708,6 @@ body.has-nav #plan .planbody, body.has-nav #grocery .grobody { padding-bottom: c
         <button type="button" data-t="dark">Night</button>
       </div>
     </section>
-    <a class="oldlink" href="../oldrecipes/">
-      <span>The old recipe book</span>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 5h5v5"/><path d="M19 5l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></svg>
-    </a>
   </div>
 </section>
 

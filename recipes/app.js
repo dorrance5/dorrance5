@@ -75,6 +75,15 @@
 
   /* ---- data ---- */
   let data = null, recipes = [], loaded = false;
+  let shelf = { book: [], others: [] };   // the person's book, and the recipes shared with them (data.js shelves())
+  // Who is looking, for the books: { key, name, partner }, or null signed out. The partner is the household: the person
+  // who shares the meal plan.
+  function viewer() {
+    const s = session();
+    if (!s) return null;
+    const v = shown();
+    return { key: s.name.toLowerCase(), name: s.name, partner: v && v.share && v.share.with ? v.share.with.key : null };
+  }
   function setData(d, fromCache) {
     data = d;
     recipes = D.forView(d);
@@ -114,14 +123,14 @@
     if (!data) none.hidden = true;
   }
 
-  /* ---- the recipe box: divider tabs, one for each category, and a deck of cards ---- */
+  /* ---- the recipe box: divider tabs, one for each category, and a deck of cards; then "Shared with you" ---- */
   const deck = $('deck'), q = $('q'), none = $('none');
   let tab = '';   // the divider that is open: '' for All, or a category
   const same = (a, b) => a.toLowerCase() === b.toLowerCase();
-  // The categories in the box, A to Z, with how many recipes each has. "soup" and "Soup" are one category.
+  // The categories in the book, A to Z, with how many recipes each has. "soup" and "Soup" are one category.
   function categories() {
     const m = new Map();
-    for (const r of recipes) for (const t of r.tags) {
+    for (const r of shelf.book) for (const t of r.tags) {
       const k = t.toLowerCase();
       if (!m.has(k)) m.set(k, { name: t, n: 0 });
       m.get(k).n++;
@@ -138,13 +147,14 @@
     return r.tags.map(x => D.hl(x, t)).filter(x => x.includes('<mark>')).join(' · ');
   }
   function renderBox() {
+    shelf = D.shelves(data || { recipes: [] }, recipes, viewer());
     const cats = categories();
     if (tab && !cats.some(c => same(c.name, tab))) tab = '';
-    const tabs = [{ name: '', label: 'All', n: recipes.length }, ...cats.map(c => ({ ...c, label: c.name }))];
+    const tabs = [{ name: '', label: 'All', n: shelf.book.length }, ...cats.map(c => ({ ...c, label: c.name }))];
     $('tabs').innerHTML = tabs.map(c => `<button type="button" data-tab="${D.esc(c.name)}" aria-pressed="${same(c.name, tab)}" style="${paint(c.name ? colorOf(c.name) : ALL)}"><span>${D.esc(c.label)}</span><span class="n">${c.n}</span></button>`).join('');
     $('band').style.cssText = paint(tab ? colorOf(tab) : ALL);
     const t = q.value.trim(), cards = [];
-    for (const r of recipes) {
+    for (const r of shelf.book) {
       if (!inTab(r)) continue;
       const m = t ? D.match(r, t) : null;
       if (t && !m) continue;
@@ -154,9 +164,20 @@
     deck.innerHTML = cards.join('');
     const where = tab ? ` under ${tab}` : '';
     none.hidden = cards.length > 0 || !loaded;
-    none.textContent = t ? `No recipe${where} has “${t}”.` : recipes.length ? `No recipes${where} yet.` : session() ? 'No recipes yet. Tap + to add one.' : 'No recipes yet.';
+    none.textContent = t ? `No recipe${where} has “${t}”.` : shelf.book.length ? `No recipes${where} yet.` : session() ? 'No recipes in your book yet. Tap + to add one.' : 'No recipes yet.';
     $('qClear').hidden = !q.value;
+    // Shared with you: everyone else's shared recipes. The search finds them too.
+    const more = shelf.others.filter(r => !t || D.match(r, t));
+    $('others').hidden = !more.length;
+    $('otherList').innerHTML = more.map(r => `<li style="${paint(colorOf(r.tags[0]))}"><button class="sw-open" type="button" data-id="${D.esc(r.id)}"><i></i><span class="nm serif">${D.hl(r.name, t)}</span><small>${r.owner ? `${D.esc(r.owner)}’s recipe` : 'The family’s recipe'}</small></button>`
+      + `<button class="pill" type="button" data-pull="${D.esc(r.id)}" aria-label="Add ${D.esc(r.name)} to my book"${busyBook ? ' disabled' : ''}>Add</button></li>`).join('');
   }
+  $('otherList').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.pull) bookChange({ type: 'pull', id: b.dataset.pull }, b);
+    else if (b.dataset.id) openView(b.dataset.id, b);
+  });
   q.addEventListener('input', renderBox);
   q.addEventListener('keydown', e => {
     if (e.key === 'Enter') q.blur();
@@ -337,8 +358,11 @@
     if (!r) return false;
     if (id !== viewId) half = 'ing';
     viewId = id;
+    const me = viewer(), mine = !!me && D.canEdit(r, me);
     const chips = r.tags.map(t => `<span class="chip" style="${paint(colorOf(t))}">${D.esc(t)}</span>`);
     if (r.servings) chips.push(`<span class="chip plain">${D.esc(/^\d/.test(r.servings) ? 'Serves ' + r.servings : r.servings)}</span>`);
+    if (me && !mine && r.owner) chips.push(`<span class="chip plain">${D.esc(r.owner)}’s recipe</span>`);
+    if (!r.shared) chips.push('<span class="chip plain">Not shared</span>');
     const ings = r.ingredients.length ? `<ul class="lines">${r.ingredients.map(ingLine).join('')}</ul>` : '<p class="empty">No ingredients yet.</p>';
     const steps = `<ol class="lines steps">${r.steps.map((s, i) => `<li><span class="num serif">${i + 1}</span><span>${D.esc(s)}</span></li>`).join('')}</ol>`;
     const seg = r.steps.length
@@ -348,6 +372,10 @@
     const acts = [];
     if (r.steps.length) acts.push(`<button class="pill tomato big" id="cookBtn" type="button">${ICON.pot}<span>Start cooking</span></button>`);
     if (r.ingredients.length) acts.push('<button class="pill big listbtn" id="listBtn" type="button" hidden></button>');   // signed in
+    if (me && !mine) {   // someone else's recipe: in the book (it follows their changes) or not
+      const kept = shelf.book.some(x => x.id === r.id);
+      acts.push(`<button class="pill big bookbtn" type="button" data-${kept ? 'unpull' : 'pull'}="${D.esc(r.id)}"${busyBook ? ' disabled' : ''}>${kept ? 'Remove from my book' : `${ICON.plus}<span>Add to my book</span>`}</button>`);
+    }
     if (acts.length) html += `<div class="acts">${acts.join('')}</div>`;
     if (r.notes) html += `<section class="notes"><h2 class="serif">Notes</h2><p>${D.esc(r.notes)}</p></section>`;
     if (r.source) {
@@ -357,9 +385,31 @@
         : `<p class="source">From ${D.esc(r.source)}</p>`;
     }
     vBody.innerHTML = html;
-    $('editBtn').hidden = !session();
+    $('editBtn').hidden = !me;
+    $('editBtn').setAttribute('aria-label', mine ? 'Edit recipe' : 'Make your own copy');
     drawListBtn(shown());
     return true;
+  }
+  // Someone else's shared recipe into the book, or out of it. It is a save of recipes.json, like an edit.
+  let busyBook = false;
+  async function bookChange(change, btn) {
+    if (busyBook || !session()) return;
+    busyBook = true;
+    if (btn) btn.disabled = true;
+    try {
+      const out = await worker().save(change, viewer());
+      setData(out.data);
+      const name = out.recipe ? out.recipe.name : 'The recipe';
+      toast(change.type === 'pull' ? `${name} is in your book.` : `${name} is out of your book.`);
+    } catch (e) {
+      if (!e.code) console.error(e);
+      toast(e.code ? e.message : 'Something went wrong.');
+      if (e.code === 'signin') signOut();
+    } finally {
+      busyBook = false;
+      renderBox();
+      if (viewId && isOpen(view)) renderView(viewId);
+    }
   }
   function openView(id, card) {
     if (!renderView(id)) return;
@@ -375,8 +425,14 @@
     }
     if (e.target.closest('#cookBtn')) openCook();
     if (e.target.closest('#listBtn')) toggleList();
+    const p = e.target.closest('[data-pull], [data-unpull]');
+    if (p) bookChange(p.dataset.pull ? { type: 'pull', id: p.dataset.pull } : { type: 'unpull', id: p.dataset.unpull }, p);
   });
-  $('editBtn').addEventListener('click', () => openEditor(recipes.find(x => x.id === viewId)));
+  // The pencil: your own recipe and your household's are edited; someone else's is copied for you to change.
+  $('editBtn').addEventListener('click', () => {
+    const r = recipes.find(x => x.id === viewId);
+    if (r) openEditor(r, !D.canEdit(r, viewer()));
+  });
 
   /* ---- cooking mode: one step at a time, and a timer when the step names a time ---- */
   let cookId = null, at = 0, tick = 0, audio = null;
@@ -490,10 +546,11 @@
   /* ---- add and edit ---- */
   const F = { name: $('fName'), servings: $('fServings'), ingredients: $('fIngredients'), steps: $('fSteps'), notes: $('fNotes'), source: $('fSource') };
   const eSave = $('eSave'), eCancel = $('eCancel'), eDelete = $('eDelete'), eError = $('eError'), cats = $('fCats'), newRow = $('fNewRow'), fNew = $('fNew');
-  let editId = null, start = '', busy = false, armT = 0;
+  let editId = null, copyOf = null, start = '', busy = false, armT = 0;
+  let shareOn = true;   // the "Share with the family" switch
   let picked = [];   // the categories picked, in the order they were picked; the first one colors the card
   let made = [];     // categories made with New in this editor
-  const values = () => ({ ...Object.fromEntries(Object.keys(F).map(k => [k, F[k].value])), tags: picked.join(', ') });
+  const values = () => ({ ...Object.fromEntries(Object.keys(F).map(k => [k, F[k].value])), tags: picked.join(', '), shared: shareOn });
   const dirty = () => JSON.stringify(values()) !== start;
   function drawCats() {
     const names = categories().map(c => c.name);
@@ -543,19 +600,29 @@
     ta.style.height = ta.scrollHeight + 3 + 'px';
     editor.scrollTop = y;
   }
-  function openEditor(r) {
+  function drawShareSwitch() {
+    $('fShare').setAttribute('aria-checked', shareOn);
+    $('fShareHint').textContent = shareOn ? 'Everyone with an account can see it and add it to their book.' : 'Only you and the person you share a meal plan with see it.';
+  }
+  $('fShare').addEventListener('click', () => { shareOn = !shareOn; drawShareSwitch(); });
+  // `copy`: someone else's recipe, as the start of your own version of it.
+  function openEditor(r, copy) {
     if (!session()) return openSettings(true);
-    editId = r ? r.id : null;
+    editId = r && !copy ? r.id : null;
+    copyOf = r && copy ? r.id : null;
     const v = D.toForm(r || {});
+    if (copy) { v.name = D.versionName(r.name, viewer()); v.shared = true; }
     for (const k in F) { F[k].value = v[k]; F[k].classList.remove('bad'); }
+    shareOn = v.shared;
+    drawShareSwitch();
     picked = r ? r.tags.slice() : [];
     made = [];
     fNew.value = '';
     newRow.hidden = true;
     drawCats();
     start = JSON.stringify(values());
-    $('eTitle').textContent = r ? 'Edit recipe' : 'New recipe';
-    eDelete.hidden = !r;
+    $('eTitle').textContent = copy ? 'Your copy' : r ? 'Edit recipe' : 'New recipe';
+    eDelete.hidden = !editId;
     disarm();
     error('');
     open(editor);
@@ -623,13 +690,14 @@
     error('');
     setBusy(eSave, 'Saving…');
     try {
-      const out = await worker().save(editId ? { type: 'edit', id: editId, form: v } : { type: 'add', form: v });
+      const change = copyOf ? { type: 'copy', id: copyOf, form: v } : editId ? { type: 'edit', id: editId, form: v } : { type: 'add', form: v };
+      const out = await worker().save(change, viewer());
       start = JSON.stringify(values());
       setData(out.data);
-      toast('Saved. The site updates in about a minute.');
+      toast(copyOf ? 'Saved your copy. The site updates in about a minute.' : 'Saved. The site updates in about a minute.');
       if (top() !== editor) return;
       renderView(out.recipe.id);
-      if (editId) back(true);
+      if (editId || copyOf) back(true);   // the recipe under the editor now shows the change, or the copy
       else { swap(view); wakeCheck(); }   // show the new recipe
     } catch (e) {
       error(failText(e, 'The change is not saved.'), needsSignIn(e));
@@ -652,7 +720,7 @@
     error('');
     setBusy(eDelete, 'Deleting…');
     try {
-      const out = await worker().save({ type: 'delete', id: editId });
+      const out = await worker().save({ type: 'delete', id: editId }, viewer());
       viewId = null;
       setData(out.data);
       toast(out.recipe ? `Deleted ${out.recipe.name}.` : 'Deleted.');
@@ -992,8 +1060,13 @@
     const b = want.map(s => document.querySelector(s)).find(Boolean);
     if (b) b.focus({ preventScroll: true });
   }
+  let house = '';   // who the book is for: the person and their household, as last drawn
   function drawMeals() {
-    const v = shown();
+    const v = shown(), h = viewer(), now = h ? `${h.key}|${h.partner || ''}` : '';
+    if (now !== house) {   // a new household: the book is someone else's too, or no longer
+      house = now;
+      if (loaded) { renderBox(); if (viewId && isOpen(view)) renderView(viewId); }
+    }
     refocus(() => {
       if (v) { drawPlan(v); drawGrocery(v); }
       drawListBtn(v);
@@ -1055,7 +1128,7 @@
   }
   function drawPick() {
     const t = $('pkQ').value.trim(), low = t.toLowerCase();
-    const list = recipes.filter(r => r.name.toLowerCase().includes(low)).sort((a, b) => a.name.localeCompare(b.name));
+    const list = shelf.book.filter(r => r.name.toLowerCase().includes(low)).sort((a, b) => a.name.localeCompare(b.name));
     $('pkList').innerHTML = list.length
       ? list.map(r => `<li><button type="button" data-pick="${D.esc(r.id)}" style="${paint(colorOf(r.tags[0]))}"><i></i><span>${D.esc(r.name)}</span></button></li>`).join('')
       : `<li class="none">${t ? `No recipe has “${D.esc(t)}”.` : 'No recipes yet.'}</li>`;
