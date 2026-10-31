@@ -53,6 +53,19 @@ const MEALS = {
 const planner = p => p.waitForSelector('#navPlan:not([hidden])');
 const tab = go => async p => { await planner(p); await p.click(`#nav [data-go="${go}"]`); await p.waitForSelector(`#${go}.open`); };
 const pickDay = date => async p => { await tab('plan')(p); await p.click(`#pDays [data-plan="${date}"]`); await p.waitForSelector('#pick.open'); };
+// Settings, at "Meal plan and grocery list", once it shows `sel`
+const sharing = sel => async p => {
+  await planner(p);
+  await settings(p);
+  await p.waitForSelector('#sShare ' + sel);
+  if (await p.isVisible('#sAdmin')) await p.waitForSelector('#sPeople .row');   // the admin's lists, which come first
+  await p.$eval('#sMeal', g => g.scrollIntoView({ block: 'center' }));
+};
+// Who shares in the scenes: Mitchell with Nicole (one plan), Hayden asked Madi, and Madi and Ellie plan alone.
+const MADI = {
+  days: { '2026-10-23': dinner('madis-pasta-salad', "Madi's pasta salad", 'Madi'), '2026-10-25': { note: 'Dinner at Mom’s', by: 'Madi' } },
+  list: { recipes: [{ id: 'madis-pasta-salad', name: "Madi's pasta salad" }], extra: [], got: [], gone: [] }
+};
 const scenes = [
   { name: '01-box-signed-out-day' },
   { name: '02-box-signed-in-day', as: 'Madi' },
@@ -85,12 +98,17 @@ const scenes = [
   { name: '29-grocery-end-day', as: 'Mitchell', day0: true, act: async p => { await tab('grocery')(p); await layerEnd('grocery')(p); } },
   { name: '30-recipe-add-to-list-day', as: 'Nicole', day0: true, act: async p => { await planner(p); await openRecipe(ZUPPA)(p); await p.$eval('#listBtn', b => b.scrollIntoView({ block: 'center' })); } },
   { name: '31-recipe-on-list-day', as: 'Mitchell', day0: true, act: async p => { await planner(p); await openRecipe('Burgers and fries')(p); } },
-  { name: '32-settings-partner-day', as: 'Mitchell', day0: true, act: async p => { await planner(p); await settings(p); await p.waitForSelector('#sPartners [data-partner="nicole"]'); await p.$eval('#sMeal', g => g.scrollIntoView({ block: 'center' })); } },
+  { name: '32-settings-sharing-day', as: 'Mitchell', day0: true, act: sharing('[data-share="leave"]') },
   { name: '33-box-planner-day', as: 'Nicole', day0: true, act: planner },
   { name: '34-plan-night', theme: 'dark', as: 'Mitchell', day0: true, act: tab('plan') },
   { name: '35-plan-picker-night', theme: 'dark', as: 'Nicole', day0: true, act: pickDay('2026-10-25') },
   { name: '36-grocery-night', theme: 'dark', as: 'Mitchell', day0: true, act: tab('grocery') },
-  { name: '37-recipe-on-list-night', theme: 'dark', as: 'Nicole', day0: true, act: async p => { await planner(p); await openRecipe('Burgers and fries')(p); } }
+  { name: '37-recipe-on-list-night', theme: 'dark', as: 'Nicole', day0: true, act: async p => { await planner(p); await openRecipe('Burgers and fries')(p); } },
+  { name: '38-settings-asked-day', as: 'Madi', day0: true, act: sharing('[data-share="join"]') },
+  { name: '39-settings-waiting-night', theme: 'dark', as: 'Hayden', day0: true, act: sharing('[data-share="cancel"]') },
+  { name: '40-plan-own-day', as: 'Madi', day0: true, act: tab('plan') },
+  { name: '41-settings-ask-day', as: 'Ellie', day0: true, act: sharing('[data-ask]') },
+  { name: '42-settings-ask-night', theme: 'dark', as: 'Ellie', day0: true, act: sharing('[data-ask]') }
 ];
 let signOutAll;   // ends every sign-in on the Worker, for the scene where a save finds the sign-in gone
 
@@ -102,10 +120,18 @@ let signOutAll;   // ends every sign-in on the Worker, for the scene where a sav
   await api.addUser('Nicole', 'nicole-password');
   await api.addUser('Jen', 'jen-password', true);
   signOutAll = () => { for (const k of [...api.kv.m.keys()]) if (k.startsWith('auth:session:')) api.kv.m.delete(k); };
-  const PASSWORDS = { Madi: 'madi-password', Nicole: 'nicole-password', Mitchell: api.ADMIN_PASSWORD };
-  const nicole = await api.kv.get('auth:user:nicole', 'json');
-  await api.kv.put('meals:partner', JSON.stringify({ key: 'nicole', id: nicole.id, name: 'Nicole' }));
-  await api.kv.put('meals:data', JSON.stringify(MEALS));
+  await api.addUser('Hayden', 'hayden-password');
+  await api.addUser('Ellie', 'ellie-password');
+  const PASSWORDS = { Madi: 'madi-password', Nicole: 'nicole-password', Hayden: 'hayden-password', Ellie: 'ellie-password', Mitchell: api.ADMIN_PASSWORD };
+  const person = async key => { const u = await api.kv.get('auth:user:' + key, 'json'); return { key, id: u.id, name: u.name }; };
+  const mitchell = { key: 'mitchell', id: 'admin', name: 'Mitchell' }, nicole = await person('nicole'), madi = await person('madi'), hayden = await person('hayden');
+  const put = (k, v) => api.kv.put(k, JSON.stringify(v));
+  await put('meals:plan:pshots', { members: [mitchell, nicole], ...MEALS });
+  await put('meals:me:mitchell', { id: 'admin', plan: 'pshots' });
+  await put('meals:me:nicole', { id: nicole.id, plan: 'pshots' });
+  await put(`meals:plan:solo.madi.${madi.id}`, { members: [madi], ...MADI });
+  await put('meals:me:madi', { id: madi.id, invite: hayden });
+  await put('meals:me:hayden', { id: hayden.id, asked: madi });
   const browser = await webkit.launch();
   const problems = [];
   for (const sc of scenes) {

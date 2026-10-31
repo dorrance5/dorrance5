@@ -47,7 +47,7 @@ function cleanName(s) {
   const name = String(s || '').normalize('NFC').trim().replace(/\s+/g, ' ');
   return /^[\p{L}\p{N}][\p{L}\p{N} .'’_-]{1,23}$/u.test(name) ? name : null;
 }
-const keyOf = name => name.toLowerCase();
+export const keyOf = name => name.toLowerCase();
 export const adminName = env => cleanName(env.ADMIN) || 'Mitchell';
 const isAdminName = (env, name) => keyOf(name) === keyOf(adminName(env));
 
@@ -60,7 +60,7 @@ async function tried(env, req) {
   await env.LIB.put(triesKey(req), String(await tries(env, req) + 1), { expirationTtl: WINDOW });
 }
 
-async function users(env) {
+export async function users(env) {
   const out = [];
   let cursor;
   do {

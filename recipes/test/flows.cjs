@@ -314,8 +314,9 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   await page.waitForSelector('#sMe:not([hidden])');
   const sess = await page.evaluate(() => JSON.parse(localStorage.getItem('dorrance-session')));
   check('signed in: the You card says who', (await text('#sMeName')) === 'Madi' && (await text('#sMeRole')) === 'Signed in' && sess.name === 'Madi' && !sess.admin);
-  check('signed in: the tab bar shows Recipes and Settings, Settings picked, and no back button',
-    await page.isVisible('#nav') && (await page.$$eval('#nav button:not([hidden])', bs => bs.map(b => b.textContent.trim() + (b.getAttribute('aria-current') ? '*' : '')).join())) === 'Recipes,Settings*' && await page.isHidden('#sBack'));
+  await page.waitForSelector('#navPlan:not([hidden])');   // once Madi's own meal plan has loaded
+  check('signed in: the tab bar shows Recipes, Meal plan, Grocery list and Settings, Settings picked, and no back button',
+    await page.isVisible('#nav') && (await page.$$eval('#nav button:not([hidden])', bs => bs.map(b => b.textContent.trim() + (b.getAttribute('aria-current') ? '*' : '')).join())) === 'Recipes,Meal plan,Grocery list,Settings*' && await page.isHidden('#sBack'));
   check('only the admin sees the accounts', await page.isHidden('#sAdmin'));
   check('the password is gone from the form', (await page.inputValue('#aPass')) === '');
   await tap('#nav [data-go="box"]');
@@ -484,17 +485,25 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   await page.waitForFunction(n => performance.getEntriesByType('resource').some(e => e.name.endsWith('/api/auth/me')), me0);
   check('without a recent count, a page load asks once', meCalls() === me0 + 1);
 
-  /* ---- the meal plan and the grocery list: Mitchell (the admin) and the partner ---- */
+  /* ---- the meal plan and the grocery list: everyone has one, and Mitchell shares theirs with Nicole ---- */
   // From here every page says it is Saturday, October 24, 2026: Date.now() stands still and the timers run.
   const DAY0 = new Date(2026, 9, 24, 18, 0);
   const INK = 'rgb(42, 29, 23)';
   await api.addUser('Nicole', 'nicole-password');
-  const mealsKV = () => api.kv.get('meals:data', 'json');
-  const writes = () => api.kv.puts.filter(k => k === 'meals:data').length;
+  // Mitchell's plan in KV: the one they share, or their own
+  const mealsKV = async () => {
+    const me = await api.kv.get('meals:me:mitchell', 'json');
+    return api.kv.get('meals:plan:' + (me && me.plan ? me.plan : 'solo.mitchell.admin'), 'json');
+  };
+  const writes = () => api.kv.puts.filter(k => k.startsWith('meals:plan:')).length;
   const queued = (p = page) => p.evaluate(() => { try { return JSON.parse(localStorage.getItem('recipes-meals')).queue.length; } catch (e) { return -1; } });
   const sent = (p = page) => p.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('recipes-meals')).queue.length === 0; } catch (e) { return false; } });
   const navTabs = (p = page) => p.$$eval('#nav button:not([hidden])', bs => bs.map(b => b.textContent.trim() + (b.getAttribute('aria-current') ? '*' : '')).join());
-  const chips = () => page.$$eval('#sPartners button', bs => bs.map(b => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')).join());
+  const shareText = (p = page) => p.$eval('#sShare', s => s.innerText.replace(/\s+/g, ' ').trim());
+  const askChips = (p = page) => p.$$eval('#sShare [data-ask]', bs => bs.map(b => b.textContent).join());
+  const hasDot = p => p.$eval('#navSettings', b => b.classList.contains('dot'));
+  // Settings again, so it reads who shares
+  const reopen = async (p = page) => { await p.tap('#nav [data-go="box"]'); await closed('settings', p); await p.tap('#navSettings'); await opened('settings', p); };
   const days = (p = page) => p.$$eval('#pDays li', ls => ls.map(l => {
     const w = l.querySelector('.what'), b = l.querySelector('.by');
     return `${l.querySelector('.dw').textContent} ${l.querySelector('.dn').textContent}: ${w ? w.textContent : '+'}${b ? ' (' + b.getAttribute('aria-label').slice(11) + ')' : ''}`;
@@ -531,27 +540,50 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   check('the admin plans dinners: four tabs, Recipes picked', (await navTabs()) === 'Recipes*,Meal plan,Grocery list,Settings' && (await page.$eval('#nav', n => getComputedStyle(n).gridTemplateColumns.split(' ').length)) === 4);
   check('a page load reads the meal plan once and writes nothing to KV', urls.filter(u => u.endsWith('/api/meals')).length - mealGets0 === 1 && api.kv.puts.length === kvPuts0);
 
-  // Settings: who shares the plan
+  // Settings: share the plan. Mitchell asks Jen, who says no, then Nicole, who says yes.
   await tap('#navSettings');
   await opened('settings');
-  await page.waitForSelector('#sPartners [data-partner="nicole"]');
-  check('Settings: "Meal plan and grocery list" after Accounts, No one on the left and picked, with a hint',
-    (await chips()) === 'No one*,Jen,Nicole' && await page.isVisible('#sMealHint')
-    && await page.evaluate(() => { const g = [...document.querySelectorAll('#sAdmin > .group > h2')].map(h => h.textContent); return g.indexOf('Meal plan and grocery list') === g.indexOf('Accounts') + 1; }));
-  await tap('#sPartners [data-partner="nicole"]');
-  await page.waitForFunction(() => document.getElementById('sSay').textContent.startsWith('Nicole'));
-  check('picking Nicole: Nicole is the partner, here and on the Worker', (await chips()) === 'No one,Jen,Nicole*' && await page.isHidden('#sMealHint')
-    && (await api.kv.get('meals:partner', 'json')).key === 'nicole' && (await text('#sSay')) === 'Nicole shares the meal plan and the grocery list with you now.');
-  await phoneRules('settings with the partner chips');
+  await page.waitForSelector('#sShare [data-ask="nicole"]');
+  check('Settings: "Meal plan and grocery list" after Accounts, with a chip to ask each account', (await askChips()) === 'Jen,Nicole'
+    && await page.evaluate(() => { const g = [...document.querySelectorAll('#settings .group > h2')].map(h => h.textContent); return g.indexOf('Meal plan and grocery list') === g.indexOf('Accounts') + 1; }));
+  await tap('#sShare [data-ask="jen"]');
+  await page.waitForSelector('#sShare [data-share="cancel"]');
+  check('asking Jen: Waiting for Jen to say yes, with Cancel', (await shareText()).includes('Waiting for Jen to say yes') && (await text('#sSay')) === 'Jen is asked. They can say yes in their Settings.');
+  await phoneRules('settings, an ask on its way');
 
-  const jen = await phoneOf('Jen', 'jen-password');
-  check('Jen is not a planner: Recipes and Settings only, and nothing kept', (await navTabs(jen.p)) === 'Recipes*,Settings' && (await jen.p.evaluate(() => localStorage.getItem('recipes-meals'))) === null);
-  await jen.p.tap('#deck .rc:has-text("Burgers")');
-  await jen.p.waitForSelector('#view.open');
-  check('Jen: no Add to grocery list on a recipe', await jen.p.isHidden('#listBtn'));
+  const jen = await phoneOf('Jen', 'jen-password'), jp = jen.p;
+  check('Jen has a plan too: four tabs, and a dot on Settings for the ask', (await navTabs(jp)) === 'Recipes*,Meal plan,Grocery list,Settings'
+    && await hasDot(jp) && (await jp.getAttribute('#navSettings', 'aria-label')) === 'Settings, Mitchell asked to share a meal plan');
+  await jp.tap('#nav [data-go="plan"]');
+  await opened('plan', jp);
+  check('Jen’s own plan: Dinners for Jen, nothing planned', (await jp.textContent('#pWho')) === 'Dinners for Jen' && !(await days(jp)).includes('('));
+  await jp.tap('#nav [data-go="settings"]');
+  await opened('settings', jp);
+  await jp.waitForSelector('#sShare [data-share="join"]');
+  check('Jen’s Settings: Mitchell asked to share, with Join and No thanks', (await shareText(jp)).startsWith('M Mitchell asked to share One meal plan'), await shareText(jp));
+  await phoneRules('settings, asked to share', jp);
+  await jp.tap('#sShare [data-share="decline"]');
+  await jp.waitForSelector('#sShare [data-share="join"]', { state: 'detached' });
+  check('No thanks: the ask and the dot go', (await jp.textContent('#sSay')) === 'You said no to Mitchell.' && !(await hasDot(jp)), { say: await jp.textContent('#sSay'), dot: await hasDot(jp) });
   await jen.c.close();
+  await reopen();
+  await page.waitForSelector('#sShare [data-ask="nicole"]');
+  check('Mitchell sees the no: free to ask someone else', !(await page.$('#sShare [data-share="cancel"]')));
+
+  await tap('#sShare [data-ask="nicole"]');
+  await page.waitForSelector('#sShare [data-share="cancel"]');
   const nicole = await phoneOf('Nicole', 'nicole-password'), np = nicole.p;
-  check('Nicole is the partner: four tabs', (await navTabs(np)) === 'Recipes*,Meal plan,Grocery list,Settings');
+  await np.tap('#navSettings');
+  await opened('settings', np);
+  await np.waitForSelector('#sShare [data-share="join"]');
+  await np.tap('#sShare [data-share="join"]');
+  await np.waitForSelector('#sShare [data-share="leave"]');
+  check('Nicole says yes: they share with Mitchell now', (await np.textContent('#sSay')) === 'You share a meal plan and grocery list with Mitchell now.'
+    && (await shareText(np)).includes('Mitchell Shares your meal plan and grocery list') && !(await hasDot(np)));
+  await reopen();
+  await page.waitForSelector('#sShare [data-share="leave"]');
+  check('Mitchell sees it: shares with Nicole, with Stop sharing', (await shareText()).includes('Nicole Shares your meal plan and grocery list Stop sharing'));
+  await phoneRules('settings, sharing');
 
   // The meal plan
   await tap('#nav [data-go="plan"]');
@@ -711,25 +743,37 @@ const TOMATO = 'rgb(198, 58, 36)', CARROT = 'rgb(224, 123, 46)', BUTTER = 'rgb(2
   await closed('plan');
   check('the back button goes from a tab to the box', (await depth()) === 0 && (await navTabs()) === 'Recipes*,Meal plan,Grocery list,Settings');
 
-  // No one, then the partner's account removed
+  // Stop sharing, then the account of the one Mitchell shares with removed
   await tap('#navSettings');
   await opened('settings');
-  await page.waitForSelector('#sPartners [data-partner=""]');
-  await tap('#sPartners [data-partner=""]');
-  await page.waitForFunction(() => document.getElementById('sSay').textContent.startsWith('Only you'));
-  check('No one: only Mitchell plans now', (await chips()) === 'No one*,Jen,Nicole' && !(await api.kv.get('meals:partner', 'json')) && (await text('#pWho')) === 'Dinners for Mitchell');
+  await page.waitForSelector('#sShare [data-share="leave"]');
+  await tap('#sShare [data-share="leave"]');
+  check('Stop sharing asks for a second tap', (await text('#sShare [data-share="leave"]')) === 'Tap again' && !!(await api.kv.get('meals:me:mitchell', 'json')).plan);
+  await tap('#sShare [data-share="leave"]');
+  await page.waitForFunction(() => document.getElementById('sSay').textContent.startsWith('You stopped'));
+  await page.waitForSelector('#sShare [data-ask="nicole"]');   // the chips come back once the accounts are read again
+  check('stopped: Mitchell has their own plan back, with nothing planned', (await text('#sSay')) === 'You stopped sharing with Nicole. Your own plan is back.'
+    && (await text('#pWho')) === 'Dinners for Mitchell' && !(await days()).includes('(') && (await askChips()) === 'Jen,Nicole',
+    { say: await text('#sSay'), who: await text('#pWho'), days: await days(), chips: await askChips() });
   await poke(np);
-  await np.waitForSelector('#navPlan', { state: 'hidden' });
-  await closed('grocery', np);
-  check('Nicole: the next read says not a planner, so the tabs and what the phone kept go', (await navTabs(np)) === 'Recipes*,Settings'
-    && (await np.evaluate(() => localStorage.getItem('recipes-meals'))) === null, { tabs: await navTabs(np), kept: await np.evaluate(() => localStorage.getItem('recipes-meals')) });
+  await np.waitForFunction(() => document.getElementById('pWho').textContent === 'Dinners for Nicole');
+  check('Nicole keeps the shared plan, the roast and all', (await days(np)).includes('Mon 26: Pepperoncini roast (Nicole)'));
+  await tap('#sShare [data-ask="nicole"]');
+  await page.waitForSelector('#sShare [data-share="cancel"]');
+  await np.tap('#nav [data-go="settings"]');
+  await opened('settings', np);
+  await np.waitForSelector('#sShare [data-share="join"]');
+  await np.tap('#sShare [data-share="join"]');
+  await np.waitForSelector('#sShare [data-share="leave"]');
   await nicole.c.close();
-  await tap('#sPartners [data-partner="nicole"]');
-  await page.waitForFunction(() => document.querySelector('#sPartners [data-partner="nicole"]')?.getAttribute('aria-pressed') === 'true');
+  await reopen();
+  await page.waitForSelector('#sShare [data-share="leave"]');
   await tap('#sPeople [data-remove="nicole"]');
   await tap('#sPeople [data-remove="nicole"]');
-  await page.waitForFunction(() => document.querySelector('#sPartners [data-partner=""]')?.getAttribute('aria-pressed') === 'true');
-  check('removing the partner’s account: No one shares the plan', (await chips()) === 'No one*,Jen' && (await text('#pWho')) === 'Dinners for Mitchell');
+  await page.waitForSelector('#sShare [data-ask]');
+  await page.waitForFunction(() => document.querySelectorAll('#sShare [data-ask]').length === 1);
+  check('removing the account of the one Mitchell shares with: Mitchell plans alone, and that chip goes',
+    (await askChips()) === 'Jen' && (await text('#pWho')) === 'Dinners for Mitchell');
 
   // A sign-in that ended, and Sign out: the tabs and the kept plan go
   await tap('#nav [data-go="grocery"]');

@@ -3,7 +3,7 @@
    A change to this file reaches the Worker only with `npx wrangler deploy` in worker/.
    Browser: window.Meals. Node and the Worker: require or import './meals.js'.
 
-   The data, which the Worker keeps in KV:
+   The data of one plan, which the Worker keeps in KV. Everyone has a plan, and two people can share one (worker/meals.js):
      { days: { 'YYYY-MM-DD': { recipe, name, by } | { note, by } },
        list: { recipes: [{ id, name }], extra: [{ key, text }], got: [key], gone: [key] } }
    days   the dinner on each day: a recipe, or a note such as "Leftovers". `by` is who planned it.
@@ -213,12 +213,14 @@
   const PROBLEMS = {
     network: 'No connection.',
     signin: 'You are signed out. Sign in again.',
-    planner: 'The meal plan is not shared with you.',
-    busy: 'The meal plan is busy. Trying again.',
+    busy: 'The meal plan is busy. Try again.',
     full: 'The meal plan cannot save right now.',
     body: 'The change is not valid.',
-    admin: 'Only the admin can do that.',
-    nobody: 'That account is gone.'
+    nobody: 'That account is gone.',
+    sharing: 'You share your meal plan with someone already. Stop sharing first.',
+    asked: 'Someone else asked them first.',
+    taken: 'They share a meal plan with someone else now.',
+    gone: 'That request is gone.'
   };
   function fail(code) {
     const e = new Error(PROBLEMS[code] || `The server answered with error ${code}.`);
@@ -246,7 +248,9 @@
       get: () => call('', 'GET'),
       // `keepalive` sends even when the page is closing
       send: (ops, keepalive) => call('', 'POST', { ops }, keepalive),
-      partner: k => call('/partner', 'PUT', { key: k })
+      people: () => call('/people', 'GET'),
+      // 'ask' with a key, 'cancel', 'join', 'decline' or 'leave'
+      share: (what, key) => call('/share', 'POST', key ? { do: what, key } : { do: what })
     };
   }
 

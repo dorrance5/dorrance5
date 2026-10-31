@@ -343,13 +343,17 @@ body.has-nav #settings .setbody { padding-bottom: calc(96px + max(16px, env(safe
 .themes button[aria-pressed="true"] { background: var(--solid); color: var(--on-solid); }
 .oldlink { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 44px; padding: 0 4px; font-size: 15px; font-weight: 700; }
 .mealbox p { margin: 0; font-size: 15px; line-height: 1.45; }
-.mealbox .hint { font-weight: 700; color: var(--link); }
+.mealbox .soft { color: var(--soft); }
+.mealbox .row { display: flex; align-items: center; gap: 14px; margin: -4px -8px -4px 0; }
+.mealbox .av { width: 40px; height: 40px; font-size: 18px; }
+.mealbox .who b { font-size: 17px; font-weight: 700; }
+.mealbox .pill { border-color: transparent; color: var(--link); font-weight: 800; padding: 0 14px; }
+.mealbox .pill.armed { border-color: var(--link); }
 .partners { display: flex; flex-wrap: wrap; gap: 8px; }
 .partners button { min-height: 44px; padding: 0 18px; border: 1.5px solid var(--edge); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 15px; font-weight: 700; }
-.partners button[aria-pressed="true"] { border-color: var(--solid); background: var(--solid); color: var(--on-solid); }
 
-/* the meal plan and the grocery list: tabs for the admin and the partner. The carrot and butter headers keep their
-   colors at night, with ink text. */
+/* the meal plan and the grocery list: tabs for everyone signed in. The carrot and butter headers keep their colors at
+   night, with ink text. */
 .planhead, .grohead {
   display: flex; flex-direction: column; gap: 14px; color: #2A1D17; border-radius: 0 0 28px 28px;
   padding: calc(30px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 18px calc(20px + env(safe-area-inset-left));
@@ -642,14 +646,10 @@ body.has-nav #plan .planbody, body.has-nav #grocery .grobody { padding-bottom: c
         <h2>Accounts</h2>
         <div class="box people" id="sPeople"></div>
       </div>
-      <div class="group" id="sMeal" style="margin-top: 20px" hidden>
-        <h2 id="sMealLabel">Meal plan and grocery list</h2>
-        <div class="box mealbox">
-          <p>You and one other person share the meal plan and the grocery list. No one else sees them.</p>
-          <div class="partners" id="sPartners" role="group" aria-labelledby="sMealLabel"></div>
-          <p class="hint" id="sMealHint" hidden>Pick who shares them with you.</p>
-        </div>
-      </div>
+    </div>
+    <div class="group" id="sMeal" hidden>
+      <h2>Meal plan and grocery list</h2>
+      <div id="sShare" style="display: contents"></div>
     </div>
     <section class="box signform" id="aBox" hidden>
       <div class="intro">

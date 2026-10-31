@@ -1,5 +1,5 @@
-/* Recipes — the page: the recipe box, one recipe, cooking mode, the editor and Settings, and for the two meal
-   planners the meal plan and the grocery list.
+/* Recipes — the page: the recipe box, one recipe, cooking mode, the editor and Settings, and for everyone signed in
+   the meal plan and the grocery list.
    The data file and the saves are in data.js (window.RecipeData). The meal plan's data and ops are in meals.js
    (window.Meals), which the API Worker uses too. The dorrance.me sign-in is shared/account.js (window.Account): one
    sign-in for every page on the site. */
@@ -264,9 +264,9 @@
     }
   });
 
-  // The tab bar, for anyone signed in, on the box and on the tabs: Recipes and Settings, and for the two meal planners
-  // Meal plan and Grocery list as well. Settings opened over another screen (to sign in again during a save) has a back
-  // button instead, and so has Settings for someone signed out.
+  // The tab bar, for anyone signed in, on the box and on the tabs: Recipes, Meal plan, Grocery list and Settings. The
+  // meal tabs show once the plan has loaded. Settings opened over another screen (to sign in again during a save) has
+  // a back button instead, and so has Settings for someone signed out.
   function drawNav() {
     const s = !!session(), mine = planner(), l = top(), alone = stack.length === 1 && tabLayers.includes(l), on = s && (!l || alone);
     nav.hidden = !on;
@@ -347,7 +347,7 @@
     let html = `<article class="index" style="${paint(colorOf(r.tags[0]))}"><div class="strip"></div><div class="head">${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}<h1 class="serif" id="vName">${D.esc(r.name)}</h1></div><div class="rule"></div><div class="body">${seg}${r.steps.length && half === 'steps' ? steps : ings}</div></article>`;
     const acts = [];
     if (r.steps.length) acts.push(`<button class="pill tomato big" id="cookBtn" type="button">${ICON.pot}<span>Start cooking</span></button>`);
-    if (r.ingredients.length) acts.push('<button class="pill big listbtn" id="listBtn" type="button" hidden></button>');   // for the planners
+    if (r.ingredients.length) acts.push('<button class="pill big listbtn" id="listBtn" type="button" hidden></button>');   // signed in
     if (acts.length) html += `<div class="acts">${acts.join('')}</div>`;
     if (r.notes) html += `<section class="notes"><h2 class="serif">Notes</h2><p>${D.esc(r.notes)}</p></section>`;
     if (r.source) {
@@ -706,6 +706,7 @@
     making = false;
     account();
     if (session() && session().admin) loadFolks();
+    if (session()) { pull(); loadOthers(); }   // who shares, and who can be asked
     applyTheme();
     if (tabbed) goTab(settings); else open(settings);
   }
@@ -734,7 +735,7 @@
         toast(`Signed in as ${out.name}.`);
         if (out.admin) loadFolks();
         load();   // the newest copy, from GitHub
-        pull();   // the meal plan, for the planners
+        pull();   // the meal plan
       }
     } catch (err) {
       result(problem(err));
@@ -755,12 +756,14 @@
     result('Signed out.', true);
   });
 
-  // A dot on Settings in the tab bar while accounts wait for the admin. Counting them is a KV list on the Worker,
-  // so a page load asks at most once every 6 hours; opening Settings always asks.
-  function showDot(n) {
-    const b = $('navSettings');
-    b.classList.toggle('dot', n > 0);
-    b.setAttribute('aria-label', n > 0 ? `Settings, ${plural(n, 'account')} waiting for approval` : 'Settings');
+  // A dot on Settings in the tab bar while accounts wait for the admin, or someone asked to share a meal plan. Counting
+  // the accounts is a KV list on the Worker, so a page load asks at most once every 6 hours; opening Settings always asks.
+  let waitN = 0;
+  function showDot(n) { waitN = n; drawDot(); }
+  function drawDot() {
+    const b = $('navSettings'), v = shown(), asked = v && v.share && v.share.invite;
+    b.classList.toggle('dot', waitN > 0 || !!asked);
+    b.setAttribute('aria-label', asked ? `Settings, ${asked.name} asked to share a meal plan` : waitN > 0 ? `Settings, ${plural(waitN, 'account')} waiting for approval` : 'Settings');
   }
   function dot(n) {
     showDot(n);
@@ -810,7 +813,6 @@
     people.innerHTML = approved.length
       ? approved.map(p => `<div class="row">${avatar(p)}<span class="who"><b>${D.esc(p.name)}</b></span><button class="pill" type="button" data-remove="${D.esc(p.key)}" data-label="Remove" data-armed="Tap again" aria-label="Remove ${D.esc(p.name)}">Remove</button></div>`).join('')
       : '<p class="nobody">No other accounts yet.</p>';
-    drawMeals();   // a partner chip for each account
   }
   function unarm() {
     settings.querySelectorAll('[data-remove].armed').forEach(b => {
@@ -843,12 +845,9 @@
         await A.mine().remove(key);
         folks = folks.filter(x => x !== p);
         said(p.status === 'pending' ? `${p.name}’s request is gone.` : `${p.name} can no longer sign in.`);
-        if (planner() && meals.state.partner && meals.state.partner.key === key) {   // the partner is gone: no one shares the plan
-          meals.state.partner = null;
-          meals.state.people = meals.state.people.slice(0, 1);
-          saveMeals();
-          pull();
-        }
+        const v = shown();
+        if (v && v.share && v.share.with && v.share.with.key === key) pull();   // the admin shared with them: no more
+        loadOthers();   // one chip less to ask
       }
       drawFolks();
     } catch (err) {
@@ -859,13 +858,13 @@
     }
   });
 
-  /* ---- the meal plan and the grocery list: tabs for the admin and the partner the admin picks ---- */
+  /* ---- the meal plan and the grocery list: tabs for everyone signed in, and a plan two people can share ---- */
   // The Worker keeps them (worker/meals.js), and meals.js has the data and the ops. This phone keeps the last answer and
   // the changes that are not sent yet under "recipes-meals", so the tabs show at once, and it shows the answer with those
   // changes on top. The changes go in batches: one POST at a time, at most one each 1.2 s. A GET only reads KV, so a page
   // load and the 30 s refresh while a meal screen shows cost no writes.
-  let meals = null;   // { name, state: the Worker's answer { people, days, list, partner (admin) }, queue: [ops] }
-  let week = 0, pickDate = null, shopping = [], choosing = false;
+  let meals = null;   // { name, state: the Worker's answer { people, days, list, share }, queue: [ops] }
+  let week = 0, pickDate = null, shopping = [], sharing = false;   // sharing: an ask, a yes or a stop is on its way
   // The batch window and the age of the last GET use performance.now(), which only goes forward. `ticks` orders the
   // GETs and the POSTs.
   let sending = false, sendT = 0, retryT = 0, tries = 0, lastSent = -Infinity, lastPull = -Infinity, ticks = 0, lastPost = 0, pulls = 0;
@@ -886,7 +885,7 @@
     const people = Array.isArray(c.state.people) ? c.state.people.filter(n => typeof n === 'string') : [s.name];
     meals = { name: c.name, state: { ...c.state, people }, queue: c.queue.map(M.check).filter(Boolean) };
   }
-  // Not a planner, or signed out: the tabs go, and so does what this phone kept.
+  // Signed out: the tabs go, and so does what this phone kept.
   function dropMeals() {
     meals = null;
     store.del(MEALS);
@@ -938,7 +937,6 @@
       if (e.code === 'busy') wait = 1500;   // the other phone saved in the same second
       else if (e.code === 'body') { mine.queue.splice(0, batch.length); saveMeals(); pull(); }   // drop it: the Worker's copy is right
       else if (e.code === 'signin') signOut();
-      else if (e.code === 'planner') dropMeals();
       else {   // no connection, the day's free writes are used up, or the Worker failed: keep the changes and try later
         if (!e.code) console.error(e);
         wait = e.code === 'full' ? 300e3 : [5e3, 15e3, 30e3, 60e3][Math.min(tries++, 3)];
@@ -968,8 +966,7 @@
       later();
     } catch (e) {
       if (n !== pulls) return;
-      if (e.code === 'planner') dropMeals();
-      else if (e.code === 'signin') signOut();
+      if (e.code === 'signin') signOut();
     }   // no connection: the copy on this phone stays
   }
   document.addEventListener('visibilitychange', () => {
@@ -989,7 +986,7 @@
     const a = document.activeElement, d = a && a.dataset, q = (k, v) => `[data-${k}="${CSS.escape(v)}"]`;
     const want = !d ? [] : d.key != null ? [q('key', d.key)] : d.clear ? [q('clear', d.clear), q('plan', d.clear)]
       : d.plan ? [q('plan', d.plan), q('clear', d.plan)] : d.open ? [q('open', d.open)] : d.week ? [q('week', d.week)]
-      : d.drop ? [q('drop', d.drop), '#gAddRec'] : d.partner != null ? [q('partner', d.partner)] : [];
+      : d.drop ? [q('drop', d.drop), '#gAddRec'] : d.ask ? [q('ask', d.ask)] : d.share ? [q('share', d.share), '#sMeal [data-share]', '#sMeal [data-ask]'] : [];
     draw();
     if (!want.length || document.contains(a)) return;
     const b = want.map(s => document.querySelector(s)).find(Boolean);
@@ -1000,9 +997,10 @@
     refocus(() => {
       if (v) { drawPlan(v); drawGrocery(v); }
       drawListBtn(v);
-      drawPartner(v);
+      drawShare(v);
     });
     drawNav();
+    drawDot();
   }
 
   // The meal plan: Monday to Sunday, this week or the next. Each day has a recipe, a note or nothing.
@@ -1140,38 +1138,73 @@
     change(v.list.recipes.some(x => x.id === r.id) ? { op: 'drop', recipe: r.id } : { op: 'add', recipe: r.id, name: r.name, keys: M.keysOf(r, D.amount) });
   }
 
-  // Admin Settings: who shares the meal plan, with No one on the left
-  function drawPartner(v) {
-    const s = session(), known = !!(s && s.admin && v && 'partner' in v);
-    $('sMeal').hidden = !known;
-    if (!known) return;
-    const on = v.partner ? v.partner.key : '';
-    const list = [{ key: '', name: 'No one' }, ...folks.filter(p => p.status === 'approved')];
-    if (v.partner && !list.some(p => p.key === v.partner.key)) list.push(v.partner);
-    $('sPartners').innerHTML = list.map(p => `<button type="button" data-partner="${D.esc(p.key)}" aria-pressed="${p.key === on}"${choosing ? ' disabled' : ''}>${D.esc(p.name)}</button>`).join('');
-    $('sMealHint').hidden = !!on;
+  // Settings: share the plan with one other person. Someone asks; the other says yes in their Settings.
+  let others = null, othersProblem = '';   // who can be asked, [{ key, name }], loaded when Settings opens
+  async function loadOthers() {
+    others = null;
+    othersProblem = '';
+    try { others = (await mealsApi().people()).people; }
+    catch (e) { othersProblem = problem(e); if (e.code === 'signin') signOut(); }
+    drawMeals();
   }
-  $('sPartners').addEventListener('click', async e => {
-    const b = e.target.closest('[data-partner]'), s = session();
-    if (!b || choosing || !s || b.getAttribute('aria-pressed') === 'true') return;
-    choosing = true;
+  const shareRow = (p, note, button) => `<div class="row">${avatar(p)}<span class="who"><b>${D.esc(p.name)}</b><small>${D.esc(note)}</small></span>${button}</div>`;
+  function drawShare(v) {
+    $('sMeal').hidden = !v;
+    if (!v) return;
+    const s = v.share || {}, off = sharing ? ' disabled' : '';
+    let html = '';
+    if (s.invite) {
+      const n = D.esc(s.invite.name), also = s.with ? ` You stop sharing with ${D.esc(s.with.name)}, who keeps the plan you share now.` : '';
+      html += `<div class="box waiting"><div class="row">${avatar(s.invite)}<span class="who"><b>${n} asked to share</b><small>One meal plan and one grocery list for you both.${also}</small></span></div>`
+        + `<div class="two"><button class="pill solid" type="button" data-share="join"${off}>Join</button><button class="pill" type="button" data-share="decline" aria-label="No thanks to ${n}"${off}>No thanks</button></div></div>`;
+    }
+    let main;
+    if (s.with) {
+      main = shareRow(s.with, 'Shares your meal plan and grocery list',
+        `<button class="pill${leaveArmed ? ' armed' : ''}" type="button" data-share="leave" aria-label="${leaveArmed ? 'Tap again to stop' : 'Stop'} sharing with ${D.esc(s.with.name)}"${off}>${leaveArmed ? 'Tap again' : 'Stop sharing'}</button>`);
+    } else if (s.asked) {
+      main = shareRow(s.asked, `Waiting for ${s.asked.name} to say yes`, `<button class="pill" type="button" data-share="cancel" aria-label="Take back the ask to ${D.esc(s.asked.name)}"${off}>Cancel</button>`);
+    } else {
+      const chips = othersProblem ? `<p class="soft">${D.esc(othersProblem)}</p>` : others === null ? '<p class="soft">Loading…</p>'
+        : others.length ? `<div class="partners" role="group" aria-label="Ask someone to share">${others.map(p => `<button type="button" data-ask="${D.esc(p.key)}"${off}>${D.esc(p.name)}</button>`).join('')}</div>`
+        : '<p class="soft">No one else has an account yet.</p>';
+      main = `<p>Share your meal plan and grocery list with one other person. They join when they say yes.</p>${chips}`;
+    }
+    $('sShare').innerHTML = html + `<div class="box mealbox">${main}</div>`;
+  }
+  // Stop sharing asks for a second tap.
+  let leaveArmed = false, leaveT = 0;
+  $('sMeal').addEventListener('click', async e => {
+    const b = e.target.closest('[data-share], [data-ask]'), v = shown();
+    if (!b || b.disabled || sharing || !v) return;
+    const what = b.dataset.share || 'ask', s = v.share || {};
+    if (what === 'leave' && !leaveArmed) {
+      leaveArmed = true;
+      clearTimeout(leaveT);
+      leaveT = setTimeout(() => { leaveArmed = false; drawMeals(); }, 4000);
+      drawMeals();
+      return;
+    }
+    leaveArmed = false;
+    if (meals.queue.length) { said('Your last changes are still on their way. Try again in a moment.'); retryNow(); return; }
+    const name = what === 'ask' ? b.textContent : what === 'leave' ? s.with.name : what === 'cancel' ? s.asked.name : s.invite.name;
+    sharing = true;
     said('');
-    drawPartner(shown());
+    drawMeals();
     try {
-      const out = await mealsApi().partner(b.dataset.partner);
-      if (planner()) {
-        meals.state.partner = out.partner;
-        meals.state.people = [meals.state.people[0] || s.name, ...(out.partner ? [out.partner.name] : [])];
-        saveMeals();
-      }
-      said(out.partner ? `${out.partner.name} shares the meal plan and the grocery list with you now.` : 'Only you see the meal plan and the grocery list now.');
-      pull();
+      const out = await mealsApi().share(what, b.dataset.ask);
+      if (planner()) { meals.state = out; lastPost = ++ticks; saveMeals(); }   // newer than a GET on its way
+      said({
+        ask: `${name} is asked. They can say yes in their Settings.`, cancel: `The ask to ${name} is taken back.`,
+        join: `You share a meal plan and grocery list with ${name} now.`, decline: `You said no to ${name}.`,
+        leave: `You stopped sharing with ${name}. Your own plan is back.`
+      }[what]);
+      if (what !== 'ask' && what !== 'join') loadOthers();
     } catch (err) {
       said(problem(err));
-      if (err.code === 'signin') signOut();
-      else if (err.code === 'nobody') loadFolks();
+      if (err.code === 'signin') signOut(); else pull();   // asked, taken, gone or nobody: show how things are now
     } finally {
-      choosing = false;
+      sharing = false;
       drawMeals();
     }
   });
