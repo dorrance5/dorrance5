@@ -35,10 +35,11 @@ in the same KV namespace, under keys that start with `auth:`. The admin's name i
 
 ## Meal plan
 
-The route is `dorrance.me/api/meals` (and `/api/meals/partner` for the admin). It needs no setup: it uses the same KV
-namespace, under `meals:data` and `meals:partner`. The meal plan is private, so it stays in KV and never goes to the
-public GitHub repository. A GET only reads; a POST of a batch of changes is one read and one write. The comment at the
-top of `meals.js` lists the routes and the error codes.
+The routes are `dorrance.me/api/meals` and `/api/meals/*`. They need no setup: they use the same KV namespace, under
+`meals:plan:ID` (each plan) and `meals:me:KEY` (who shares and who asked). Everyone signed in has a plan, and two
+people can share one. Plans are private, so they stay in KV and never go to the public GitHub repository. A GET only
+reads; a POST of a batch of changes is one read and one write; asking, saying yes and stopping are a few writes. The
+comment at the top of `meals.js` lists the routes and the error codes.
 
 Run the checks with `node --test worker/test/*.test.js`. A change to this folder goes live only with
 `npx wrangler deploy`. A push to `main` does not deploy the Worker.
